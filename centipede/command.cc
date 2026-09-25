@@ -14,6 +14,7 @@
 
 #include "./centipede/command.h"
 
+#ifndef _WIN32
 #include <errno.h>
 #include <fcntl.h>
 #include <spawn.h>
@@ -22,6 +23,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif  // _WIN32
 
 #ifdef __APPLE__
 #include <inttypes.h>
@@ -35,6 +37,7 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -58,8 +61,15 @@
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./common/logging.h"
+#include "./fuzztest/internal/escaping.h"
+#ifdef _WIN32
+#include "absl/cleanup/cleanup.h"
+#include "absl/container/btree_map.h"
+#include "absl/strings/ascii.h"  // NOLINT
+#include "./common/windows_includes.h"
+#endif
 
-#if !defined(_MSC_VER)
+#ifndef _WIN32
 // Needed to pass the current environment to posix_spawn, which needs an
 // explicit envp without an option to inherit implicitly.
 extern char** environ;
@@ -72,8 +82,11 @@ namespace {
 constexpr std::string_view kCommandLineSeparator(" \\\n");
 constexpr std::string_view kNoForkServerRequestPrefix("%f");
 
+#ifdef _WIN32
+// Do not define `GetProcessCreationStamp`, which is for fork servers.
+#else
 absl::StatusOr<std::string> GetProcessCreationStamp(pid_t pid) {
-#ifdef __APPLE__
+#if defined(__APPLE__)
   struct proc_bsdinfo info = {};
   if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, PROC_PIDTBSDINFO_SIZE) !=
       PROC_PIDTBSDINFO_SIZE) {
@@ -110,8 +123,9 @@ absl::StatusOr<std::string> GetProcessCreationStamp(pid_t pid) {
                      ": ", proc_stat_line));
   }
   return std::string(fields[kFieldIndexOfStartTimeAfterComm]);
-#endif
+#endif  // __APPLE__
 }
+#endif  // _WIN32
 
 std::string GetUniqueSuffix() {
   static std::atomic<uint64_t> suffix_counter = {0};
@@ -122,7 +136,17 @@ std::string GetUniqueSuffix() {
 
 // TODO(ussuri): Encapsulate as much of the fork server functionality from
 //  this source as possible in this struct, and make it a class.
-struct Command::ForkServerProps {
+#ifdef _WIN32
+struct Command::PlatformContext {
+  HANDLE win_process_handle = INVALID_HANDLE_VALUE;
+  ~PlatformContext() {
+    if (win_process_handle != INVALID_HANDLE_VALUE) {
+      CloseHandle(win_process_handle);
+    }
+  }
+};
+#else
+struct ForkServerProps {
   // The file paths of the comms pipes.
   std::string fifo_path_[2];
   // The file descriptors of the comms pipes.
@@ -177,17 +201,30 @@ struct Command::ForkServerProps {
   }
 };
 
+struct Command::PlatformContext {
+  pid_t pid = -1;
+  std::unique_ptr<ForkServerProps> fork_server;
+};
+#endif  // _WIN32
+
 // NOTE: Because std::unique_ptr<T> requires T to be a complete type wherever
 // the deleter is instantiated, the special member functions must be defined
-// out-of-line here, now that ForkServerProps is complete (that's by-the-book
+// out-of-line here, now that PlatformContext is complete (that's by-the-book
 // PIMPL).
 Command::~Command() {
   if (is_executing()) {
     FUZZTEST_LOG(WARNING) << "Destructing Command object for " << path()
                           << " with "
-                          << (fork_server_ ? absl::StrCat("fork server PID ",
-                                                          fork_server_->pid_)
-                                           : absl::StrCat("PID ", pid_))
+#ifdef _WIN32
+                          << GetProcessId(platform_context_->win_process_handle)
+#else
+                          << (platform_context_->fork_server
+                                  ? absl::StrCat(
+                                        "fork server PID ",
+                                        platform_context_->fork_server->pid_)
+                                  : absl::StrCat("PID ",
+                                                 platform_context_->pid))
+#endif
                           << " still running. Requesting it to force-stop "
                              "without waiting for it...";
     RequestStop(/*force=*/true);
@@ -196,14 +233,51 @@ Command::~Command() {
 }
 
 Command::Command(std::string_view path, Options options)
-    : path_(path), options_(std::move(options)) {}
+    : path_(path),
+      options_(std::move(options)),
+      platform_context_(std::make_unique<PlatformContext>()) {}
 
 Command::Command(std::string_view path) : Command{path, {}} {}
 
 std::string Command::ToString() const {
+#ifdef _WIN32
+  std::string path = path_;
+  if (absl::StartsWith(path, kNoForkServerRequestPrefix)) {
+    path = path.substr(kNoForkServerRequestPrefix.size());
+  }
+  constexpr std::string_view kTempFileWildCard = "@@";
+  if (absl::StrContains(path, kTempFileWildCard)) {
+    FUZZTEST_CHECK(!options_.temp_file_path.empty());
+    std::string temp_file = options_.temp_file_path;
+    path = absl::StrReplaceAll(path, {{kTempFileWildCard, temp_file}});
+  }
+  std::string binary_cmd = path;
+  auto Escape = [](std::string_view s) {
+    std::string r = "\"";
+    size_t num_bs = 0;
+    for (size_t i = 0; i < s.size(); ++i) {
+      if (s[i] == '"') {
+        r.append(num_bs + 1, '\\');
+        num_bs = 0;
+      } else if (s[i] == '\\') {
+        ++num_bs;
+      } else {
+        num_bs = 0;
+      }
+      r += s[i];
+    }
+    r.append(num_bs, '\\');
+    r += '"';
+    return r;
+  };
+  for (const auto& arg : options_.args) {
+    absl::StrAppend(&binary_cmd, " ", Escape(arg));
+  }
+  return binary_cmd;
+#else   // _WIN32
   std::vector<std::string> ss;
   ss.reserve(/*env*/ 1 + options_.env_diff.size() + /*path*/ 1 +
-             /*args*/ options_.args.size() + /*out/err*/ 2);
+             /*args*/ options_.args.size() + /*in/out/err*/ 3);
   // env.
   ss.push_back("exec env");
   std::vector<std::string> env_to_set;
@@ -217,7 +291,7 @@ std::string Command::ToString() const {
     }
   }
   for (auto& var : env_to_set) {
-    ss.push_back(std::move(var));
+    ss.push_back(ShellEscape(var));
   }
   // path.
   std::string path = path_;
@@ -235,46 +309,57 @@ std::string Command::ToString() const {
   ss.push_back(std::move(path));
   // args.
   for (const auto& arg : options_.args) {
-    ss.push_back(arg);
+    ss.push_back(ShellEscape(arg));
   }
-  // out/err.
+  // in/out/err.
+  if (!options_.stdin_file_path.empty()) {
+    ss.push_back(absl::StrCat("< ", ShellEscape(options_.stdin_file_path)));
+  }
   if (!stdout_file_.empty()) {
-    ss.push_back(absl::StrCat("> ", stdout_file_));
+    ss.push_back(absl::StrCat("> ", ShellEscape(stdout_file_)));
   }
   if (!stderr_file_.empty()) {
     if (stdout_file_ != stderr_file_) {
-      ss.push_back(absl::StrCat("2> ", stderr_file_));
+      ss.push_back(absl::StrCat("2> ", ShellEscape(stderr_file_)));
     } else {
       ss.push_back("2>&1");
     }
   }
   // Trim trailing space and return.
   return absl::StrJoin(ss, kCommandLineSeparator);
+#endif  // _WIN32
 }
 
 bool Command::StartForkServer(std::string_view temp_dir_path,
                               std::string_view prefix) {
+#ifdef _WIN32
+  return false;
+#else
   if (absl::StartsWith(path_, kNoForkServerRequestPrefix)) {
     FUZZTEST_VLOG(2) << "Fork server disabled for " << path();
     return false;
   }
-  FUZZTEST_CHECK(!is_executing_ && !fork_server_);
+  FUZZTEST_CHECK(!is_executing_ && !platform_context_->fork_server);
   FUZZTEST_VLOG(2) << "Starting fork server for " << path();
 
   ResetRedirectionFiles(GetUniqueSuffix());
   command_line_ = ToString();
 
-  fork_server_.reset(new ForkServerProps);
-  fork_server_->fifo_path_[0] = std::filesystem::path(temp_dir_path)
-                                    .append(absl::StrCat(prefix, "_FIFO0"));
-  fork_server_->fifo_path_[1] = std::filesystem::path(temp_dir_path)
-                                    .append(absl::StrCat(prefix, "_FIFO1"));
+  platform_context_->fork_server = std::make_unique<ForkServerProps>();
+  platform_context_->fork_server->fifo_path_[0] =
+      std::filesystem::path(temp_dir_path)
+          .append(absl::StrCat(prefix, "_FIFO0"));
+  platform_context_->fork_server->fifo_path_[1] =
+      std::filesystem::path(temp_dir_path)
+          .append(absl::StrCat(prefix, "_FIFO1"));
   const std::string pid_file_path =
       std::filesystem::path(temp_dir_path).append("pid");
   (void)std::filesystem::create_directory(temp_dir_path);  // it may not exist.
   for (int i = 0; i < 2; ++i) {
-    FUZZTEST_PCHECK(mkfifo(fork_server_->fifo_path_[i].c_str(), 0600) == 0)
-        << VV(i) << VV(fork_server_->fifo_path_[i]);
+    FUZZTEST_PCHECK(
+        mkfifo(platform_context_->fork_server->fifo_path_[i].c_str(), 0600) ==
+        0)
+        << VV(i) << VV(platform_context_->fork_server->fifo_path_[i]);
   }
 
   // NOTE: A background process does not return its exit status to the subshell,
@@ -290,8 +375,9 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   printf "%%s" $! > "%s"
 )sh";
   const std::string fork_server_command = absl::StrFormat(
-      kForkServerCommandStub, fork_server_->fifo_path_[0],
-      fork_server_->fifo_path_[1], command_line_, pid_file_path);
+      kForkServerCommandStub, platform_context_->fork_server->fifo_path_[0],
+      platform_context_->fork_server->fifo_path_[1], command_line_,
+      pid_file_path);
   FUZZTEST_VLOG(1) << "Fork server command:" << fork_server_command;
 
   const int exit_code = system(fork_server_command.c_str());
@@ -316,10 +402,12 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
   // it.
   // See more at
   // https://www.gnu.org/software/libc/manual/html_node/Operating-Modes.html.
-  if ((fork_server_->pipe_[0] = open(fork_server_->fifo_path_[0].c_str(),
-                                     O_RDWR | O_NONBLOCK)) < 0 ||
-      (fork_server_->pipe_[1] = open(fork_server_->fifo_path_[1].c_str(),
-                                     O_RDONLY | O_NONBLOCK)) < 0) {
+  if ((platform_context_->fork_server->pipe_[0] =
+           open(platform_context_->fork_server->fifo_path_[0].c_str(),
+                O_RDWR | O_NONBLOCK)) < 0 ||
+      (platform_context_->fork_server->pipe_[1] =
+           open(platform_context_->fork_server->fifo_path_[1].c_str(),
+                O_RDONLY | O_NONBLOCK)) < 0) {
     LogProblemInfo(
         "Failed to establish communication with fork server; will proceed "
         "without it");
@@ -328,8 +416,11 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
 
   std::string pid_str;
   ReadFromLocalFile(pid_file_path, pid_str);
-  FUZZTEST_CHECK(absl::SimpleAtoi(pid_str, &fork_server_->pid_)) << VV(pid_str);
-  auto creation_stamp = GetProcessCreationStamp(fork_server_->pid_);
+  FUZZTEST_CHECK(
+      absl::SimpleAtoi(pid_str, &platform_context_->fork_server->pid_))
+      << VV(pid_str);
+  auto creation_stamp =
+      GetProcessCreationStamp(platform_context_->fork_server->pid_);
   if (!creation_stamp.ok()) {
     LogProblemInfo(
         absl::StrCat("Failed to get the fork server's creation stamp; will "
@@ -338,8 +429,9 @@ bool Command::StartForkServer(std::string_view temp_dir_path,
                      creation_stamp.status(), ")"));
     return false;
   }
-  fork_server_->creation_stamp = *std::move(creation_stamp);
+  platform_context_->fork_server->creation_stamp = *std::move(creation_stamp);
   return true;
+#endif  // _WIN32
 }
 
 void Command::ResetRedirectionFiles(std::string_view new_suffix) {
@@ -364,37 +456,218 @@ void Command::ResetRedirectionFiles(std::string_view new_suffix) {
 }
 
 absl::Status Command::VerifyForkServerIsHealthy() {
+#ifdef _WIN32
+  return absl::UnimplementedError("Fork server not supported on Windows");
+#else
   // Preconditions: the callers (`Execute()`) should call us only when the fork
   // server is presumed to be running (`fork_server_pid_` >= 0). If it is, the
   // comms pipes are guaranteed to be opened by `StartForkServer()`.
-  FUZZTEST_CHECK(fork_server_ != nullptr) << "Fork server wasn't started";
-  FUZZTEST_CHECK(fork_server_->pid_ >= 0)
+  FUZZTEST_CHECK(platform_context_->fork_server != nullptr)
+      << "Fork server wasn't started";
+  FUZZTEST_CHECK(platform_context_->fork_server->pid_ >= 0)
       << "Fork server process failed to start";
-  FUZZTEST_CHECK(fork_server_->pipe_[0] >= 0 && fork_server_->pipe_[1] >= 0)
+  FUZZTEST_CHECK(platform_context_->fork_server->pipe_[0] >= 0 &&
+                 platform_context_->fork_server->pipe_[1] >= 0)
       << "Failed to connect to fork server";
 
   // A process with the fork server PID exists (_some_ process, possibly with a
   // recycled PID)...
-  if (kill(fork_server_->pid_, 0) != EXIT_SUCCESS) {
-    return absl::UnknownError(absl::StrCat(
-        "Can't communicate with fork server, PID=", fork_server_->pid_));
+  if (kill(platform_context_->fork_server->pid_, 0) != EXIT_SUCCESS) {
+    return absl::UnknownError(
+        absl::StrCat("Can't communicate with fork server, PID=",
+                     platform_context_->fork_server->pid_));
   }
   // ...and it is a process has the same creation stamp, so it's practically
   // guaranteed to be our original fork server process.
-  const auto creation_stamp = GetProcessCreationStamp(fork_server_->pid_);
+  const auto creation_stamp =
+      GetProcessCreationStamp(platform_context_->fork_server->pid_);
   if (!creation_stamp.ok()) return creation_stamp.status();
-  if (*creation_stamp != fork_server_->creation_stamp) {
+  if (*creation_stamp != platform_context_->fork_server->creation_stamp) {
     return absl::UnknownError(absl::StrCat(
         "Fork server's creation stamp changed (new process?) - expected ",
-        fork_server_->creation_stamp, ", but got ", *creation_stamp));
+        platform_context_->fork_server->creation_stamp, ", but got ",
+        *creation_stamp));
   }
   return absl::OkStatus();
+#endif  // _WIN32
 }
 
 bool Command::ExecuteAsync() {
   FUZZTEST_CHECK(!is_executing());
 
-  if (fork_server_ != nullptr) {
+#ifdef _WIN32
+  FUZZTEST_CHECK_EQ(platform_context_->win_process_handle,
+                    INVALID_HANDLE_VALUE);
+  ResetRedirectionFiles(GetUniqueSuffix());
+  command_line_ = ToString();
+
+  struct CaseInsensitiveCompare {
+    using is_transparent = void;
+    bool operator()(std::string_view a, std::string_view b) const {
+      return std::lexicographical_compare(
+          a.begin(), a.end(), b.begin(), b.end(),
+          [](unsigned char ca, unsigned char cb) {
+            return static_cast<unsigned char>(absl::ascii_tolower(ca)) <
+                   static_cast<unsigned char>(absl::ascii_tolower(cb));
+          });
+    }
+  };
+
+  absl::btree_map<std::string, std::string, CaseInsensitiveCompare> env_map;
+
+  LPCH env_strings = GetEnvironmentStringsA();
+  if (env_strings != nullptr) {
+    const char* ptr = env_strings;
+    while (*ptr != '\0') {
+      std::string_view entry(ptr);
+      ptr += entry.size() + 1;
+      size_t eq_pos = entry.find('=', 1);
+      if (eq_pos != entry.npos) {
+        env_map[entry.substr(0, eq_pos)] =
+            std::string(entry.substr(eq_pos + 1));
+      } else {
+        env_map[entry] = "";
+      }
+    }
+    FreeEnvironmentStringsA(env_strings);
+  }
+
+  for (std::string_view env_var : options_.env_diff) {
+    if (absl::StartsWith(env_var, "-")) {
+      std::string_view key = env_var.substr(1);
+      if (absl::EndsWith(key, "=")) {
+        key = key.substr(0, key.size() - 1);
+      }
+      env_map.erase(key);
+    } else {
+      auto pos = env_var.find('=');
+      if (pos != env_var.npos) {
+        env_map[env_var.substr(0, pos)] = std::string(env_var.substr(pos + 1));
+      }
+    }
+  }
+
+  std::string env_block = absl::StrJoin(env_map, absl::string_view("\0", 1),
+                                        absl::PairFormatter("="));
+  env_block.append(2, '\0');
+
+  STARTUPINFOEXA si = {};
+  si.StartupInfo.cb = sizeof(si);
+  si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+  PROCESS_INFORMATION pi = {};
+
+  SECURITY_ATTRIBUTES sa = {sizeof(sa), NULL, TRUE};
+  HANDLE handle_in = INVALID_HANDLE_VALUE;
+  HANDLE handle_out = INVALID_HANDLE_VALUE;
+  HANDLE handle_err = INVALID_HANDLE_VALUE;
+
+  absl::Cleanup close_handles = [&] {
+    if (handle_in != INVALID_HANDLE_VALUE) CloseHandle(handle_in);
+    if (handle_out != INVALID_HANDLE_VALUE) CloseHandle(handle_out);
+    if (handle_err != INVALID_HANDLE_VALUE) CloseHandle(handle_err);
+  };
+
+  if (!options_.stdin_file_path.empty()) {
+    handle_in = CreateFileA(options_.stdin_file_path.c_str(), FILE_READ_DATA,
+                            /*dwShareMode=*/0, &sa, OPEN_EXISTING,
+                            FILE_ATTRIBUTE_NORMAL, NULL);
+    if (handle_in == INVALID_HANDLE_VALUE) {
+      FUZZTEST_LOG(ERROR) << "Failed to open stdin file: "
+                          << options_.stdin_file_path;
+      return false;
+    }
+    si.StartupInfo.hStdInput = handle_in;
+  } else {
+    si.StartupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+  }
+
+  if (!stdout_file_.empty()) {
+    handle_out =
+        CreateFileA(stdout_file_.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &sa,
+                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (handle_out == INVALID_HANDLE_VALUE) {
+      FUZZTEST_LOG(ERROR) << "Failed to open stdout file: " << stdout_file_;
+      return false;
+    }
+    si.StartupInfo.hStdOutput = handle_out;
+  } else {
+    si.StartupInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+  }
+
+  if (!stderr_file_.empty()) {
+    if (stderr_file_ == stdout_file_) {
+      si.StartupInfo.hStdError = si.StartupInfo.hStdOutput;
+    } else {
+      handle_err =
+          CreateFileA(stderr_file_.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &sa,
+                      CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+      if (handle_err == INVALID_HANDLE_VALUE) {
+        FUZZTEST_LOG(ERROR) << "Failed to open stderr file: " << stderr_file_;
+        return false;
+      }
+      si.StartupInfo.hStdError = handle_err;
+    }
+  } else {
+    si.StartupInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+  }
+
+  std::vector<HANDLE> handles_to_inherit;
+  for (HANDLE h : {si.StartupInfo.hStdInput, si.StartupInfo.hStdOutput,
+                   si.StartupInfo.hStdError}) {
+    if (h != nullptr && h != INVALID_HANDLE_VALUE &&
+        std::find(handles_to_inherit.begin(), handles_to_inherit.end(), h) ==
+            handles_to_inherit.end()) {
+      SetHandleInformation(h, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+      handles_to_inherit.push_back(h);
+    }
+  }
+
+  SIZE_T attr_list_size = 0;
+  InitializeProcThreadAttributeList(nullptr, 1, 0, &attr_list_size);
+  auto attr_list_buffer = std::make_unique<uint8_t[]>(attr_list_size);
+  si.lpAttributeList =
+      reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(attr_list_buffer.get());
+  if (!InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0,
+                                         &attr_list_size)) {
+    DWORD err = GetLastError();
+    FUZZTEST_LOG(ERROR) << "InitializeProcThreadAttributeList failed: " << err;
+    return false;
+  }
+  absl::Cleanup delete_attr_list = [&] {
+    DeleteProcThreadAttributeList(si.lpAttributeList);
+  };
+
+  if (!handles_to_inherit.empty()) {
+    if (!UpdateProcThreadAttribute(
+            si.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+            handles_to_inherit.data(),
+            handles_to_inherit.size() * sizeof(HANDLE), nullptr, nullptr)) {
+      DWORD err = GetLastError();
+      FUZZTEST_LOG(ERROR) << "UpdateProcThreadAttribute failed: " << err;
+      return false;
+    }
+  }
+
+  std::string cmd = command_line_;
+  const BOOL cp_res = CreateProcessA(
+      NULL, cmd.data(), NULL, NULL,
+      /*bInheritHandles=*/!handles_to_inherit.empty(),
+      EXTENDED_STARTUPINFO_PRESENT, env_block.empty() ? NULL : env_block.data(),
+      NULL, &si.StartupInfo, &pi);
+
+  if (!cp_res) {
+    DWORD err = GetLastError();
+    FUZZTEST_LOG(ERROR) << "CreateProcessA failed for '" << cmd
+                        << "': error=" << err;
+    return false;
+  }
+
+  platform_context_->win_process_handle = pi.hProcess;
+  CloseHandle(pi.hThread);
+  is_executing_ = true;
+  return true;
+#else   // _WIN32
+  if (platform_context_->fork_server != nullptr) {
     FUZZTEST_VLOG(1) << "Sending execution request to fork server";
 
     if (const auto status = VerifyForkServerIsHealthy(); !status.ok()) {
@@ -405,7 +678,7 @@ bool Command::ExecuteAsync() {
 
     // Wake up the fork server.
     char x = ' ';
-    if (write(fork_server_->pipe_[0], &x, 1) != 1) {
+    if (write(platform_context_->fork_server->pipe_[0], &x, 1) != 1) {
       LogProblemInfo(
           absl::StrCat("Failed to write to fork server pipe. Errno: ", errno));
       return false;
@@ -413,12 +686,13 @@ bool Command::ExecuteAsync() {
     // Read the one-byte ack.
     // Use 60s as an arbitrary duration to wait for the process to load and
     // enter the fork server.
-    if (!fork_server_->ReadPipe(absl::Now() + absl::Seconds(60), x)) {
+    if (!platform_context_->fork_server->ReadPipe(
+            absl::Now() + absl::Seconds(60), x)) {
       LogProblemInfo("Failed to read from fork server pipe.");
       return false;
     }
   } else {
-    FUZZTEST_CHECK_EQ(pid_, -1);
+    FUZZTEST_CHECK_EQ(platform_context_->pid, -1);
 
     ResetRedirectionFiles(GetUniqueSuffix());
     command_line_ = ToString();
@@ -431,24 +705,58 @@ bool Command::ExecuteAsync() {
       argv.push_back(argv_str.data());
     }
     argv.push_back(nullptr);
-    FUZZTEST_PCHECK(posix_spawn(&pid_, argv[0], /*file_actions=*/nullptr,
+    FUZZTEST_PCHECK(posix_spawn(&platform_context_->pid, argv[0],
+                                /*file_actions=*/nullptr,
                                 /*attrp=*/nullptr, argv.data(), environ) == 0);
   }
 
   is_executing_ = true;
   return true;
+#endif  // _WIN32
 }
 
 std::optional<int> Command::Wait(absl::Time deadline,
                                  StopCondition* stop_condition) {
   FUZZTEST_CHECK(is_executing());
+#ifdef _WIN32
+  FUZZTEST_CHECK_NE(platform_context_->win_process_handle,
+                    INVALID_HANDLE_VALUE);
+  DWORD timeout_ms = INFINITE;
+  if (deadline != absl::InfiniteFuture()) {
+    auto dur = deadline - absl::Now();
+    if (dur <= absl::ZeroDuration()) {
+      timeout_ms = 0;
+    } else {
+      timeout_ms = static_cast<DWORD>(absl::ToInt64Milliseconds(dur));
+    }
+  }
+  DWORD res =
+      WaitForSingleObject(platform_context_->win_process_handle, timeout_ms);
+  if (res == WAIT_TIMEOUT) {
+    VlogProblemInfo(
+        absl::StrCat("Timeout while waiting for command process: deadline is ",
+                     deadline),
+        /*vlog_level=*/1);
+    return std::nullopt;
+  }
+  DWORD exit_code = 0;
+  GetExitCodeProcess(platform_context_->win_process_handle, &exit_code);
+  CloseHandle(platform_context_->win_process_handle);
+  platform_context_->win_process_handle = INVALID_HANDLE_VALUE;
+  is_executing_ = false;
+  if (exit_code == STATUS_CONTROL_C_EXIT && stop_condition != nullptr) {
+    stop_condition->RequestStop(
+        EXIT_FAILURE, "Command killed: signal=SIGINT (likely Ctrl-C)");
+  }
+  return static_cast<int>(exit_code);
+#else   // _WIN32
   int exit_code = EXIT_SUCCESS;
 
-  if (fork_server_ != nullptr) {
+  if (platform_context_->fork_server != nullptr) {
     // The fork server forks, the child is running. Block until some readable
     // data appears in the pipe (that is, after the fork server writes the
     // execution result to it).
-    if (!fork_server_->ReadPipe(deadline, exit_code)) {
+    if (!platform_context_->fork_server->ReadPipe(deadline, exit_code)) {
       VlogProblemInfo(
           absl::StrCat("Waiting for fork server failed, deadline is ",
                        deadline),
@@ -456,11 +764,13 @@ std::optional<int> Command::Wait(absl::Time deadline,
       return std::nullopt;
     }
   } else {
-    FUZZTEST_CHECK_NE(pid_, -1);
+    FUZZTEST_CHECK_NE(platform_context_->pid, -1);
     while (true) {
-      const pid_t r = waitpid(pid_, &exit_code, WNOHANG);
+      const pid_t r = waitpid(platform_context_->pid, &exit_code, WNOHANG);
       FUZZTEST_CHECK_NE(r, -1);
-      if (r == pid_ && (WIFEXITED(exit_code) || WIFSIGNALED(exit_code))) break;
+      if (r == platform_context_->pid &&
+          (WIFEXITED(exit_code) || WIFSIGNALED(exit_code)))
+        break;
       FUZZTEST_CHECK_EQ(r, 0);
       const auto timeout = deadline - absl::Now();
       if (timeout > absl::ZeroDuration()) {
@@ -477,7 +787,7 @@ std::optional<int> Command::Wait(absl::Time deadline,
         return std::nullopt;
       }
     }
-    pid_ = -1;
+    platform_context_->pid = -1;
   }
   is_executing_ = false;
 
@@ -535,20 +845,27 @@ std::optional<int> Command::Wait(absl::Time deadline,
   }
 
   return exit_code;
+#endif  // _WIN32
 }
 
 void Command::RequestStop(bool force) {
   FUZZTEST_CHECK(is_executing());
-  if (fork_server_) {
-    FUZZTEST_CHECK_NE(fork_server_->pid_, -1);
+#ifdef _WIN32
+  FUZZTEST_CHECK_NE(platform_context_->win_process_handle,
+                    INVALID_HANDLE_VALUE);
+  TerminateProcess(platform_context_->win_process_handle, 1);
+#else
+  if (platform_context_->fork_server) {
+    FUZZTEST_CHECK_NE(platform_context_->fork_server->pid_, -1);
     // Cannot send SIGKILL to the fork server as it kills only the parent
     // process, but not the child. The fork server would send SIGKILL to the
     // child on SIGUSR1.
-    kill(fork_server_->pid_, force ? SIGUSR1 : SIGTERM);
+    kill(platform_context_->fork_server->pid_, force ? SIGUSR1 : SIGTERM);
     return;
   }
-  FUZZTEST_CHECK_NE(pid_, -1);
-  kill(pid_, force ? SIGKILL : SIGTERM);
+  FUZZTEST_CHECK_NE(platform_context_->pid, -1);
+  kill(platform_context_->pid, force ? SIGKILL : SIGTERM);
+#endif  // _WIN32
 }
 
 std::string Command::ReadRedirectedStdout() const {

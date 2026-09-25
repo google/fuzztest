@@ -208,6 +208,7 @@ cc_library(
         ":blob_file",
         ":defs",
         ":logging",
+        ":windows_includes",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest",
@@ -223,6 +224,11 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
     ],
+)
+
+cc_library(
+    name = "windows_includes",
+    hdrs = ["windows_includes.h"],
 )
 
 ### Tests

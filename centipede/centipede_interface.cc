@@ -282,30 +282,31 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment& env,
                                      std::string_view coverage_dir) {
   const WorkDir workdir{env};
   SeedCorpusSource regression;
-  regression.dir_glob = std::string(regression_dir);
+  regression.src_dirs = {std::string(regression_dir)};
   regression.num_recent_dirs = 1;
-  regression.individual_input_rel_glob = "*";
+  regression.individual_input_rel_prefix = "";
   regression.sampled_fraction_or_count = 1.0f;
   std::vector<SeedCorpusSource> sources = {std::move(regression)};
   if (!coverage_dir.empty()) {
     SeedCorpusSource coverage;
-    coverage.dir_glob = std::string(coverage_dir);
+    coverage.src_dirs = {std::string(coverage_dir)};
     coverage.num_recent_dirs = 1;
     // We're using the previously distilled corpus files as seeds.
-    coverage.shard_rel_glob =
-        std::filesystem::path{
-            workdir.DistilledCorpusFilePaths().AllShardsGlob()}
-            .filename();
-    coverage.individual_input_rel_glob = "*";
+    coverage.shard_rel_prefix =
+        std::filesystem::path{workdir.DistilledCorpusFilePaths().prefix()}
+            .filename()
+            .string();
+    coverage.individual_input_rel_prefix = "";
     coverage.sampled_fraction_or_count = 1.0f;
     sources.push_back(std::move(coverage));
   }
   SeedCorpusDestination destination;
   destination.dir_path = env.workdir;
   // We're seeding the current corpus files.
-  destination.shard_rel_glob =
-      std::filesystem::path{workdir.CorpusFilePaths().AllShardsGlob()}
-          .filename();
+  destination.shard_rel_prefix =
+      std::filesystem::path{workdir.CorpusFilePaths().prefix()}
+          .filename()
+          .string();
   destination.shard_index_digits = WorkDir::kDigitsInShardIndex;
   destination.num_shards = static_cast<uint32_t>(env.num_threads);
   return {
@@ -653,21 +654,24 @@ void ReplayCrash(const Environment& env,
                          "crashing";
   const WorkDir workdir{env};
   SeedCorpusSource crash_corpus_source;
-  crash_corpus_source.dir_glob = crash_dir;
+  crash_corpus_source.src_dirs = {crash_dir.string()};
   crash_corpus_source.num_recent_dirs = 1;
-  crash_corpus_source.individual_input_rel_glob = env.crash_id;
+  crash_corpus_source.individual_input_rel_prefix = env.crash_id;
   crash_corpus_source.sampled_fraction_or_count = 1.0f;
-  const SeedCorpusConfig crash_corpus_config = {
-      /*sources=*/{crash_corpus_source},
-      /*destination=*/{
-          /*dir_path=*/env.workdir,
-          /*shard_rel_glob=*/
-          std::filesystem::path{workdir.CorpusFilePaths().AllShardsGlob()}
-              .filename(),
-          /*shard_index_digits=*/WorkDir::kDigitsInShardIndex,
-          /*num_shards=*/1}};
-  FUZZTEST_CHECK_OK(GenerateSeedCorpusFromConfig(
-      crash_corpus_config, env.binary_name, env.binary_hash));
+  {
+    SeedCorpusDestination crash_corpus_destination;
+    crash_corpus_destination.dir_path = env.workdir;
+    crash_corpus_destination.shard_rel_prefix =
+        std::filesystem::path{workdir.CorpusFilePaths().prefix()}
+            .filename()
+            .string();
+    crash_corpus_destination.shard_index_digits = WorkDir::kDigitsInShardIndex;
+    crash_corpus_destination.num_shards = 1;
+    FUZZTEST_CHECK_OK(
+        GenerateSeedCorpusFromConfig({/*sources=*/{crash_corpus_source},
+                                      /*destination=*/crash_corpus_destination},
+                                     env.binary_name, env.binary_hash));
+  }
   Environment run_crash_env = env;
   run_crash_env.load_shards_only = true;
   run_crash_env.persistent_mode = false;
