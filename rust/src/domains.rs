@@ -123,15 +123,15 @@ pub trait Domain {
     type CorpusValue: Serialize + DeserializeOwned + Clone;
 
     /// Initializes a new value drawn from the domain.
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue>;
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue>;
 
     /// Mutates the value in `val` to a new value drawn from the domain.
     ///
     /// If `only_shrink` is `true`, then the mutation must not increase the size of the corpus
     /// value. Otherwise, the mutation can both shrink and grow the corpus value.
     fn mutate(
-        &self,
-        val: &mut Self::CorpusValue,
+        &mut self,
+        corpus_value: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
     ) -> anyhow::Result<()>;
@@ -158,6 +158,15 @@ pub trait Domain {
     fn serialize_corpus(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<Vec<u8>> {
         postcard::to_stdvec(corpus_value).context("Failed to serialize corpus value to bytes")
     }
+
+    /// Converts a user value to a corpus value.
+    #[allow(clippy::wrong_self_convention)]
+    fn from_value(&self, value: Self::UserValue<'_>) -> anyhow::Result<Self::CorpusValue>;
+
+    /// Validates that a corpus value satisfies the domain's constraints.
+    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 /// A type-erased interface for Domain types.
@@ -170,14 +179,14 @@ pub trait GenericDomain {
     /// Initializes a new value drawn from the domain.
     ///
     /// See `Domain::init` for more details.
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue>;
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue>;
 
     /// Mutates the value in `val` to a new value drawn from the domain.
     ///
     /// See `Domain::mutate` for more details.
     fn mutate(
-        &self,
-        val: &mut GenericCorpusValue,
+        &mut self,
+        corpus_value: &mut GenericCorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
     ) -> anyhow::Result<()>;
@@ -202,7 +211,7 @@ where
     D: Domain,
     D::CorpusValue: 'static,
 {
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue> {
         Ok(Box::new(self.init(rng)?))
     }
 
@@ -214,13 +223,13 @@ where
     ///
     /// See `GenericDomain::mutate` for more details.
     fn mutate(
-        &self,
-        val: &mut GenericCorpusValue,
+        &mut self,
+        corpus_value: &mut GenericCorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
     ) -> anyhow::Result<()> {
         self.mutate(
-            val.downcast_mut().context("Failed to retrieve the Corpus Value")?,
+            corpus_value.downcast_mut().context("Failed to retrieve the Corpus Value")?,
             rng,
             only_shrink,
         )

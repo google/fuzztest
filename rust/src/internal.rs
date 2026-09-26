@@ -14,8 +14,11 @@
 
 use super::domains::GenericCorpusValue;
 use super::domains::GenericDomain;
+
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::Mutex;
 
 /// A trait implemented by types used to Fuzz a given property function.
 ///
@@ -35,7 +38,7 @@ pub trait FuzzTest {
     /// Returns `true` if the property function holds, `false` if it crashes.
     fn execute(&self, args: &GenericCorpusValue) -> bool;
     fn print_finding_report(&self);
-    fn domains(&self) -> &dyn GenericDomain;
+    fn domains(&self) -> Arc<Mutex<dyn GenericDomain>>;
 }
 
 /// Identifies the property function of a fuzz test.
