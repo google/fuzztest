@@ -75,7 +75,7 @@ impl Domain for InRange<i32> {
         Ok(())
     }
 
-    fn get_user_value<'a>(
+    fn corpus_to_user_value<'a>(
         &self,
         corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {

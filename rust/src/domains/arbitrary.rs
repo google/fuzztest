@@ -95,7 +95,7 @@ impl Domain for Arbitrary<bool> {
         Ok(())
     }
 
-    fn get_user_value<'a>(
+    fn corpus_to_user_value<'a>(
         &self,
         corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
@@ -138,7 +138,7 @@ macro_rules! impl_domain_for_integer {
                 Ok(())
             }
 
-            fn get_user_value<'a>(
+            fn corpus_to_user_value<'a>(
                 &self,
                 corpus_value: &'a Self::CorpusValue,
             ) -> anyhow::Result<Self::UserValue<'a>> {
@@ -209,7 +209,7 @@ macro_rules! impl_domain_for_float {
                 Ok(())
             }
 
-            fn get_user_value<'a>(
+            fn corpus_to_user_value<'a>(
                 &self,
                 corpus_value: &'a Self::CorpusValue,
             ) -> anyhow::Result<Self::UserValue<'a>> {
@@ -294,7 +294,7 @@ impl Domain for Arbitrary<char> {
         Ok(())
     }
 
-    fn get_user_value<'a>(
+    fn corpus_to_user_value<'a>(
         &self,
         corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
@@ -320,7 +320,7 @@ impl Domain for Arbitrary<()> {
         Ok(())
     }
 
-    fn get_user_value<'a>(
+    fn corpus_to_user_value<'a>(
         &self,
         _corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
@@ -492,7 +492,8 @@ mod tests {
             domain.mutate(&mut value, &mut rng, true).unwrap();
 
             if value.is_at_shrink_target() {
-                // Ensure that once the shrink target is reached, further shrinking doesn't change it.
+                // Ensure that once the shrink target is reached, further shrinking doesn't change
+                // it.
                 domain.mutate(&mut value, &mut rng, true).unwrap();
                 assert!(
                     value.is_at_shrink_target(),

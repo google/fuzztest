@@ -44,7 +44,8 @@ pub struct GTestDefinition {
 }
 
 /// A context struct holding the pre-computed information and token streams required
-/// to generate the fuzz test registration, struct definitions, and integration with the test framework.
+/// to generate the fuzz test registration, struct definitions, and integration with the test
+/// framework.
 ///
 /// This context is created once per property function.
 pub struct FuzzTestRegistrationCtx<'a> {
@@ -60,7 +61,8 @@ pub struct FuzzTestRegistrationCtx<'a> {
 }
 
 impl<'a> FuzzTestRegistrationCtx<'a> {
-    /// Creates a new registration context from a property function signature and its domain constructors.
+    /// Creates a new registration context from a property function signature and its domain
+    /// constructors.
     ///
     /// This method analyzes the inputs, derives necessary identifiers and lifetime generics, and
     /// pre-computes the tokenstream for the fuzz test struct instance.
@@ -248,7 +250,7 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
                                 .downcast_ref::<#domain_struct_name<#(#corpus_generics),*>>()
                                 .expect("Attempt to recover user value before testing failed.");
 
-                  let user_value = self.domain.get_user_value(wrapper).expect("Failed to get user value from corpus value");
+                  let user_value = self.domain.corpus_to_user_value(wrapper).expect("Failed to get user value from corpus value");
 
                   let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.test_fn)(#(user_value.#fuzz_test_domain_field_names),* ) ));
 
@@ -324,7 +326,7 @@ mod tests {
                             .downcast_ref::<__FuzzTestTestFuzzStateWrapper<T0::CorpusValue, T1::CorpusValue>>()
                             .expect("Attempt to recover user value before testing failed.");
 
-                    let user_value = self.domain.get_user_value(wrapper).expect("Failed to get user value from corpus value");
+                    let user_value = self.domain.corpus_to_user_value(wrapper).expect("Failed to get user value from corpus value");
                     // Safety: Data is not reused after the test.
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.test_fn)(user_value.a, user_value.b) ));
 

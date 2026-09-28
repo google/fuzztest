@@ -90,9 +90,9 @@ pub type GenericUserValue = Box<dyn CloneAny>;
 /// internal representation of the value and they are not directly usable by the fuzz property
 /// function.
 ///
-/// The `get_user_value` method is used to retrieve the user value from the corpus value. For
+/// The `corpus_to_user_value` method is used to retrieve the user value from the corpus value. For
 /// example, if the domain outputs an `&str` then the CorpusValue could be a `String` and the
-/// `get_user_value` method would be used to retrieve the `&str` from the `String`.
+/// `corpus_to_user_value` method would be used to retrieve the `&str` from the `String`.
 ///
 /// The `parse_corpus` (resp. `serialize_corpus`) method is used deserialize (resp. serialize)
 /// the corpus value from (to) a slice of bytes (resp. a vector of bytes).
@@ -103,13 +103,13 @@ pub type GenericUserValue = Box<dyn CloneAny>;
 /// serialized representation of `CorpusValue`. Here's a quick overview:
 ///
 /// ```text
-///        +-- get_user_value() <---+     +-- parse_corpus() <---+
-///        |                        |     |                      |
-///        v                        |     v                      |
-///   UserValue<'a>               CorpusValue                  &[u8]
-///                                       |                      ^
-///                                       |                      |
-///                                       +-> serialize_corpus() +
+///        +-- corpus_to_user_value() <---+     +-- parse_corpus() <---+
+///        |                              |     |                      |
+///        v                              |     v                      |
+///   UserValue<'a>                     CorpusValue                  &[u8]
+///                                             |                      ^
+///                                             |                      |
+///                                             +-> serialize_corpus() +
 /// ```
 pub trait Domain {
     /// The type of the values that the domain outputs. This should of the same type as the
@@ -136,14 +136,33 @@ pub trait Domain {
         only_shrink: bool,
     ) -> anyhow::Result<()>;
 
+    /// Deprecated alias of `corpus_to_user_value`.
+    ///
+    /// `get_user_value` and `corpus_to_user_value` have default implementations that delegate to
+    /// each other, so implementors can provide either one during the migration. Implementors
+    /// MUST override at least one of them; otherwise calling either will recurse infinitely.
+    #[deprecated(note = "Use `corpus_to_user_value` instead")]
+    fn get_user_value<'a>(
+        &self,
+        val: &'a Self::CorpusValue,
+    ) -> anyhow::Result<Self::UserValue<'a>> {
+        self.corpus_to_user_value(val)
+    }
+
     /// Retrieves a UserValue from a given CorpusValue.
     ///
     /// This is used to convert the corpus value into the user value that can then be passed to the
     /// fuzz property function.
-    fn get_user_value<'a>(
+    ///
+    /// The default implementation delegates to the deprecated `get_user_value` for backwards
+    /// compatibility. New implementors should override this method instead.
+    fn corpus_to_user_value<'a>(
         &self,
         corpus_value: &'a Self::CorpusValue,
-    ) -> anyhow::Result<Self::UserValue<'a>>;
+    ) -> anyhow::Result<Self::UserValue<'a>> {
+        #[allow(deprecated)]
+        self.get_user_value(corpus_value)
+    }
 
     /// Turns a slice of bytes into `CorpusValue`.
     ///

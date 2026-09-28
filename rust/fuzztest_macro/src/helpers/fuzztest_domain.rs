@@ -93,9 +93,9 @@ pub fn generate_fuzztest_domain<'a, 'b: 'a>(
           Ok(())
         }
 
-        fn get_user_value<'a>(&self, corpus_value: &'a Self::CorpusValue) -> ::fuzztest::reexports::anyhow::Result<Self::UserValue<'a>> {
+        fn corpus_to_user_value<'a>(&self, corpus_value: &'a Self::CorpusValue) -> ::fuzztest::reexports::anyhow::Result<Self::UserValue<'a>> {
           Ok(#domain_struct_name {
-            #(#field_names: self.#field_names.get_user_value(&corpus_value.#field_names)?),*
+            #(#field_names: self.#field_names.corpus_to_user_value(&corpus_value.#field_names)?),*
           })
         }
       }
@@ -162,10 +162,10 @@ mod tests {
                 Ok(())
               }
 
-              fn get_user_value<'a>(&self, corpus_value: &'a Self::CorpusValue) -> ::fuzztest::reexports::anyhow::Result<Self::UserValue<'a>> {
+              fn corpus_to_user_value<'a>(&self, corpus_value: &'a Self::CorpusValue) -> ::fuzztest::reexports::anyhow::Result<Self::UserValue<'a>> {
                 Ok(__FuzzTestTestFuzzStateWrapper {
-                  a: self.a.get_user_value(&corpus_value.a)?,
-                  b: self.b.get_user_value(&corpus_value.b)?
+                  a: self.a.corpus_to_user_value(&corpus_value.a)?,
+                  b: self.b.corpus_to_user_value(&corpus_value.b)?
                 })
               }
             }

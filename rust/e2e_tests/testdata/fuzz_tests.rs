@@ -72,7 +72,7 @@ impl Domain for ByteVectorDomain {
         Ok(())
     }
 
-    fn get_user_value<'a>(
+    fn corpus_to_user_value<'a>(
         &self,
         val: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
@@ -173,7 +173,7 @@ impl Domain for FallibleDomain {
         anyhow::bail!("Intentional mutate failure")
     }
 
-    fn get_user_value<'a>(
+    fn corpus_to_user_value<'a>(
         &self,
         val: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {

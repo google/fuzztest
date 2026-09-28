@@ -183,13 +183,13 @@ where
         Ok(())
     }
 
-    fn get_user_value<'a>(
+    fn corpus_to_user_value<'a>(
         &self,
         corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
         let mut user_values = Vec::with_capacity(corpus_value.len());
         for item in corpus_value {
-            user_values.push(self.inner.get_user_value(item)?);
+            user_values.push(self.inner.corpus_to_user_value(item)?);
         }
         Ok(user_values)
     }
@@ -427,10 +427,10 @@ mod tests {
     }
 
     #[gtest]
-    fn test_vec_of_get_user_value() {
+    fn test_vec_of_corpus_to_user_value() {
         let domain = VecOf::new(Arbitrary::<u32>::default());
         let corpus_val = vec![1u32, 2u32, 3u32];
-        let user_val = domain.get_user_value(&corpus_val).unwrap();
+        let user_val = domain.corpus_to_user_value(&corpus_val).unwrap();
         expect_that!(user_val, container_eq(vec![1u32, 2u32, 3u32]));
     }
 }
