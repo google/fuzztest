@@ -998,6 +998,7 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
+    "coverage_interceptors.cc",
     "pc_info.h",
     "reverse_pc_table.h",
     "runner.cc",
@@ -1005,8 +1006,8 @@ RUNNER_SOURCES_NO_MAIN = [
     "runner_dl_info.cc",
     "runner_dl_info.h",
     "runner_interface.h",
+    "runtime_interceptors.cc",
     "sancov_callbacks.cc",
-    "sancov_interceptors.cc",
     "sancov_object_array.cc",
     "sancov_object_array.h",
     "sancov_runtime.h",
@@ -1039,6 +1040,13 @@ RUNNER_LINKOPTS = [
     ],
 })
 
+cc_library(
+    name = "interceptor_utils",
+    hdrs = ["interceptor_utils.h"],
+    copts = DISABLE_SANCOV_COPTS,
+    linkopts = ["-ldl"],  # for dlsym
+)
+
 # TODO: b/436308818 - Let the runner depend on sancov_runtime as well.
 # WARNING: be careful with more deps here. Use only the most trivial ones.
 RUNNER_DEPS = [
@@ -1048,6 +1056,7 @@ RUNNER_DEPS = [
     ":feature",
     ":foreach_nonzero",
     ":int_utils",
+    ":interceptor_utils",
     ":knobs",
     ":mutation_data",
     ":rolling_hash",
@@ -1228,12 +1237,13 @@ cc_library(
 cc_library(
     name = "sancov_runtime",
     srcs = [
+        "coverage_interceptors.cc",
         "pc_info.h",
         "reverse_pc_table.h",
         "runner_dl_info.cc",
         "runner_dl_info.h",
+        "runtime_interceptors.cc",
         "sancov_callbacks.cc",
-        "sancov_interceptors.cc",
         "sancov_object_array.cc",
         "sancov_object_array.h",
         "sancov_state.cc",
@@ -1251,6 +1261,7 @@ cc_library(
         ":feature",
         ":foreach_nonzero",
         ":int_utils",
+        ":interceptor_utils",
         ":runner_cmp_trace",
         ":runner_utils",
         "@abseil-cpp//absl/base:core_headers",
