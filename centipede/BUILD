@@ -1014,6 +1014,12 @@ cc_library(
     ],
 )
 
+INTERCEPTOR_SOURCES = [
+    "runtime_interceptors.cc",
+] + select({
+    "//conditions:default": ["coverage_interceptors.cc"],
+})
+
 # The runner library is special:
 #   * It must not be instrumented with asan, sancov, etc.
 #   * It must not have heavy dependencies, and ideally not at all.
@@ -1037,13 +1043,12 @@ RUNNER_SOURCES_NO_MAIN = [
     "runner_utils.cc",
     "runner_utils.h",
     "sancov_callbacks.cc",
-    "sancov_interceptors.cc",
     "sancov_object_array.cc",
     "sancov_object_array.h",
     "sancov_runtime.h",
     "sancov_state.cc",
     "sancov_state.h",
-]
+] + INTERCEPTOR_SOURCES
 
 # Disable sancov and sanitizer instrumentation.
 #
@@ -1070,6 +1075,13 @@ RUNNER_LINKOPTS = [
     ],
 })
 
+cc_library(
+    name = "interceptor_utils",
+    hdrs = ["interceptor_utils.h"],
+    copts = DISABLE_SANCOV_COPTS,
+    linkopts = ["-ldl"],  # for dlsym
+)
+
 # TODO: b/436308818 - Let the runner depend on sancov_runtime as well.
 # WARNING: be careful with more deps here. Use only the most trivial ones.
 RUNNER_DEPS = [
@@ -1079,6 +1091,7 @@ RUNNER_DEPS = [
     ":feature",
     ":foreach_nonzero",
     ":int_utils",
+    ":interceptor_utils",
     ":knobs",
     ":mutation_data",
     ":rolling_hash",
@@ -1216,13 +1229,12 @@ cc_library(
         "runner_dl_info.cc",
         "runner_dl_info.h",
         "sancov_callbacks.cc",
-        "sancov_interceptors.cc",
         "sancov_object_array.cc",
         "sancov_object_array.h",
         "sancov_state.cc",
         "sancov_state.h",
         "@com_google_fuzztest//common:defs.h",
-    ],
+    ] + INTERCEPTOR_SOURCES,
     hdrs = [
         "sancov_runtime.h",
     ],
@@ -1234,6 +1246,7 @@ cc_library(
         ":feature",
         ":foreach_nonzero",
         ":int_utils",
+        ":interceptor_utils",
         ":runner_cmp_trace",
         ":runner_utils",
         "@abseil-cpp//absl/base:core_headers",
