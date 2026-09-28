@@ -109,6 +109,13 @@ struct RuntimeStats {
 
 void InstallSignalHandlers(FILE* report_out);
 
+// Returns true if FuzzTest should not install its handler for `signame` (e.g.
+// "SIGSEGV"), as requested by the comma-separated list of signal names in the
+// FUZZTEST_DISABLE_SIGNAL_HANDLERS environment variable. This is useful for
+// targets that install their own handlers for signals they expect and recover
+// from.
+bool IsSignalHandlerDisabled(absl::string_view signame);
+
 void InstallUnexpectedExitHandler();
 
 // A function that is called when crash metadata is available.

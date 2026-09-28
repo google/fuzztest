@@ -358,7 +358,12 @@ StopCondition global_stop_condition;
 
 void InstallCentipedeTerminationHandler() {
   [[maybe_unused]] static bool install_once = [] {
-    for (int signum : {SIGTERM, SIGHUP, SIGINT}) {
+    constexpr std::pair<int, absl::string_view> kTerminationSignals[] = {
+        {SIGTERM, "SIGTERM"}, {SIGHUP, "SIGHUP"}, {SIGINT, "SIGINT"}};
+    for (const auto& [signum, signame] : kTerminationSignals) {
+      if (IsSignalHandlerDisabled(signame)) {
+        continue;
+      }
       struct sigaction new_sigact = {};
       sigemptyset(&new_sigact.sa_mask);
       new_sigact.sa_handler = [](int signum) {
