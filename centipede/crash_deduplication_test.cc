@@ -228,6 +228,7 @@ class OrganizeCrashingInputsTest : public ::testing::Test {
   }
   const Environment& env() const { return env_; }
   CrashSummary& crash_summary() { return crash_summary_; }
+  StopCondition& stop_condition() { return stop_condition_; }
 
   absl::Status OrganizeCrashingInputs(
       const std::filesystem::path& regression_dir,
@@ -1188,6 +1189,102 @@ TEST_F(OrganizeCrashingInputsTest, ReplaysCrashUpToMaxAttemptsOnFailure) {
   EXPECT_EQ(callbacks.execution_count(), 3);
   EXPECT_THAT(log_capture.FullLog(),
               HasSubstr("Crash failed to reproduce after 3 attempts for "));
+}
+
+class RecordingCrashCallbacks : public CentipedeCallbacks {
+ public:
+  RecordingCrashCallbacks(
+      const Environment& env, StopCondition& stop_condition,
+      absl::flat_hash_map<std::string, int> crash_on_input_attempt,
+      int stop_after_total_executions = -1)
+      : CentipedeCallbacks(env, stop_condition),
+        crash_on_input_attempt_(std::move(crash_on_input_attempt)),
+        stop_after_total_executions_(stop_after_total_executions) {}
+
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
+               BatchResult& batch_result) override {
+    batch_result.ClearAndResize(inputs.size());
+    std::string input_str(AsStringView(inputs[0]));
+    executed_inputs_.push_back(input_str);
+    const int attempt = ++attempts_by_input_[input_str];
+    if (stop_after_total_executions_ > 0 &&
+        static_cast<int>(executed_inputs_.size()) >=
+            stop_after_total_executions_) {
+      stop_condition_.SetStopTime(absl::InfinitePast());
+    }
+    auto it = crash_on_input_attempt_.find(input_str);
+    if (it != crash_on_input_attempt_.end() && attempt == it->second) {
+      batch_result.exit_code() = EXIT_FAILURE;
+      batch_result.failure_signature() = "csig_" + input_str;
+      batch_result.failure_description() = "desc_" + input_str;
+      return false;
+    }
+    return true;
+  }
+
+  const std::vector<std::string>& executed_inputs() const {
+    return executed_inputs_;
+  }
+
+ private:
+  absl::flat_hash_map<std::string, int> crash_on_input_attempt_;
+  int stop_after_total_executions_;
+  absl::flat_hash_map<std::string, int> attempts_by_input_;
+  std::vector<std::string> executed_inputs_;
+};
+
+TEST_F(OrganizeCrashingInputsTest, ReplaysMultipleCrashesInRoundRobinOrder) {
+  SetContentsAndGetPath(crashing_dir(), "bug1-csig_input1-isig1", "input1");
+  SetContentsAndGetPath(crashing_dir(), "bug2-csig_input2-isig2", "input2");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  // input2 reproduces on its 2nd attempt; input1 never reproduces.
+  RecordingCrashCallbacks callbacks(test_env, stop_condition(),
+                                    /*crash_on_input_attempt=*/{{"input2", 2}});
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  const auto& executed = callbacks.executed_inputs();
+  ASSERT_EQ(executed.size(), 5);
+  EXPECT_THAT(absl::MakeConstSpan(executed).subspan(0, 2),
+              UnorderedElementsAre("input1", "input2"));
+  EXPECT_THAT(absl::MakeConstSpan(executed).subspan(2, 2),
+              UnorderedElementsAre("input1", "input2"));
+  EXPECT_EQ(executed[4], "input1");
+}
+
+TEST_F(OrganizeCrashingInputsTest, StopsReplayingWhenStopConditionIsTriggered) {
+  SetContentsAndGetPath(crashing_dir(), "bug1-csig_input1-isig1", "input1");
+  SetContentsAndGetPath(crashing_dir(), "bug2-csig_input2-isig2", "input2");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 5;
+
+  // Trigger stop_condition after 2 total executions (1 pass over the 2 inputs).
+  RecordingCrashCallbacks callbacks(test_env, stop_condition(),
+                                    /*crash_on_input_attempt=*/{{"input2", 1}},
+                                    /*stop_after_total_executions=*/2);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  // Only the first pass (2 executions) should run before stop_condition halts
+  // further retries, and input2 (which reproduced on pass 1) is still reported.
+  EXPECT_EQ(callbacks.executed_inputs().size(), 2);
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+  EXPECT_THAT(crash_report,
+              AllOf(HasSubstr("Total crashes: 1"),
+                    HasSubstr("Crash ID   : bug2-csig_input2-isig2")));
 }
 
 }  // namespace
