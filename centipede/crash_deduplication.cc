@@ -152,58 +152,72 @@ absl::StatusOr<std::vector<IncubatingCrash>> ReadIncubatingCrashes(
   return incubating_crashes;
 }
 
-absl::Status ReplayCrash(CentipedeCallbacks& callbacks, const Environment& env,
-                         absl::string_view input_path,
-                         std::string& out_signature,
-                         std::string& out_description) {
-  ByteArray input_bytes;
-  RETURN_IF_NOT_OK(RemoteFileGetContents(input_path, input_bytes));
+struct CrashToReplay {
+  CrashDetails& details;
+  std::string& new_signature;
+  ByteArray input_bytes = {};
+};
+
+std::optional<CrashToReplay> ToCrashToReplay(ExistingCrash& existing) {
+  if (existing.crash_report.signature.empty()) return std::nullopt;
+  return CrashToReplay{existing.crash_report.details, existing.new_signature};
+}
+
+std::optional<CrashToReplay> ToCrashToReplay(IncubatingCrash& incubating) {
+  return CrashToReplay{incubating.details, incubating.new_signature};
+}
+
+template <typename CrashT>
+absl::StatusOr<std::vector<CrashToReplay>> ToCrashesToReplay(
+    absl::Span<CrashT> raw_crashes) {
+  std::vector<CrashToReplay> crashes;
+  crashes.reserve(raw_crashes.size());
+  for (CrashT& raw_crash : raw_crashes) {
+    std::optional<CrashToReplay> crash = ToCrashToReplay(raw_crash);
+    if (!crash.has_value()) continue;
+    RETURN_IF_NOT_OK(
+        RemoteFileGetContents(crash->details.input_path, crash->input_bytes));
+    crashes.push_back(*std::move(crash));
+  }
+  return crashes;
+}
+
+absl::Status ReplayCrashes(CentipedeCallbacks& callbacks,
+                           const Environment& env,
+                           const StopCondition& stop_condition,
+                           absl::Span<CrashToReplay> crashes) {
+  for (CrashToReplay& crash : crashes) {
+    crash.new_signature.clear();
+    crash.details.description.clear();
+  }
 
   const size_t max_attempts = std::max<size_t>(1, env.replay_crash_attempts);
   for (size_t attempt = 0; attempt < max_attempts; ++attempt) {
-    BatchResult batch_result;
-    if (!callbacks.Execute(env.binary, {input_bytes}, batch_result) &&
-        batch_result.IsInputFailure()) {
-      out_signature = batch_result.failure_signature();
-      out_description = batch_result.failure_description();
-      if (attempt > 0) {
-        FUZZTEST_LOG(INFO) << "Crash reproduced on attempt " << (attempt + 1)
-                           << " of " << max_attempts << " for " << input_path;
+    if (stop_condition.ShouldStop()) break;
+    bool any_remaining = false;
+    for (CrashToReplay& crash : crashes) {
+      if (stop_condition.ShouldStop()) break;
+      if (!crash.new_signature.empty()) continue;
+      BatchResult batch_result;
+      if (!callbacks.Execute(env.binary, {crash.input_bytes}, batch_result) &&
+          batch_result.IsInputFailure()) {
+        crash.new_signature = batch_result.failure_signature();
+        crash.details.description = batch_result.failure_description();
+        if (attempt > 0) {
+          FUZZTEST_LOG(INFO)
+              << "Crash reproduced on attempt " << (attempt + 1) << " of "
+              << max_attempts << " for " << crash.details.input_path;
+        }
+      } else {
+        any_remaining = true;
+        if (attempt + 1 == max_attempts && max_attempts > 1) {
+          FUZZTEST_LOG(INFO)
+              << "Crash failed to reproduce after " << max_attempts
+              << " attempts for " << crash.details.input_path;
+        }
       }
-      return absl::OkStatus();
     }
-  }
-
-  if (max_attempts > 1) {
-    FUZZTEST_LOG(INFO) << "Crash failed to reproduce after " << max_attempts
-                       << " attempts for " << input_path;
-  }
-  out_signature = "";
-  out_description = "";
-  return absl::OkStatus();
-}
-
-absl::Status ReplayExistingCrashes(
-    CentipedeCallbacks& callbacks, const Environment& env,
-    std::vector<ExistingCrash>& existing_crashes) {
-  for (auto& existing : existing_crashes) {
-    if (existing.crash_report.signature.empty()) {
-      continue;
-    }
-    RETURN_IF_NOT_OK(ReplayCrash(
-        callbacks, env, existing.crash_report.details.input_path,
-        existing.new_signature, existing.crash_report.details.description));
-  }
-  return absl::OkStatus();
-}
-
-absl::Status ReplayIncubatingCrashes(
-    CentipedeCallbacks& callbacks, const Environment& env,
-    std::vector<IncubatingCrash>& incubating_crashes) {
-  for (auto& incubating : incubating_crashes) {
-    RETURN_IF_NOT_OK(ReplayCrash(callbacks, env, incubating.details.input_path,
-                                 incubating.new_signature,
-                                 incubating.details.description));
+    if (!any_remaining) break;
   }
   return absl::OkStatus();
 }
@@ -620,10 +634,18 @@ absl::Status OrganizeCrashingInputs(
 
   ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
                                             stop_condition);
-  RETURN_IF_NOT_OK(ReplayExistingCrashes(*scoped_callbacks.callbacks(), env,
-                                         existing_crashes));
-  RETURN_IF_NOT_OK(ReplayIncubatingCrashes(*scoped_callbacks.callbacks(), env,
-                                           incubating_crashes));
+  ASSIGN_OR_RETURN_IF_NOT_OK(
+      std::vector<CrashToReplay> existing_to_replay,
+      ToCrashesToReplay(absl::MakeSpan(existing_crashes)));
+  RETURN_IF_NOT_OK(ReplayCrashes(*scoped_callbacks.callbacks(), env,
+                                 stop_condition,
+                                 absl::MakeSpan(existing_to_replay)));
+  ASSIGN_OR_RETURN_IF_NOT_OK(
+      std::vector<CrashToReplay> incubating_to_replay,
+      ToCrashesToReplay(absl::MakeSpan(incubating_crashes)));
+  RETURN_IF_NOT_OK(ReplayCrashes(*scoped_callbacks.callbacks(), env,
+                                 stop_condition,
+                                 absl::MakeSpan(incubating_to_replay)));
 
   absl::flat_hash_map<std::string, CrashDetails> new_crashes = FindNewCrashes(
       new_crashes_by_signature, incubating_crashes, existing_crashes);
