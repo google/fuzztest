@@ -77,14 +77,14 @@ pub fn generate_fuzztest_domain<'a, 'b: 'a>(
         type UserValue<#user_value_lifetime_generic> = #domain_struct_name <#(#user_value_domain_generics),*>;
         type CorpusValue = #domain_struct_name <#(#corpus_domain_generics),*>;
 
-        fn init(&mut self, rng: &mut dyn ::fuzztest::reexports::rand::Rng) -> ::fuzztest::reexports::anyhow::Result<Self::CorpusValue> {
+        fn init(&self, rng: &mut dyn ::fuzztest::reexports::rand::Rng) -> ::fuzztest::reexports::anyhow::Result<Self::CorpusValue> {
           Ok(#domain_struct_name {
             #(#field_names: self.#field_names.init(rng)?),*
           })
         }
 
         fn mutate(
-            &mut self,
+            &self,
             val: &mut Self::CorpusValue,
             rng: &mut dyn ::fuzztest::reexports::rand::Rng,
             only_shrink: bool,
@@ -97,11 +97,6 @@ pub fn generate_fuzztest_domain<'a, 'b: 'a>(
           Ok(#domain_struct_name {
             #(#field_names: self.#field_names.corpus_to_user_value(&corpus_value.#field_names)?),*
           })
-        }
-
-        fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> ::fuzztest::reexports::anyhow::Result<()> {
-          #( self.#field_names.validate_corpus_value(&corpus_value.#field_names)?; )*
-          Ok(())
         }
       }
     };
@@ -149,7 +144,7 @@ mod tests {
               type UserValue<'user> = __FuzzTestTestFuzzStateWrapper<T0::UserValue<'user>, T1::UserValue<'user> >;
               type CorpusValue = __FuzzTestTestFuzzStateWrapper<T0::CorpusValue, T1::CorpusValue>;
 
-              fn init(&mut self, rng: &mut dyn ::fuzztest::reexports::rand::Rng) -> ::fuzztest::reexports::anyhow::Result<Self::CorpusValue> {
+              fn init(&self, rng: &mut dyn ::fuzztest::reexports::rand::Rng) -> ::fuzztest::reexports::anyhow::Result<Self::CorpusValue> {
                 Ok(__FuzzTestTestFuzzStateWrapper {
                   a: self.a.init(rng)?,
                   b: self.b.init(rng)?
@@ -157,7 +152,7 @@ mod tests {
               }
 
               fn mutate(
-                  &mut self,
+                  &self,
                   val: &mut Self::CorpusValue,
                   rng: &mut dyn ::fuzztest::reexports::rand::Rng,
                   only_shrink: bool,
@@ -172,12 +167,6 @@ mod tests {
                   a: self.a.corpus_to_user_value(&corpus_value.a)?,
                   b: self.b.corpus_to_user_value(&corpus_value.b)?
                 })
-              }
-
-              fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> ::fuzztest::reexports::anyhow::Result<()> {
-                self.a.validate_corpus_value(&corpus_value.a)?;
-                self.b.validate_corpus_value(&corpus_value.b)?;
-                Ok(())
               }
             }
           }
