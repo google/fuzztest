@@ -29,7 +29,7 @@ use rand::distr::uniform::UniformSampler;
 /// # use fuzztest::domains::range::InRange;
 /// # use rand::prelude::*;
 ///
-/// let range_i32 = InRange::new(21i32, 73);
+/// let mut range_i32 = InRange::new(21i32, 73);
 /// let sample = range_i32.init(&mut rand::rng());
 ///
 /// assert!(sample.is_ok());
@@ -57,12 +57,12 @@ impl Domain for InRange<i32> {
     type UserValue<'user> = i32;
     type CorpusValue = i32;
 
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
         Ok(self.get_in_range(rng))
     }
 
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -80,6 +80,18 @@ impl Domain for InRange<i32> {
         corpus_value: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(*corpus_value)
+    }
+
+    fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        if *corpus_value < self.lower || *corpus_value > self.upper {
+            anyhow::bail!(
+                "Value {} is out of range [{}, {}]",
+                corpus_value,
+                self.lower,
+                self.upper
+            );
+        }
+        Ok(())
     }
 }
 
