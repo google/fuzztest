@@ -32,14 +32,14 @@ impl Domain for ByteVectorDomain {
     type UserValue<'user> = Vec<u8>;
     type CorpusValue = Vec<u8>;
 
-    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
         let mut val = vec![0u8; rng.random_range(0..100)];
         rng.fill(&mut val[..]);
         Ok(val)
     }
 
     fn mutate(
-        &self,
+        &mut self,
         val: &mut Self::CorpusValue,
         rng: &mut dyn rand::Rng,
         only_shrink: bool,
@@ -160,12 +160,12 @@ impl Domain for FallibleDomain {
     type UserValue<'user> = u32;
     type CorpusValue = u32;
 
-    fn init(&self, _rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+    fn init(&mut self, _rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
         Ok(0)
     }
 
     fn mutate(
-        &self,
+        &mut self,
         _val: &mut Self::CorpusValue,
         _rng: &mut dyn rand::Rng,
         _only_shrink: bool,
