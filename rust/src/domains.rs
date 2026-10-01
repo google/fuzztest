@@ -14,6 +14,7 @@
 
 pub mod arbitrary;
 pub mod containers;
+pub mod option_of;
 pub mod range;
 pub mod tuple_of;
 pub mod utility;
