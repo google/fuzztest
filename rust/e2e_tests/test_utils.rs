@@ -47,7 +47,7 @@ impl Fixture for EnvVars {
 ///
 /// Each arg of `args` should be a string that Centipede recognizes containing a flag with a
 /// possible value, e.g. `--test_name=my_test_name` or `--exit_on_crash`. In addition to `args`,
-/// the function will also pass `--populate_binary_info=0`, `--fork_server=0`,
+/// the function will also pass `--populate_binary_info=0`.
 /// `--persistent_mode=0`, and `--env_diff_for_binaries`.
 pub fn run_centipede_with_args_expect_termination(fixture: &EnvVars, args: &[&str]) -> String {
     // Disable interference from Bazel environment variables.
@@ -69,8 +69,6 @@ pub fn run_centipede_with_args_expect_termination(fixture: &EnvVars, args: &[&st
     ];
     let process = Command::new(&fixture.centipede_path)
         .arg("--populate_binary_info=0")
-        .arg("--fork_server=0")
-        .arg("--persistent_mode=0")
         .arg(format!("--env_diff_for_binaries={}", env_diff.join(",")))
         .args(args)
         .output()

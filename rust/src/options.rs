@@ -171,7 +171,6 @@ impl CentipedeArgs {
         // TODO(the-shank): provide a way to override this.
         // allow more crashes to be reported when running with FuzzTest (default is 5)
         add_arg("--max_num_crash_reports=20".to_string())?;
-        add_arg("--fork_server=false".to_string())?;
 
         add_arg(format!("--print_runner_log={}", options.print_subprocess_log))?;
 
@@ -445,7 +444,8 @@ mod tests {
         let args_str: Vec<&str> =
             args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
 
-        // When running indefinitely, --stop_after must be omitted so Centipede runs until interrupted.
+        // When running indefinitely, --stop_after must be omitted so Centipede runs until
+        // interrupted.
         expect_false!(args_str.iter().any(|s| s.starts_with("--stop_after=")));
         expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
     }

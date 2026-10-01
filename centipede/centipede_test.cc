@@ -1539,7 +1539,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, EngineWorksInWorkerMode) {
       "centipede/testing/test_binary_for_engine_testing");
   env.test_name = "some_test";
   env.populate_binary_info = false;
-  env.fork_server = false;
+  env.fork_server = true;
   env.persistent_mode = true;
   env.exit_on_crash = true;
   env.stop_at = absl::Now() + absl::Seconds(10);
