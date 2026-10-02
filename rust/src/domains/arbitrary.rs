@@ -328,6 +328,34 @@ impl Domain for Arbitrary<()> {
     }
 }
 
+impl<T> Domain for Arbitrary<Option<T>>
+where
+    Arbitrary<T>: Domain,
+{
+    type CorpusValue = Option<<Arbitrary<T> as Domain>::CorpusValue>;
+    type UserValue<'user> = Option<<Arbitrary<T> as Domain>::UserValue<'user>>;
+
+    fn init(&self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+        super::option_of::OptionOf::new(Arbitrary::<T>::default()).init(rng)
+    }
+
+    fn mutate(
+        &self,
+        val: &mut Self::CorpusValue,
+        rng: &mut dyn rand::Rng,
+        only_shrink: bool,
+    ) -> anyhow::Result<()> {
+        super::option_of::OptionOf::new(Arbitrary::<T>::default()).mutate(val, rng, only_shrink)
+    }
+
+    fn corpus_to_user_value<'a>(
+        &self,
+        corpus_value: &'a Self::CorpusValue,
+    ) -> anyhow::Result<Self::UserValue<'a>> {
+        super::option_of::OptionOf::new(Arbitrary::<T>::default()).corpus_to_user_value(corpus_value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -782,5 +810,28 @@ mod tests {
                 MAX_ITERATIONS, value
             );
         }
+    }
+
+    #[test]
+    fn test_arbitrary_option() {
+        let domain = Arbitrary::<Option<i32>>::default();
+        let mut rng = get_rng();
+
+        let mut has_none = false;
+        let mut has_some = false;
+        for _ in 0..100 {
+            let sample = domain.init(&mut rng).unwrap();
+            if sample.is_none() {
+                has_none = true;
+            } else {
+                has_some = true;
+            }
+        }
+        assert!(has_none);
+        assert!(has_some);
+
+        let mut val: Option<i32> = None;
+        domain.mutate(&mut val, &mut rng, false).unwrap();
+        assert!(val.is_some());
     }
 }
