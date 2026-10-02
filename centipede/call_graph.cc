@@ -43,18 +43,18 @@ void CallGraph::InitializeCallGraph(const CFTable &cf_table,
     if (IsFunctionEntry(current_pc)) current_function_entry = current_pc;
 
     // Iterate over successors.
-    while (cf_table[j]) {
+    while (j < cf_table.size() && cf_table[j]) {
       ++j;
     }
     ++j;  // Step over the delimeter.
 
     // Iterate over callees.
-    while (cf_table[j]) {
+    while (j < cf_table.size() && cf_table[j]) {
       current_callees.push_back(cf_table[j]);
       ++j;
     }
     ++j;  // Step over the delimeter.
-    FUZZTEST_CHECK_LE(j, cf_table.size());
+    FUZZTEST_CHECK_LE(j, cf_table.size()) << "Malformed CF table";
 
     if (current_callees.empty()) continue;
     basic_block_callees_[current_pc] = current_callees;
