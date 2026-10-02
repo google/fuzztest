@@ -26,6 +26,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
 #include <utility>
 #include <vector>
 
@@ -55,6 +56,7 @@
 #include "./centipede/minimize_crash.h"
 #include "./centipede/pc_info.h"
 #include "./centipede/periodic_action.h"
+#include "./centipede/runner_result.h"
 #include "./centipede/seed_corpus_maker_lib.h"
 #include "./centipede/stats.h"
 #include "./centipede/stop.h"
@@ -106,6 +108,58 @@ void ForEachBlob(const Environment& env, StopCondition& stop_condition) {
       cmd.Execute();
       if (stop_condition.ShouldStop()) return;
     }
+  }
+}
+
+void MinimizeCrash(const Environment& env,
+                   CentipedeCallbacksFactory& callbacks_factory,
+                   StopCondition& stop_condition) {
+  ByteArray crashy_input;
+  ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
+
+  BatchResult batch_result;
+  {
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
+                                              stop_condition);
+    CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
+    if (scoped_callbacks.callbacks()->Execute(env.binary, {crashy_input},
+                                              batch_result)) {
+      FUZZTEST_LOG(ERROR) << "The original crashy input did not crash; exiting";
+      stop_condition.RequestStop(EXIT_FAILURE,
+                                 "The original crashy input did not crash");
+      return;
+    }
+  }
+
+  const auto result =
+      MinimizeCrash(crashy_input, env, callbacks_factory,
+                    batch_result.failure_signature(), stop_condition);
+  if (!result.has_value()) {
+    stop_condition.RequestStop(EXIT_FAILURE, "No smaller crash found");
+    return;
+  }
+
+  const auto output_dir =
+      std::filesystem::path{WorkDir{env}.CrashReproducerDirPaths().MyShard()};
+  const auto mkdir_status = RemoteMkdir(output_dir.string());
+  if (!mkdir_status.ok()) {
+    const auto error_msg =
+        absl::StrCat("Failed to create the minimized crasher dir ",
+                     output_dir.string(), ": ", mkdir_status);
+    FUZZTEST_LOG(ERROR) << error_msg;
+    stop_condition.RequestStop(EXIT_FAILURE, error_msg);
+    return;
+  }
+  const auto result_input_hash = Hash(result->input);
+  const auto output_path = (output_dir / result_input_hash).string();
+  const auto write_status = RemoteFileSetContents(output_path, result->input);
+  if (!write_status.ok()) {
+    const auto error_msg =
+        absl::StrCat("Failed to write the minimized crasher to ", output_path,
+                     ": ", write_status);
+    FUZZTEST_LOG(ERROR) << error_msg;
+    stop_condition.RequestStop(EXIT_FAILURE, error_msg);
+    return;
   }
 }
 
@@ -755,9 +809,7 @@ int CentipedeMain(const Environment& env,
   }
 
   if (!env.minimize_crash_file_path.empty()) {
-    ByteArray crashy_input;
-    ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
-    MinimizeCrash(crashy_input, env, callbacks_factory, *stop_condition);
+    MinimizeCrash(env, callbacks_factory, *stop_condition);
     return SaveStopReasonAndGetExitCode();
   }
 

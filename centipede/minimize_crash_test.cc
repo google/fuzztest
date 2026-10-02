@@ -15,32 +15,33 @@
 #include "./centipede/minimize_crash.h"
 
 #include <cstdlib>
-#include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
-#include <vector>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/nullability.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/random/random.h"
 #include "absl/types/span.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
-#include "./centipede/util.h"
-#include "./centipede/workdir.h"
 #include "./common/defs.h"
 #include "./common/test_util.h"
 
 namespace fuzztest::internal {
 namespace {
 
+using ::testing::UnorderedElementsAre;
+
 // A mock for CentipedeCallbacks.
 class MinimizerMock : public CentipedeCallbacks {
  public:
-  MinimizerMock(const Environment& env)
-      : CentipedeCallbacks(env, internal_stop_condition_) {}
+  MinimizerMock(const Environment& env, StopCondition& stop_condition)
+      : CentipedeCallbacks(env, stop_condition) {}
 
   // Runs FuzzMe() on every input, imitates failure if FuzzMe() returns true.
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
@@ -49,6 +50,11 @@ class MinimizerMock : public CentipedeCallbacks {
     for (auto input : inputs) {
       if (FuzzMe(input)) {
         batch_result.exit_code() = EXIT_FAILURE;
+        // Set signature differently to test signature matching behavior.
+        batch_result.failure_signature() =
+            input[0] == 'f' ? "signature one" : "signature two";
+        batch_result.failure_description() =
+            input[0] == 'f' ? "description one" : "description two";
         return false;
       }
       ++batch_result.num_outputs_read();
@@ -57,18 +63,16 @@ class MinimizerMock : public CentipedeCallbacks {
   }
 
  private:
-  // Returns true on inputs that look like 'f???u???z', false otherwise.
-  // The minimal input on which this function returns true is 'fuz'.
+  // Returns true on inputs that look like '[fz]+', false otherwise.
+  // The minimal input on which this function returns true is 'f' or 'z', with
+  // different crash signatures.
   bool FuzzMe(ByteSpan data) {
     if (data.empty()) return false;
-    if (data.front() == 'f' && data[data.size() / 2] == 'u' &&
-        data.back() == 'z') {
-      return true;
+    for (const auto c : data) {
+      if (c != 'f' && c != 'z') return false;
     }
-    return false;
+    return true;
   }
-
-  StopCondition internal_stop_condition_;
 };
 
 // Factory that creates/destroys MinimizerMock.
@@ -76,56 +80,78 @@ class MinimizerMockFactory : public CentipedeCallbacksFactory {
  public:
   CentipedeCallbacks* absl_nonnull create(
       const Environment& env, StopCondition& stop_condition) override {
-    return new MinimizerMock(env);
+    return new MinimizerMock(env, stop_condition);
   }
   void destroy(CentipedeCallbacks *cb) override { delete cb; }
 };
 
-TEST(MinimizeTest, MinimizeTest) {
-  TempDir tmp_dir{test_info_->name()};
+TEST(MinimizeTest, FailsWhenCrasherCannotBeMinimized) {
   Environment env;
-  env.workdir = tmp_dir.path();
   env.num_runs = 100000;
-  const WorkDir wd{env};
   MinimizerMockFactory factory;
   StopCondition stop_condition;
   StopCondition::StopRequest stop_request;
 
-  // Test with a non-crashy input.
+  const ByteArray expected_minimized = {'f'};
   stop_request = {};
-  MinimizeCrash({1, 2, 3}, env, factory, stop_condition);
-  (void)stop_condition.StopRequested(&stop_request);
-  EXPECT_EQ(stop_request.exit_code, EXIT_FAILURE);
+  EXPECT_FALSE(MinimizeCrash(expected_minimized, env, factory, "signature one",
+                             stop_condition)
+                   .has_value());
+  EXPECT_FALSE(stop_condition.StopRequested());
+}
 
-  ByteArray expected_minimized = {'f', 'u', 'z'};
+TEST(MinimizeTest, FailsWhenSignatureDoesNotMatch) {
+  Environment env;
+  env.num_runs = 100000;
+  MinimizerMockFactory factory;
+  StopCondition stop_condition;
+  StopCondition::StopRequest stop_request;
 
-  // Test with a crashy input that can't be minimized further.
-  stop_condition.ClearStopRequest();
+  ByteArray original_crasher = {'f', 'f', 'f', 'f', 'f', 'f',
+                                'z', 'z', 'z', 'z', 'z', 'z'};
   stop_request = {};
-  MinimizeCrash(expected_minimized, env, factory, stop_condition);
-  (void)stop_condition.StopRequested(&stop_request);
-  EXPECT_EQ(stop_request.exit_code, EXIT_FAILURE);
+  EXPECT_FALSE(MinimizeCrash(original_crasher, env, factory, "bad signature",
+                             stop_condition)
+                   .has_value());
+  EXPECT_FALSE(stop_condition.StopRequested());
+}
 
-  // Test the actual minimization.
-  ByteArray original_crasher = {'f', '.', '.', '.', '.', '.', '.', '.',
-                                '.', '.', '.', 'u', '.', '.', '.', '.',
-                                '.', '.', '.', '.', '.', '.', 'z'};
-  stop_condition.ClearStopRequest();
-  stop_request = {};
-  MinimizeCrash(original_crasher, env, factory, stop_condition);
-  (void)stop_condition.StopRequested(&stop_request);
-  EXPECT_EQ(stop_request.exit_code, EXIT_SUCCESS);
-  // Collect the new crashers from the crasher dir.
-  std::vector<ByteArray> crashers;
-  for (auto const &dir_entry : std::filesystem::directory_iterator{
-           wd.CrashReproducerDirPaths().MyShard()}) {
-    ByteArray crasher;
-    const std::string &path = dir_entry.path();
-    ReadFromLocalFile(path, crasher);
-    EXPECT_LT(crasher.size(), original_crasher.size());
-    crashers.push_back(crasher);
+TEST(MinimizeTest, MinimizesWithSignature) {
+  TempDir tmp_dir{test_info_->name()};
+  Environment env;
+  env.num_runs = 100000;
+  MinimizerMockFactory factory;
+
+  ByteArray original_crasher = {'f', 'f', 'f', 'f', 'f', 'f',
+                                'z', 'z', 'z', 'z', 'z', 'z'};
+  constexpr size_t kNumTrials = 30;
+  absl::BitGen rng;
+  absl::flat_hash_set<ByteArray> minimized_crashers;
+  StopCondition stop_condition;
+  for (size_t i = 0; i < kNumTrials; ++i) {
+    env.seed = rng();
+    auto result = MinimizeCrash(original_crasher, env, factory, "signature one",
+                                stop_condition);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->description, "description one");
+    EXPECT_FALSE(stop_condition.StopRequested());
+    minimized_crashers.insert(std::move(result->input));
   }
-  EXPECT_THAT(crashers, testing::Contains(expected_minimized));
+  EXPECT_THAT(minimized_crashers, UnorderedElementsAre(ByteArray{'f'}));
+
+  minimized_crashers.clear();
+  ByteArray original_crasher_alt = {'z', 'z', 'z', 'z', 'z', 'z',
+                                    'f', 'f', 'f', 'f', 'f', 'f'};
+  for (size_t i = 0; i < kNumTrials; ++i) {
+    env.seed = rng();
+    auto result = MinimizeCrash(original_crasher_alt, env, factory,
+                                "signature two", stop_condition);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->description, "description two");
+    EXPECT_FALSE(stop_condition.StopRequested());
+    minimized_crashers.insert(std::move(result->input));
+  }
+  EXPECT_THAT(minimized_crashers, UnorderedElementsAre(ByteArray{'z'}));
 }
 
 }  // namespace

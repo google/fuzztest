@@ -16,7 +16,7 @@
 
 # Tests the --minimize_crash flag.
 
-set -eu
+set -euo pipefail
 
 if ! [[ -e "${TEST_UTIL_SH:=$(dirname "$0")/../test_util.sh}" ]]; then
   echo "TEST_UTIL_SH must be set to the location of :test_util_sh" >&2
