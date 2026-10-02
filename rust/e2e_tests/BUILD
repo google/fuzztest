@@ -33,7 +33,6 @@ rust_test(
     name = "standalone_mode_test",
     srcs = ["standalone_mode_test.rs"],
     data = [
-        "@com_google_fuzztest//centipede:centipede_uninstrumented",
         "@com_google_fuzztest//rust/e2e_tests/testdata:fuzztest_main",
         "@com_google_fuzztest//rust/e2e_tests/testdata:standalone_fuzz_tests_bin",
     ],
@@ -100,7 +99,6 @@ rust_test(
     name = "replay_test",
     srcs = ["replay_test.rs"],
     data = [
-        "@com_google_fuzztest//centipede:centipede_uninstrumented",
         "@com_google_fuzztest//rust/e2e_tests/testdata:replay_fuzz_tests_bin",
     ],
     edition = "2024",

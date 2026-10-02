@@ -51,7 +51,6 @@ fn replay_by_id_reproduces_panic(fixture: &EnvVars) {
         .env("FUZZTEST_CONTINUE_AFTER_CRASH", "true")
         .env("FUZZTEST_CORPUS_DB", &db_dir)
         .env("FUZZTEST_WORKDIR_ROOT", &workdir_root_dir)
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .status()
         .expect("Failed to spawn binary");
 
@@ -64,7 +63,6 @@ fn replay_by_id_reproduces_panic(fixture: &EnvVars) {
         .env("FUZZTEST_LIST_CRASH_IDS", "true")
         .env("FUZZTEST_LIST_CRASH_IDS_FILE", &crash_ids_file)
         .env("FUZZTEST_CORPUS_DB", &db_dir)
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .status()
         .expect("Failed to execute target binary to list crash IDs");
     expect_true!(status.success());
@@ -87,7 +85,6 @@ fn replay_by_id_reproduces_panic(fixture: &EnvVars) {
             .arg("--nocapture")
             .env("FUZZTEST_REPLAY_ID", crash_id)
             .env("FUZZTEST_CORPUS_DB", &db_dir)
-            .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -131,7 +128,6 @@ fn replay_all_reproduces_all_failures(fixture: &EnvVars) {
         .env("FUZZTEST_CONTINUE_AFTER_CRASH", "true")
         .env("FUZZTEST_CORPUS_DB", &db_dir)
         .env("FUZZTEST_WORKDIR_ROOT", &workdir_root_dir)
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .status()
         .expect("Failed to spawn binary");
 
@@ -141,7 +137,6 @@ fn replay_all_reproduces_all_failures(fixture: &EnvVars) {
         .arg("--exact")
         .env("FUZZTEST_REPLAY_FINDINGS", "true")
         .env("FUZZTEST_CORPUS_DB", &db_dir)
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

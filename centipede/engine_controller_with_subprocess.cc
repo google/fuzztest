@@ -14,25 +14,64 @@
 
 #include <sys/wait.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>  // NOLINT
 #include <string>
+#include <system_error>  // NOLINT
 
 #include "./centipede/engine_abi.h"
 #include "./centipede/engine_controller_abi.h"
 #include "./fuzztest/internal/escaping.h"
 
+namespace {
+
 using fuzztest::internal::ShellEscape;
+
+std::string GetBundledCentipedeBinaryPath() {
+  constexpr const char* kBundledCentipedePathSuffix =
+  "centipede/centipede_uninstrumented";
+  const char* test_workspace = std::getenv("TEST_WORKSPACE");
+  if (test_workspace == nullptr) {
+    test_workspace = "_main";
+  }
+  std::string runfiles_dir;
+  if (const char* test_srcdir = std::getenv("TEST_SRCDIR");
+      test_srcdir != nullptr) {
+    runfiles_dir = test_srcdir;
+  }
+  std::error_code ec;
+  if (!runfiles_dir.empty()) {
+    const auto path = std::filesystem::path{runfiles_dir} / test_workspace /
+                      kBundledCentipedePathSuffix;
+    if (std::filesystem::exists(path, ec)) {
+      return path.string();
+    }
+  }
+  return "";
+}
+
+}  // namespace
 
 FuzzTestControllerStatus FuzzTestControllerRun(
     const FuzzTestAdapterManager* manager, const FuzzTestBytesViews* flags) {
-  // TODO(xinhaoyuan): Use the FuzzTest controller env var later.
   static auto centipede_binary_path = []() -> const char* {
-    const char* env = std::getenv("FUZZTEST_CENTIPEDE_BINARY_PATH");
-    if (env == nullptr) return nullptr;
-    return strdup(env);
+    // TODO(xinhaoyuan): Use the FuzzTest controller env var later.
+    if (const char* env = std::getenv("FUZZTEST_CENTIPEDE_BINARY_PATH");
+        env != nullptr) {
+      return strdup(env);
+    }
+    const std::string bundled_path = GetBundledCentipedeBinaryPath();
+    if (!bundled_path.empty()) {
+      return strdup(bundled_path.c_str());
+    }
+    return nullptr;
   }();
   if (centipede_binary_path == nullptr) {
+    fprintf(stderr,
+            "Failed to locate the controller binary - please specify the env "
+            "var `FUZZTEST_CENTIPEDE_BINARY_PATH`\n");
     return kFuzzTestControllerFailure;
   }
   std::string command;
