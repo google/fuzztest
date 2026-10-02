@@ -53,10 +53,12 @@ class CentipedeCallbacks {
         stop_condition_(stop_condition),
         byte_array_mutator_(env.knobs, GetRandomSeed(env.seed)),
         fuzztest_mutator_(env.knobs, GetRandomSeed(env.seed)),
-        inputs_blobseq_(shmem_name1_.c_str(), env.shmem_size_mb << 20,
-                        env.use_posix_shmem),
-        outputs_blobseq_(shmem_name2_.c_str(), env.shmem_size_mb << 20,
-                         env.use_posix_shmem) {
+        inputs_blobseq_(CreateSharedMemoryBlobSequence(shmem_name1_.c_str(),
+                                                       env.shmem_size_mb << 20,
+                                                       env.use_posix_shmem)),
+        outputs_blobseq_(CreateSharedMemoryBlobSequence(shmem_name2_.c_str(),
+                                                        env.shmem_size_mb << 20,
+                                                        env.use_posix_shmem)) {
     if (env.use_legacy_default_mutator)
       FUZZTEST_CHECK(byte_array_mutator_.set_max_len(env.max_len));
     else
@@ -188,23 +190,23 @@ class CentipedeCallbacks {
   // They are computed in CTOR, to avoid extra computation in the hot loop.
   std::string temp_dir_ = TemporaryLocalDirPath();
   std::string temp_input_file_path_ =
-      std::filesystem::path(temp_dir_).append("temp_input_file");
+      std::filesystem::path(temp_dir_).append("temp_input_file").string();
   const std::string execute_log_prefix_ =
-      std::filesystem::path(temp_dir_).append("log");
+      std::filesystem::path(temp_dir_).append("log").string();
   // An owned file path to save the last execution log before it goes out of
   // scope.
   const std::string saved_execute_log_path_ =
-      std::filesystem::path(temp_dir_).append("saved_log");
+      std::filesystem::path(temp_dir_).append("saved_log").string();
   std::string last_execute_log_path_;
   std::string failure_description_path_ =
-      std::filesystem::path(temp_dir_).append("failure_description");
+      std::filesystem::path(temp_dir_).append("failure_description").string();
   std::string failure_signature_path_ =
-      std::filesystem::path(temp_dir_).append("failure_signature");
+      std::filesystem::path(temp_dir_).append("failure_signature").string();
   const std::string shmem_name1_ = ProcessAndThreadUniqueID("/ctpd-shm1-");
   const std::string shmem_name2_ = ProcessAndThreadUniqueID("/ctpd-shm2-");
 
-  SharedMemoryBlobSequence inputs_blobseq_;
-  SharedMemoryBlobSequence outputs_blobseq_;
+  std::unique_ptr<SharedMemoryBlobSequence> absl_nonnull inputs_blobseq_;
+  std::unique_ptr<SharedMemoryBlobSequence> absl_nonnull outputs_blobseq_;
 
   // Need unique_ptr indirection because CommandContext is not movable/copyable
   // due to Command.

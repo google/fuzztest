@@ -78,14 +78,14 @@ class LogCapture : public absl::LogSink {
 std::string SetContentsAndGetPath(const std::filesystem::path& dir,
                                   std::string_view file_name,
                                   std::string_view contents) {
-  const std::string file_path = dir / file_name;
+  const std::string file_path = (dir / file_name).string();
   WriteToLocalFile(file_path, contents);
   return file_path;
 }
 
 TEST(GetCrashesFromWorkdirTest, ReturnsOneCrashPerCrashSignature) {
   TempDir test_dir;
-  const std::string workdir_path = test_dir.path();
+  const std::string workdir_path = test_dir.path().string();
   WorkDir workdir{workdir_path, "binary_name", "binary_hash",
                   /*my_shard_index=*/0};
 
@@ -138,7 +138,7 @@ TEST(GetCrashesFromWorkdirTest, ReturnsOneCrashPerCrashSignature) {
 
 TEST(GetCrashesFromWorkdirTest, FailsOnEmptyCrashSignatureIfEnvVarSet) {
   TempDir test_dir;
-  const std::string workdir_path = test_dir.path();
+  const std::string workdir_path = test_dir.path().string();
   WorkDir workdir{workdir_path, "binary_name", "binary_hash",
                   /*my_shard_index=*/0};
 
@@ -161,7 +161,7 @@ TEST(GetCrashesFromWorkdirTest, FailsOnEmptyCrashSignatureIfEnvVarSet) {
 
 TEST(GetCrashesFromWorkdirTest, FailsOnEmptyCrashDescriptionIfEnvVarSet) {
   TempDir test_dir;
-  const std::string workdir_path = test_dir.path();
+  const std::string workdir_path = test_dir.path().string();
   WorkDir workdir{workdir_path, "binary_name", "binary_hash",
                   /*my_shard_index=*/0};
 
@@ -196,9 +196,9 @@ std::vector<FileAndContents> ReadFiles(const std::filesystem::path& dir) {
   std::vector<FileAndContents> files;
   for (const auto& f : std::filesystem::directory_iterator(dir)) {
     std::string contents;
-    ReadFromLocalFile(f.path().c_str(), contents);
-    files.push_back(FileAndContents{std::filesystem::path(f).filename(),
-                                    std::move(contents)});
+    ReadFromLocalFile(f.path().string(), contents);
+    files.push_back(FileAndContents{
+        std::filesystem::path(f).filename().string(), std::move(contents)});
   }
   return files;
 }

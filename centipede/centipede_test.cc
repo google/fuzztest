@@ -152,7 +152,7 @@ TEST(Centipede, MockTest) {
   TempCorpusDir tmp_dir{test_info_->name()};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
   env.batch_size = 7;     // Just some small number.
   env.require_pc_table = false;  // No PC table here.
@@ -180,11 +180,11 @@ TEST(Centipede, ReadFirstCorpusDir) {
   TempDir corpus_dir{test_info_->name(), "corpus"};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
-  env.workdir = workdir_1.path();
+  env.workdir = workdir_1.path().string();
   env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
   env.batch_size = 7;     // Just some small number.
   env.require_pc_table = false;  // No PC table here.
-  env.corpus_dir.push_back(corpus_dir.path());
+  env.corpus_dir.push_back(corpus_dir.path().string());
 
   // Need to wrap each CentipedeMain in a scope to make sure the shmem is
   // released before the next call. Otherwise it may fail in MacOS.
@@ -201,7 +201,7 @@ TEST(Centipede, ReadFirstCorpusDir) {
 
   {
     // Second, run without fuzzing using the same corpus_dir.
-    env.workdir = workdir_2.path();
+    env.workdir = workdir_2.path().string();
     env.num_runs = 0;
     CentipedeMock mock_2(env);
     NonOwningCallbacksFactory factory_2(mock_2);
@@ -217,11 +217,11 @@ TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
   TempDir corpus_dir{test_info_->name(), "corpus"};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
-  env.workdir = workdir_1.path();
+  env.workdir = workdir_1.path().string();
   env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
   env.batch_size = 7;     // Just some small number.
   env.require_pc_table = false;  // No PC table here.
-  env.corpus_dir.push_back(corpus_dir.path());
+  env.corpus_dir.push_back(corpus_dir.path().string());
 
   {
     // First, generate corpus files in corpus_dir.
@@ -237,7 +237,7 @@ TEST(Centipede, DoesNotReadFirstCorpusDirIfOutputOnly) {
   {
     // Second, run without fuzzing using the same corpus_dir, but as
     // output-only.
-    env.workdir = workdir_2.path();
+    env.workdir = workdir_2.path().string();
     env.num_runs = 0;
     env.first_corpus_dir_output_only = true;
     CentipedeMock mock_2(env);
@@ -252,7 +252,7 @@ TEST(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
   TempCorpusDir tmp_dir{test_info_->name()};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.num_runs = 100000;  // Enough to run through all 1- and 2-byte inputs.
   env.batch_size = 7;     // Just some small number.
   env.require_pc_table = false;  // No PC table here.
@@ -273,7 +273,7 @@ TEST(Centipede, SkipsOutputIfFirstCorpusDirIsEmptyPath) {
 TEST(Centipede, ShardsAndDistillTest) {
   TempCorpusDir tmp_dir{test_info_->name()};
   Environment env;
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.log_level = 0;  // Disable most of the logging in the test.
   size_t combined_num_runs = 100000;  // Enough to run through all inputs.
   env.total_shards = 20;
@@ -336,13 +336,14 @@ TEST(Centipede, ShardsAndDistillTest) {
 TEST(Centipede, InputFilter) {
   TempCorpusDir tmp_dir{test_info_->name()};
   Environment env;
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.num_runs = 256;            // Enough to run through all 1- byte inputs.
   env.log_level = 0;             // Disable most of the logging in the test.
   env.require_pc_table = false;  // No PC table here.
   // Add %f so that test_input_filter doesn't need to be linked with forkserver.
-  env.input_filter = "%f" + std::string{GetDataDependencyFilepath(
-                                "centipede/testing/test_input_filter")};
+  env.input_filter =
+      "%f" +
+      GetDataDependencyFilepath("centipede/testing/test_input_filter").string();
   CentipedeMock mock(env);
   NonOwningCallbacksFactory factory(mock);
   CentipedeMain(env, factory);  // Run fuzzing.
@@ -404,10 +405,10 @@ class CentipedeWithTemporaryLocalDir : public testing::Test {
 TEST_F(CentipedeWithTemporaryLocalDir, MutateViaExternalBinary) {
   // This binary contains a test-friendly custom mutator.
   const std::string binary_with_custom_mutator =
-      GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+      GetDataDependencyFilepath("centipede/testing/test_fuzz_target").string();
   // This binary does not contain a custom mutator.
   const std::string binary_without_custom_mutator =
-      GetDataDependencyFilepath("centipede/testing/abort_fuzz_target");
+      GetDataDependencyFilepath("centipede/testing/abort_fuzz_target").string();
   // Mutate a couple of different inputs.
   std::vector<ByteArray> inputs = {{0, 1, 2}, {3, 4}};
   // The custom mutator in the test binary will revert the order of bytes
@@ -547,7 +548,7 @@ TEST(Centipede, MergeFromOtherCorpus) {
   // each.
   TempCorpusDir work_tmp_dir{test_info_->name(), "workdir"};
   Environment env;
-  env.workdir = work_tmp_dir.path();
+  env.workdir = work_tmp_dir.path().string();
   env.num_runs = 3;              // Just a few runs.
   env.require_pc_table = false;  // No PC table here.
   MergeMock mock(env);
@@ -563,7 +564,7 @@ TEST(Centipede, MergeFromOtherCorpus) {
   // the seed {0} each.
   TempCorpusDir merge_tmp_dir(test_info_->name(), "merge_from");
   Environment merge_env;
-  merge_env.workdir = merge_tmp_dir.path();
+  merge_env.workdir = merge_tmp_dir.path().string();
   merge_env.num_runs = 4;
   merge_env.require_pc_table = false;  // No PC table here.
   mock.Reset();
@@ -578,7 +579,7 @@ TEST(Centipede, MergeFromOtherCorpus) {
   // Merge shards of `merge_env` into shards of `env`.
   // Shard 0 will receive one extra input: {4}
   // Shard 1 will receive two extra inputs: {7}, {8}
-  env.merge_from = merge_tmp_dir.path();
+  env.merge_from = merge_tmp_dir.path().string();
   env.num_runs = 0;
   for (env.my_shard_index = 0; env.my_shard_index < 2; ++env.my_shard_index) {
     CentipedeMain(env, factory);
@@ -648,12 +649,13 @@ class FunctionFilterMock : public CentipedeCallbacks {
 static std::vector<ByteArray> RunWithFunctionFilter(
     std::string_view function_filter, const TempDir& tmp_dir) {
   Environment env;
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.seed = 1;  // make the runs predictable.
   env.exec_time_weight_scaling = false;
   env.num_runs = 100;
   env.batch_size = 10;
-  env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/test_fuzz_target").string();
   env.coverage_binary = env.binary;
   // Must symbolize in order for the filter to work.
   env.symbolizer_path = GetLLVMSymbolizerPath();
@@ -768,8 +770,9 @@ MATCHER_P(HasFilesWithContents, expected_files_and_contents, "") {
   const std::string& dir_path = arg;
   std::vector<FileAndContents> files_and_contents;
   for (const auto& dir_ent : std::filesystem::directory_iterator(dir_path)) {
-    auto file_and_contents = FileAndContents{dir_ent.path().filename()};
-    ReadFromLocalFile(dir_ent.path().c_str(), file_and_contents.contents);
+    auto file_and_contents =
+        FileAndContents{dir_ent.path().filename().string()};
+    ReadFromLocalFile(dir_ent.path().string(), file_and_contents.contents);
     files_and_contents.push_back(std::move(file_and_contents));
   }
   return ExplainMatchResult(expected_files_and_contents, files_and_contents,
@@ -782,7 +785,7 @@ MATCHER_P(HasFilesWithContents, expected_files_and_contents, "") {
 TEST(Centipede, ExtraBinaries) {
   TempDir tmp_dir{test_info_->name()};
   Environment env;
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.num_runs = 100;
   env.batch_size = 10;
   env.log_level = 1;
@@ -910,7 +913,7 @@ TEST(Centipede, UndetectedCrashingInput) {
 
   TempDir temp_dir{test_info_->name()};
   Environment env;
-  env.workdir = temp_dir.path();
+  env.workdir = temp_dir.path().string();
   env.num_runs = kBatchSize * kNumBatches;
   env.batch_size = kBatchSize;
   // No real binary: prevent attempts by Centipede to read a PCtable from it.
@@ -935,7 +938,7 @@ TEST(Centipede, UndetectedCrashingInput) {
     std::vector<std::string> found_crash_file_names;
     for (auto const& dir_ent :
          std::filesystem::directory_iterator(crashes_dir_path)) {
-      found_crash_file_names.push_back(dir_ent.path().filename());
+      found_crash_file_names.push_back(dir_ent.path().filename().string());
     }
     // TODO(ussuri): Verify exact names/contents of the files, not just count.
     EXPECT_EQ(found_crash_file_names.size(), kCrashingInputIdxInBatch + 1);
@@ -947,7 +950,7 @@ TEST(Centipede, UndetectedCrashingInput) {
   // Verify that when `env.batch_triage_suspect_only` is set, only triage the
   // suspect.
   TempDir suspect_only_temp_dir{test_info_->name()};
-  env.workdir = suspect_only_temp_dir.path();
+  env.workdir = suspect_only_temp_dir.path().string();
   env.batch_triage_suspect_only = true;
   UndetectedCrashingInputMock suspect_only_mock(env, kCrashingInputIdx);
   NonOwningCallbacksFactory suspect_only_factory(suspect_only_mock);
@@ -1081,8 +1084,8 @@ TEST(Centipede, SingleInputNonPersistentSkipsTriageReplay) {
 
 TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   Environment env;
-  env.binary =
-      GetDataDependencyFilepath("centipede/testing/seeded_fuzz_target");
+  env.binary = GetDataDependencyFilepath("centipede/testing/seeded_fuzz_target")
+                   .string();
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   std::vector<ByteArray> seeds;
@@ -1094,7 +1097,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
 TEST_F(CentipedeWithTemporaryLocalDir, GetsSerializedTargetConfig) {
   Environment env;
   env.binary =
-      GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config");
+      GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config")
+          .string();
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   const auto serialized_config = callbacks.GetSerializedTargetConfig();
@@ -1107,7 +1111,7 @@ TEST_F(CentipedeWithTemporaryLocalDir,
   Environment env;
   env.binary = absl::StrCat(
       GetDataDependencyFilepath("centipede/testing/fuzz_target_with_config")
-          .c_str(),
+          .string(),
       " --simulate_failure");
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
@@ -1118,7 +1122,8 @@ TEST_F(CentipedeWithTemporaryLocalDir,
 TEST_F(CentipedeWithTemporaryLocalDir, CleansUpMetadataAfterStartup) {
   Environment env;
   env.binary = GetDataDependencyFilepath(
-      "centipede/testing/expensive_startup_fuzz_target");
+                   "centipede/testing/expensive_startup_fuzz_target")
+                   .string();
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   BatchResult batch_result;
@@ -1165,7 +1170,7 @@ class FakeCentipedeCallbacksForThreadChecking : public CentipedeCallbacks {
 TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
   TempDir temp_dir{test_info_->name()};
   Environment env;
-  env.workdir = temp_dir.path();
+  env.workdir = temp_dir.path().string();
   env.require_pc_table = false;
   ASSERT_EQ(env.num_threads, 1);
   FakeCentipedeCallbacksForThreadChecking callbacks(env,
@@ -1180,7 +1185,8 @@ TEST(Centipede, RunsExecuteCallbackInTheCurrentThreadWhenFuzzingWithOneThread) {
 
 TEST_F(CentipedeWithTemporaryLocalDir, DetectsStackOverflow) {
   Environment env;
-  env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/test_fuzz_target").string();
   env.stack_limit_kb = 64;
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
@@ -1223,7 +1229,7 @@ TEST(Centipede, ReturnsFailureOnSetupFailure) {
   TempDir temp_dir{test_info_->name()};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
-  env.workdir = temp_dir.path();
+  env.workdir = temp_dir.path().string();
   env.batch_size = 7;            // Just some small number.
   env.require_pc_table = false;  // No PC table here.
   SetupFailureCallbacks mock(env);
@@ -1263,7 +1269,7 @@ TEST(Centipede, ReturnsSuccessOnSkippedTest) {
   TempDir temp_dir{test_info_->name()};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
-  env.workdir = temp_dir.path();
+  env.workdir = temp_dir.path().string();
   env.batch_size = 7;            // Just some small number.
   env.require_pc_table = false;  // No PC table here.
   SkippedTestCallbacks mock(env);
@@ -1303,7 +1309,7 @@ TEST(Centipede, KeepsRunningAndReturnsSuccessWithIgnoredFailures) {
   TempDir temp_dir{test_info_->name()};
   Environment env;
   env.log_level = 0;  // Disable most of the logging in the test.
-  env.workdir = temp_dir.path();
+  env.workdir = temp_dir.path().string();
   env.batch_size = 7;  // Just some small number.
   env.num_runs = 100;
   env.require_pc_table = false;  // No PC table here.
@@ -1349,7 +1355,7 @@ class CentipedeMockForInputReduction : public CentipedeCallbacks {
 TEST(Centipede, DoesNotReduceInputWhenTheOptionIsUnset) {
   TempCorpusDir tmp_dir{test_info_->name()};
   Environment env;
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.num_runs = 1000000;  // Should be enough
   env.batch_size = 7;      // Just some small number.
   env.require_pc_table = false;
@@ -1370,7 +1376,7 @@ TEST(Centipede, DoesNotReduceInputWhenTheOptionIsUnset) {
 TEST(Centipede, ReducesInputWhenTheOptionIsSet) {
   TempCorpusDir tmp_dir{test_info_->name()};
   Environment env;
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.num_runs = 1000000;  // Should be enough
   env.batch_size = 7;      // Just some small number.
   env.require_pc_table = false;
@@ -1391,7 +1397,8 @@ TEST(Centipede, ReducesInputWhenTheOptionIsSet) {
 TEST_F(CentipedeWithTemporaryLocalDir, UsesProvidedCustomMutator) {
   Environment env;
   env.binary = GetDataDependencyFilepath(
-      "centipede/testing/fuzz_target_with_custom_mutator");
+                   "centipede/testing/fuzz_target_with_custom_mutator")
+                   .string();
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   const std::vector<ByteArray> inputs = {{99}};
@@ -1408,7 +1415,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
   env.binary =
       absl::StrCat(GetDataDependencyFilepath(
                        "centipede/testing/fuzz_target_with_custom_mutator")
-                       .c_str(),
+                       .string(),
                    " --simulate_failure");
   StopCondition stop_condition;
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
@@ -1425,7 +1432,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, FailsOnMisbehavingCustomMutator) {
 TEST_F(CentipedeWithTemporaryLocalDir,
        FallsBackToBuiltInMutatorWhenCustomMutatorNotProvided) {
   Environment env;
-  env.binary = GetDataDependencyFilepath("centipede/testing/abort_fuzz_target");
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/abort_fuzz_target").string();
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
 
   const std::vector<ByteArray> inputs = {{1}, {2}, {3}, {4}, {5}, {6}};
@@ -1454,7 +1462,8 @@ TEST_F(CentipedeWithTemporaryLocalDir,
 TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
   Environment env;
   env.binary =
-      GetDataDependencyFilepath("centipede/testing/hanging_fuzz_target");
+      GetDataDependencyFilepath("centipede/testing/hanging_fuzz_target")
+          .string();
   BatchResult batch_result;
   const std::vector<ByteArray> inputs = {{0}};
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
@@ -1469,7 +1478,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
 
 TEST_F(CentipedeWithTemporaryLocalDir, ExecuteEndsAfterCustomFailure) {
   Environment env;
-  env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/test_fuzz_target").string();
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
   BatchResult result;
   std::vector<ByteArray> inputs = {
@@ -1489,7 +1499,8 @@ TEST_F(CentipedeWithTemporaryLocalDir, ExecuteEndsAfterCustomFailure) {
 TEST_F(CentipedeWithTemporaryLocalDir, ToleratesAsyncFailureInMutation) {
   Environment env;
   env.binary =
-      GetDataDependencyFilepath("centipede/testing/async_failing_target");
+      GetDataDependencyFilepath("centipede/testing/async_failing_target")
+          .string();
   StopCondition stop_condition;
   CentipedeDefaultCallbacks callbacks(env, stop_condition);
   BatchResult result;
@@ -1534,9 +1545,10 @@ TEST_F(CentipedeWithTemporaryLocalDir, CentipedeMainWritesStopReason) {
 TEST_F(CentipedeWithTemporaryLocalDir, EngineWorksInWorkerMode) {
   TempCorpusDir tmp_dir{test_info_->name()};
   Environment env;
-  env.workdir = tmp_dir.path();
+  env.workdir = tmp_dir.path().string();
   env.binary = GetDataDependencyFilepath(
-      "centipede/testing/test_binary_for_engine_testing");
+                   "centipede/testing/test_binary_for_engine_testing")
+                   .string();
   env.test_name = "some_test";
   env.populate_binary_info = false;
   env.fork_server = true;

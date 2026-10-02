@@ -66,7 +66,7 @@ TEST(Corpus, PrintStats) {
   corpus.Add({1, 2, 3}, features1, {}, /*stats=*/{}, fs, coverage_frontier);
   fs.MergeFeatures(features2);
   corpus.Add({4, 5}, features2, {}, /*stats=*/{}, fs, coverage_frontier);
-  const std::string stats_filepath = test_tmpdir / "corpus.txt";
+  const std::string stats_filepath = (test_tmpdir / "corpus.txt").string();
   corpus.DumpStatsToFile(fs, stats_filepath, "Test corpus");
   std::string stats_file_contents;
   ReadFromLocalFile(stats_filepath, stats_file_contents);
