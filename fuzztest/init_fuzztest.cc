@@ -390,6 +390,12 @@ internal::Configuration CreateConfigurationsFromFlags(
     }
   }
   std::string corpus_database = absl::GetFlag(FUZZTEST_FLAG(corpus_database));
+  if (absl::StartsWith(corpus_database, "~/")) {
+    if (const char* home = std::getenv("HOME");
+        home != nullptr && home[0] != '\0') {
+      corpus_database.replace(0, 1, home);
+    }
+  }
   if (!corpus_database.empty() && corpus_database[0] != '/' &&
       std::getenv("TEST_SRCDIR")) {
     corpus_database =
