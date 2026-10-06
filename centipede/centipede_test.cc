@@ -1551,17 +1551,13 @@ TEST_F(CentipedeWithTemporaryLocalDir, EngineWorksInWorkerMode) {
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, EngineWorksInStandaloneMode) {
-  const std::string centipede_path =
-      GetDataDependencyFilepath("centipede/centipede");
   const std::string test_binary_path = GetDataDependencyFilepath(
       "centipede/testing/test_binary_for_engine_testing");
   // Create a temporary dir and enter it for running the test binary, because
   // the test binary uses CWD as the engine workdir.
   TempCorpusDir tmp_dir{test_info_->name()};
   const auto test_command =
-      absl::StrCat("cd ", tmp_dir.path().string(),
-                   " && env FUZZTEST_CENTIPEDE_BINARY_PATH=", centipede_path,
-                   " ", test_binary_path);
+      absl::StrCat("cd ", tmp_dir.path().string(), " && ", test_binary_path);
   EXPECT_DEATH(
       [&] {
         const int status = std::system(test_command.c_str());

@@ -27,7 +27,6 @@ fn standalone_mode_invokes_centipede(fixture: &EnvVars) {
         .arg(test_name)
         .env("FUZZTEST_FUZZ_FOR", "3s")
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .env("RUST_TEST_NOCAPTURE", "1")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -39,8 +38,8 @@ fn standalone_mode_invokes_centipede(fixture: &EnvVars) {
 
     // Assert that Centipede actually ran the test binary, and forwarded the worker log.
     // We check for "LOG: STANDALONE_VALIDATION_WORKER_EXECUTED". The prefix "LOG: " indicates that
-    // this output is from centipede forwarding the output of the worker (due to --print_runner_log),
-    // whereas the rest is from the fuzztest itself.
+    // this output is from centipede forwarding the output of the worker (due to
+    // --print_runner_log), whereas the rest is from the fuzztest itself.
     expect_that!(
         stderr,
         matchers::contains_substring("LOG: STANDALONE_VALIDATION_WORKER_EXECUTED")
@@ -57,7 +56,6 @@ fn standalone_mode_invokes_the_correct_fuzztest(fixture: &EnvVars) {
         .arg(test_name)
         .env("FUZZTEST_FUZZ_FOR", "3s")
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .env("RUST_TEST_NOCAPTURE", "1")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -85,7 +83,6 @@ fn standalone_mode_handles_worker_crash(fixture: &EnvVars) {
         .arg(test_name)
         .env("FUZZTEST_FUZZ_FOR", "15s")
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .env("RUST_TEST_NOCAPTURE", "1")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -111,7 +108,6 @@ fn standalone_mode_continues_after_crash_when_enabled(fixture: &EnvVars) {
         .env("FUZZTEST_FUZZ_FOR", "15s")
         .env("FUZZTEST_CONTINUE_AFTER_CRASH", "true")
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .env("RUST_TEST_NOCAPTURE", "1")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -138,7 +134,6 @@ fn standalone_mode_spawns_parallel_jobs(fixture: &EnvVars) {
         .env("FUZZTEST_FUZZ_FOR", "5s")
         .env("FUZZTEST_JOBS", "4")
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .env("RUST_TEST_NOCAPTURE", "1")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -215,7 +210,6 @@ fn standalone_mode_replay_corpus_per_test_budget(fixture: &EnvVars) {
         .env("FUZZTEST_REPLAY_CORPUS_FOR", "3s")
         .env("FUZZTEST_TIME_BUDGET_TYPE", "per-test")
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .env("FUZZTEST_CORPUS_DB", corpus_db.to_str().unwrap())
         .env("FUZZTEST_WORKDIR_ROOT", workdir_root.to_str().unwrap())
         .env("RUST_TEST_NOCAPTURE", "1")
@@ -307,7 +301,6 @@ fn standalone_mode_replay_corpus_total_budget(fixture: &EnvVars) {
         .env("FUZZTEST_REPLAY_CORPUS_FOR", "3s")
         .env("FUZZTEST_TIME_BUDGET_TYPE", "total")
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
-        .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)
         .env("FUZZTEST_CORPUS_DB", corpus_db.to_str().unwrap())
         .env("FUZZTEST_WORKDIR_ROOT", workdir_root.to_str().unwrap())
         .env("RUST_TEST_NOCAPTURE", "1")
