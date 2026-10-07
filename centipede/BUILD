@@ -985,52 +985,6 @@ cc_library(
     # This has no dependency and only uses string, pair and vector.
 )
 
-cc_library(
-    name = "engine_worker",
-    srcs = [
-        "engine_worker.cc",
-    ],
-    hdrs = ["engine_worker_abi.h"],
-    deps = [
-        ":engine_abi",
-        ":execution_metadata",
-        ":feature",
-        ":runner_fork_server",
-        ":runner_request",
-        ":runner_result",
-        ":runner_utils",
-        ":shared_memory_blob_sequence",
-        "@abseil-cpp//absl/base:nullability",
-        "@com_google_fuzztest//common:defs",
-    ],
-)
-
-bool_flag(
-    name = "bundle_controller_binary",
-    build_setting_default = True,
-)
-
-config_setting(
-    name = "is_controller_binary_bundled",
-    flag_values = {":bundle_controller_binary": "True"},
-)
-
-cc_library(
-    name = "engine_controller_with_subprocess",
-    srcs = ["engine_controller_with_subprocess.cc"],
-    hdrs = ["engine_controller_abi.h"],
-    data = select({
-        ":is_controller_binary_bundled": [
-            ":centipede_uninstrumented",
-        ],
-        "//conditions:default": [],
-    }),
-    deps = [
-        "@com_google_fuzztest//centipede:engine_abi",
-        "@com_google_fuzztest//fuzztest/internal:escaping",
-    ],
-)
-
 # The runner library is special:
 #   * It must not be instrumented with asan, sancov, etc.
 #   * It must not have heavy dependencies, and ideally not at all.
@@ -1051,8 +1005,6 @@ RUNNER_SOURCES_NO_MAIN = [
     "runner_dl_info.cc",
     "runner_dl_info.h",
     "runner_interface.h",
-    "runner_utils.cc",
-    "runner_utils.h",
     "sancov_callbacks.cc",
     "sancov_interceptors.cc",
     "sancov_object_array.cc",
@@ -1099,11 +1051,12 @@ RUNNER_DEPS = [
     ":knobs",
     ":mutation_data",
     ":rolling_hash",
-    ":engine_abi",
     ":runner_cmp_trace",
-    ":runner_fork_server",
     ":runner_request",
     ":runner_result",
+    ":runner_utils",
+    ":engine_abi",
+    ":engine_worker",
     ":shared_memory_blob_sequence",
     "@com_google_fuzztest//common:defs",
     "@abseil-cpp//absl/base:core_headers",
@@ -1111,6 +1064,53 @@ RUNNER_DEPS = [
     "@abseil-cpp//absl/numeric:bits",
     "@abseil-cpp//absl/types:span",
 ]
+
+cc_library(
+    name = "engine_worker",
+    srcs = [
+        "engine_worker.cc",
+    ],
+    hdrs = ["engine_worker_abi.h"],
+    copts = RUNNER_COPTS,
+    deps = [
+        ":engine_abi",
+        ":execution_metadata",
+        ":feature",
+        ":runner_fork_server",
+        ":runner_request",
+        ":runner_result",
+        ":runner_utils",
+        ":shared_memory_blob_sequence",
+        "@abseil-cpp//absl/base:nullability",
+        "@com_google_fuzztest//common:defs",
+    ],
+)
+
+bool_flag(
+    name = "bundle_controller_binary",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "is_controller_binary_bundled",
+    flag_values = {":bundle_controller_binary": "True"},
+)
+
+cc_library(
+    name = "engine_controller_with_subprocess",
+    srcs = ["engine_controller_with_subprocess.cc"],
+    hdrs = ["engine_controller_abi.h"],
+    data = select({
+        ":is_controller_binary_bundled": [
+            ":centipede_uninstrumented",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@com_google_fuzztest//centipede:engine_abi",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
+    ],
+)
 
 # A fuzz target needs to link with this library in order to run with Centipede.
 # The fuzz target must provide its own main().
