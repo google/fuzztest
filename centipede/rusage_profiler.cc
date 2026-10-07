@@ -160,13 +160,13 @@ class ProfileReportGenerator {
 
   // GenChartImpl() wrappers for the 2 available "snap" metrics.
   template <typename MetricT>
-  void GenChart(const MetricT RUsageTiming::*metric_field) {
+  void GenChart(const MetricT RUsageTiming::* metric_field) {
     GenChartImpl(                                         //
         &RUsageProfiler::Snapshot::timing, metric_field,  //
         timing_low_, timing_high_, /*is_delta=*/false);
   }
   template <typename MetricT>
-  void GenChart(const MetricT RUsageMemory::*metric_field) const {
+  void GenChart(const MetricT RUsageMemory::* metric_field) const {
     GenChartImpl(                                         //
         &RUsageProfiler::Snapshot::memory, metric_field,  //
         memory_low_, memory_high_, /*is_delta=*/false);
@@ -174,13 +174,13 @@ class ProfileReportGenerator {
 
   // GenChartImpl() wrappers for the 2 available delta metrics.
   template <typename MetricT>
-  void GenDeltaChart(const MetricT RUsageTiming::*metric_field) {
+  void GenDeltaChart(const MetricT RUsageTiming::* metric_field) {
     GenChartImpl(                                               //
         &RUsageProfiler::Snapshot::delta_timing, metric_field,  //
         delta_timing_low_, delta_timing_high_, /*is_delta=*/true);
   }
   template <typename MetricT>
-  void GenDeltaChart(const MetricT RUsageMemory::*metric_field) const {
+  void GenDeltaChart(const MetricT RUsageMemory::* metric_field) const {
     GenChartImpl(                                               //
         &RUsageProfiler::Snapshot::delta_memory, metric_field,  //
         delta_memory_low_, delta_memory_high_, /*is_delta=*/true);
@@ -192,11 +192,11 @@ class ProfileReportGenerator {
   // which has type `RUsageTiming`; an example of a matching `submetric_field`
   // for that is `&RUsageTiming::wall_time`.
   template <typename MetricT, typename SubmetricT>
-  void GenChartImpl(                                          //
-      const MetricT RUsageProfiler::Snapshot::*metric_field,  //
-      const SubmetricT MetricT::*submetric_field,             //
-      MetricT metric_low_water,                               //
-      MetricT metric_high_water,                              //
+  void GenChartImpl(                                           //
+      const MetricT RUsageProfiler::Snapshot::* metric_field,  //
+      const SubmetricT MetricT::* submetric_field,             //
+      MetricT metric_low_water,                                //
+      MetricT metric_high_water,                               //
       bool is_delta) const {
     constexpr SubmetricT kZero{};  // works for both ints and absl::Duration
     const SubmetricT low_water = metric_low_water.*submetric_field;
@@ -211,7 +211,9 @@ class ProfileReportGenerator {
     const int notch_zero =
         notch_size == kZero ? kBarNotches :
         low_water >= kZero ? 0 :
-        std::floor(std::abs(low_water / notch_size));
+        high_water <= kZero ? kBarNotches :
+        std::min<int>(  //
+            kBarNotches, std::floor(std::abs(low_water / notch_size)));
     // clang-format on
     FUZZTEST_CHECK_GE(kBarNotches, notch_zero);
     // Print a zero mark only if a delta metric goes negative.

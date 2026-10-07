@@ -21,8 +21,12 @@
 #include <string>
 #include <string_view>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/rusage_stats.h"
@@ -243,6 +247,122 @@ TEST(RUsageProfilerTest, ValidateReport) {
 
   ReportCapture report_capture{};
   rprof.GenerateReport(&report_capture);
+}
+
+// Regression test: when all delta metrics are negative or non-positive
+// (`high_water <= kZero`), `GenerateReport()` must not trigger a CHECK failure
+// in `GenChartImpl()` while calculating `notch_zero`.
+TEST(RUsageProfilerTest, ValidateReportWithAllNegativeDeltas) {
+  RUsageProfiler rprof{
+      RUsageScope::ThisProcess(),
+      RUsageProfiler::kAllMetrics,
+      RUsageProfiler::kRaiiOff,
+      {__FILE__, __LINE__},
+  };
+
+  // Add snapshots whose delta metrics are all strictly negative.
+  const RUsageTiming delta_timing1{
+      /*wall_time=*/-absl::Seconds(5),
+      /*user_time=*/-absl::Seconds(2),
+      /*sys_time=*/-absl::Seconds(1),
+      /*cpu_utilization=*/-0.4,
+      /*cpu_hyper_cores=*/-1.0,
+      /*is_delta=*/true,
+  };
+  const RUsageMemory delta_memory1{
+      /*mem_vsize=*/-100'000'000,
+      /*mem_vpeak=*/-100'000'000,
+      /*mem_rss=*/-50'000'000,
+      /*mem_data=*/-40'000'000,
+      /*mem_shared=*/-10'000'000,
+      /*is_delta=*/true,
+  };
+
+  const RUsageTiming delta_timing2{
+      /*wall_time=*/-absl::Seconds(1),
+      /*user_time=*/-absl::Seconds(1),
+      /*sys_time=*/-absl::Milliseconds(500),
+      /*cpu_utilization=*/-0.1,
+      /*cpu_hyper_cores=*/-0.2,
+      /*is_delta=*/true,
+  };
+  const RUsageMemory delta_memory2{
+      /*mem_vsize=*/-40'000'000,
+      /*mem_vpeak=*/-40'000'000,
+      /*mem_rss=*/-20'000'000,
+      /*mem_data=*/-10'000'000,
+      /*mem_shared=*/-5'000'000,
+      /*is_delta=*/true,
+  };
+
+  const absl::Time now = absl::Now();
+  {
+    absl::MutexLock lock{rprof.snapshots_mutex_};
+    rprof.snapshots_.push_back(RUsageProfiler::Snapshot{
+        /*id=*/0,
+        /*title=*/"Snap 0",
+        /*location=*/SourceLocation{__FILE__, __LINE__},
+        /*time=*/now,
+        /*profiler_id=*/rprof.id_,
+        /*profiler_desc=*/"",
+        /*timing=*/RUsageTiming::Zero(),
+        /*delta_timing=*/delta_timing1,
+        /*memory=*/RUsageMemory::Zero(),
+        /*delta_memory=*/delta_memory1,
+    });
+    rprof.snapshots_.push_back(RUsageProfiler::Snapshot{
+        /*id=*/1,
+        /*title=*/"Snap 1",
+        /*location=*/SourceLocation{__FILE__, __LINE__},
+        /*time=*/now + absl::Seconds(1),
+        /*profiler_id=*/rprof.id_,
+        /*profiler_desc=*/"",
+        /*timing=*/RUsageTiming::Zero(),
+        /*delta_timing=*/delta_timing2,
+        /*memory=*/RUsageMemory::Zero(),
+        /*delta_memory=*/delta_memory2,
+    });
+  }
+
+  // All-negative deltas place the zero mark at the right edge of the bar,
+  // whereas non-delta metrics have no zero mark.
+  class ReportCapture : public RUsageProfiler::ReportSink {
+   public:
+    ~ReportCapture() override = default;
+
+    ReportCapture& operator<<(std::string_view fragment) override {
+      if (absl::StrContains(fragment, "=== Δ ")) {
+        in_delta_section_ = true;
+      } else if (absl::StrContains(fragment, "=== ")) {
+        in_delta_section_ = false;
+      }
+
+      if (absl::StrContains(fragment, ":S.")) {
+        if (in_delta_section_) {
+          ++delta_bars_count_;
+          EXPECT_THAT(fragment, testing::HasSubstr("|]")) << VV(fragment);
+        } else {
+          ++non_delta_bars_count_;
+          EXPECT_THAT(fragment, testing::Not(testing::HasSubstr("|]")))
+              << VV(fragment);
+        }
+      }
+      return *this;
+    }
+
+    int delta_bars_count() const { return delta_bars_count_; }
+    int non_delta_bars_count() const { return non_delta_bars_count_; }
+
+   private:
+    bool in_delta_section_ = false;
+    int delta_bars_count_ = 0;
+    int non_delta_bars_count_ = 0;
+  };
+
+  ReportCapture report_capture{};
+  rprof.GenerateReport(&report_capture);
+  EXPECT_EQ(report_capture.delta_bars_count(), 20);
+  EXPECT_EQ(report_capture.non_delta_bars_count(), 20);
 }
 
 TEST(RUsageProfilerTest, DeadlockReproduction) {

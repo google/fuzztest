@@ -406,6 +406,7 @@ class RUsageProfiler {
 
  private:
   friend class RUsageProfilerTest_ValidateManualSnapshots_Test;
+  friend class RUsageProfilerTest_ValidateReportWithAllNegativeDeltas_Test;
 
   //----------------------------------------------------------------------------
   //                                  Data
