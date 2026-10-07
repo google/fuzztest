@@ -90,6 +90,17 @@ fn ensure_features_work_finding_rarer_bug(fixture: &EnvVars) {
     // that length, not any kind of hex-escaping.
     expect_that!(stderr, matchers::contains_regex("Input bytes[ \t]*: \\\\x5PaNiC"));
     expect_that!(stderr, matchers::contains_substring("CRASH LOG: Bug found!"));
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: === BUG FOUND!"));
+    expect_that!(
+        stderr,
+        matchers::contains_substring(
+            "Counterexample found for fuzztest_main::__fuzztest_mod__find_rarer_bug_fuzz_test::find_rarer_bug_fuzz_test."
+        )
+    );
+    expect_that!(
+        stderr,
+        matchers::contains_substring("CRASH LOG: argument 0: [80, 97, 78, 105, 67]")
+    );
 }
 
 #[gtest]
@@ -101,6 +112,9 @@ fn ensure_features_work_finding_rarer_bug_2_args(fixture: &EnvVars) {
     );
 
     expect_that!(stderr, matchers::contains_substring("CRASH LOG: Bug found!"));
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: === BUG FOUND!"));
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: argument 0: ["));
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: argument 1: [42"));
 }
 
 #[gtest]
@@ -112,6 +126,10 @@ fn ensure_features_work_finding_rarer_bug_3_args(fixture: &EnvVars) {
     );
 
     expect_that!(stderr, matchers::contains_substring("CRASH LOG: Bug found!"));
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: === BUG FOUND!"));
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: argument 0: ["));
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: argument 1: -"));
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: argument 2: "));
 }
 
 #[gtest]
