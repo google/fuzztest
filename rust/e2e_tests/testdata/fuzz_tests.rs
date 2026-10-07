@@ -124,15 +124,16 @@ fn find_rarer_bug_3_args_fuzz_test(a: Vec<u8>, b: f32, c: i32) {
         panic!("Bug found!");
     }
 }
-#[fuzztest(a = ByteVectorDomain::new())]
-fn use_after_free_asan_death_test(mut a: Vec<u8>) {
-    if !a.is_empty() && a[0] == 123 {
-        let ptr = a.as_mut_ptr();
-        drop(a);
-        // Intentionally trigger a use-after-free bug for ASAN to detect.
-        unsafe {
-            *(std::hint::black_box(ptr)) = 1;
-        }
+
+#[fuzztest(a = Arbitrary::<i32>::default())]
+fn use_after_free_asan_death_test(a: i32) {
+    let mut v = vec![a];
+    let ptr = v.as_mut_ptr();
+    drop(v);
+    // Intentionally trigger a use-after-free bug on every input for ASAN to detect failure
+    // immediately.
+    unsafe {
+        *(std::hint::black_box(ptr)) = 1;
     }
 }
 

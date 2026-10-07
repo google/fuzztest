@@ -58,3 +58,67 @@ fn test_fuzztest_property_function_executes_in_gtest() {
 
     expect_that!(stdout, matchers::contains_substring("bool_fuzz_test property function ran..."));
 }
+
+#[gtest]
+fn test_panicking_fuzztest_prints_finding_report_in_smoke_test() {
+    let src_dir_path = PathBuf::from(env::var("TEST_SRCDIR").unwrap());
+    let target_binary_path = src_dir_path
+        .join("_main/rust/e2e_tests/testdata/fuzz_tests_as_gtests");
+
+    let output = Command::new(&target_binary_path)
+        .arg("panicking_fuzz_test")
+        .arg("--nocapture")
+        .output()
+        .expect("Failed to execute test binary");
+
+    expect_that!(output.status.success(), eq(false));
+
+    let combined = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    expect_that!(combined, matchers::contains_substring("=== BUG FOUND!"));
+    expect_that!(
+        combined,
+        matchers::contains_substring(
+            "Counterexample found for __fuzztest_mod__panicking_fuzz_test::panicking_fuzz_test."
+        )
+    );
+    expect_that!(
+        combined,
+        matchers::contains_substring("The test fails with input:\nargument 0: ")
+    );
+}
+
+#[gtest]
+fn test_expect_failing_fuzztest_prints_finding_report_in_smoke_test() {
+    let src_dir_path = PathBuf::from(env::var("TEST_SRCDIR").unwrap());
+    let target_binary_path = src_dir_path
+        .join("_main/rust/e2e_tests/testdata/fuzz_tests_as_gtests");
+
+    let output = Command::new(&target_binary_path)
+        .arg("expect_failing_fuzz_test")
+        .arg("--nocapture")
+        .output()
+        .expect("Failed to execute test binary");
+
+    expect_that!(output.status.success(), eq(false));
+
+    let combined = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    expect_that!(combined, matchers::contains_substring("=== BUG FOUND!"));
+    expect_that!(
+        combined,
+        matchers::contains_substring(
+            "Counterexample found for __fuzztest_mod__expect_failing_fuzz_test::expect_failing_fuzz_test."
+        )
+    );
+    expect_that!(
+        combined,
+        matchers::contains_substring("The test fails with input:\nargument 0: ")
+    );
+}
