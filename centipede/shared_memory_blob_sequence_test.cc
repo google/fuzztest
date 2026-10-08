@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -52,6 +53,45 @@ TEST(BlobSequence, WriteAndReadAnEmptyBlob) {
   auto blob = blobseq2.Read();
   EXPECT_EQ(Vec(blob).size(), 0);
   EXPECT_EQ(blob.tag, 1);
+}
+
+struct TestTrivialPayload {
+  uint32_t a;
+  uint64_t b;
+  bool operator==(const TestTrivialPayload &other) const {
+    return a == other.a && b == other.b;
+  }
+};
+
+TEST(BlobSequence, WriteAndReadTrivialValue) {
+  std::vector<uint8_t> buffer(1000);
+  BlobSequence blobseq1(buffer.data(), buffer.size());
+
+  constexpr uint64_t kIntValue = 0x123456789abcdef0ULL;
+  ASSERT_TRUE(blobseq1.Write(/*tag=*/42, kIntValue));
+
+  constexpr TestTrivialPayload kStructValue{123, 456789};
+  ASSERT_TRUE(blobseq1.Write(/*tag=*/43, kStructValue));
+
+  BlobSequence blobseq2(buffer.data(), blobseq1.offset());
+
+  auto blob1 = blobseq2.Read();
+  EXPECT_TRUE(blob1.IsValid());
+  EXPECT_EQ(blob1.tag, 42);
+  EXPECT_EQ(blob1.size, sizeof(kIntValue));
+  uint64_t read_int = 0;
+  std::memcpy(&read_int, blob1.data, sizeof(read_int));
+  EXPECT_EQ(read_int, kIntValue);
+
+  auto blob2 = blobseq2.Read();
+  EXPECT_TRUE(blob2.IsValid());
+  EXPECT_EQ(blob2.tag, 43);
+  EXPECT_EQ(blob2.size, sizeof(kStructValue));
+  TestTrivialPayload read_struct{};
+  std::memcpy(&read_struct, blob2.data, sizeof(read_struct));
+  EXPECT_EQ(read_struct, kStructValue);
+
+  EXPECT_FALSE(blobseq2.Read().IsValid());
 }
 
 TEST(BlobSequence, WriteReturnErrorOnOverflow) {
