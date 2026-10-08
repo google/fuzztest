@@ -15,17 +15,19 @@
 // Implementation of remote_file.h for the local file system using pure Standard
 // Library APIs.
 
-#if !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#if !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__) && \
+    !defined(__LLVM_LIBC__)
 #include <glob.h>
 #define FUZZTEST_HAS_OSS_GLOB
-#endif  // !defined(_MSC_VER) && !defined(__ANDROID__) && !defined(__Fuchsia__)
+#endif  // !defined(_MSC_VER) && !defined(__ANDROID__) &&
+        // !defined(__Fuchsia__) && !defined(__LLVM_LIBC__)
 
 #if defined(_MSC_VER)
 #include <windows.h>
 #endif  // defined(_MSC_VER)
-
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #include <cerrno>
 #include <cstdint>
