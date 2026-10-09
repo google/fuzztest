@@ -34,7 +34,9 @@
 namespace fuzztest {
 namespace internal {
 
-void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory);
+FuzzTest& RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory);
+
+void RegisterFuzzTestAsGoogleTest(FuzzTest& test);
 
 void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func);
 
@@ -61,8 +63,8 @@ struct RegistrationToken {
                                               &Fixture::TearDownTestSuite);
     }
     BasicTestInfo test_info = reg.test_info_;
-    RegisterImpl(std::move(test_info),
-                 GetFuzzTestFuzzerFactory(std::move(reg)));
+    RegisterFuzzTestAsGoogleTest(RegisterImpl(
+        std::move(test_info), GetFuzzTestFuzzerFactory(std::move(reg))));
     return *this;
   }
 

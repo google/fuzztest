@@ -730,6 +730,16 @@ TEST_F(UnitTestModeTest, FuzzTestsRecordFuzzTestProperty) {
               Optional(IsXmlWithExactlyFuzzTestsHavingFuzzTestProperty()));
 }
 
+TEST_F(UnitTestModeTest, FailsLoudlyWhenInitFuzzTestIsNotCalled) {
+  auto [status, std_out, std_err] =
+      RunWithExactFuzzerFlags("*", "testdata/fuzz_test_without_init_fuzztest");
+
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+  EXPECT_THAT_LOG(
+      std_out, HasSubstr("FUZZ_TEST(MySuite, MyFuzzTest) was registered, but "
+                         "InitFuzzTest was never called in main()."));
+}
+
 // Tests for the FuzzTest command line interface.
 class GenericCommandLineInterfaceTest : public ::testing::Test {
  protected:
