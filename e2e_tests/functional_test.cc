@@ -88,15 +88,23 @@ absl::flat_hash_map<std::string, std::string> WithTestSanitizerOptions(
   return env;
 }
 
-void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err) {
+// Expects that the code under test was killed by `signum`. In Centipede mode
+// the code under test runs in a runner subprocess, so the controller reports
+// the runner's termination signal instead of being killed by it.
+void ExpectTargetKilledBySignal(TerminationStatus status,
+                                absl::string_view std_err, int signum) {
 #ifdef FUZZTEST_USE_CENTIPEDE
   EXPECT_THAT(status, Ne(ExitCode(0)));
-  EXPECT_TRUE(RE2::PartialMatch(std_err,
-                                absl::StrCat("[Ee]xit code\\s*:\\s*", SIGABRT)))
+  EXPECT_TRUE(
+      RE2::PartialMatch(std_err, absl::StrCat("[Ee]xit code\\s*:\\s*", signum)))
       << std_err;
 #else
-  EXPECT_THAT(status, Eq(Signal(SIGABRT)));
+  EXPECT_THAT(status, Eq(Signal(signum)));
 #endif
+}
+
+void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err) {
+  ExpectTargetKilledBySignal(status, std_err, SIGABRT);
 }
 
 int CountSubstrs(absl::string_view haystack, absl::string_view needle) {
@@ -599,6 +607,43 @@ TEST_F(UnitTestModeTest, AlwaysSetAndUnsetWorkOnOneofFields) {
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
+TEST_F(UnitTestModeTest, ReportsCrashWhenSignalHandlerIsNotDisabled) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.Aborts", kDefaultTargetBinary,
+          /*env=*/{{"FUZZTEST_DISABLE_SIGNAL_HANDLERS", "SIGSEGV"}});
+  ExpectTargetAbort(status, std_err);
+  EXPECT_THAT_LOG(std_err, HasSubstr("BUG FOUND!"));
+}
+
+TEST_F(UnitTestModeTest, DoesNotReportCrashWhenSignalHandlerIsDisabled) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.Aborts", kDefaultTargetBinary,
+          /*env=*/{{"FUZZTEST_DISABLE_SIGNAL_HANDLERS", "SIGABRT"}});
+  ExpectTargetAbort(status, std_err);
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("BUG FOUND!")));
+}
+
+TEST_F(UnitTestModeTest,
+       DisablesSignalHandlersFromCommaSeparatedListWithWhitespace) {
+  auto [status, std_out, std_err] = Run(
+      "MySuite.Aborts", kDefaultTargetBinary,
+      /*env=*/{{"FUZZTEST_DISABLE_SIGNAL_HANDLERS", " SIGSEGV , SIGABRT "}});
+  ExpectTargetAbort(status, std_err);
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("BUG FOUND!")));
+}
+
+TEST_F(UnitTestModeTest, HandlesTerminationSignalByDefault) {
+  auto [status, std_out, std_err] = Run("MySuite.RaisesSigterm");
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(UnitTestModeTest, DoesNotHandleTerminationSignalWhenDisabled) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.RaisesSigterm", kDefaultTargetBinary,
+          /*env=*/{{"FUZZTEST_DISABLE_SIGNAL_HANDLERS", "SIGTERM"}});
+  ExpectTargetKilledBySignal(status, std_err, SIGTERM);
+}
+
 void ExpectStackLimitExceededMessage(absl::string_view std_err,
                                      size_t limit_bytes) {
 #ifdef FUZZTEST_USE_CENTIPEDE
@@ -839,6 +884,25 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
               {{"FUZZTEST_MAX_FUZZING_RUNS", "-1"}},
               /*timeout=*/absl::Seconds(10));
   EXPECT_THAT_LOG(std_err, HasSubstr("will not limit fuzzing runs"));
+}
+
+// The timeout sends SIGTERM to the top-level process, which is the Centipede
+// controller in Centipede mode.
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       StopsGracefullyOnExternalSigtermByDefault) {
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}}, /*env=*/{},
+              /*timeout=*/absl::Seconds(10));
+  EXPECT_THAT(status, Eq(ExitCode(0))) << std_err;
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       IsKilledByExternalSigtermWhenSignalHandlerIsDisabled) {
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
+              /*env=*/{{"FUZZTEST_DISABLE_SIGNAL_HANDLERS", "SIGTERM"}},
+              /*timeout=*/absl::Seconds(10));
+  EXPECT_THAT(status, Eq(Signal(SIGTERM))) << std_err;
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenEnvVarIsSet) {

@@ -45,12 +45,14 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/clock.h"
@@ -509,6 +511,19 @@ void Runtime::OnTestIterationEnd() {
   watchdog_spinlock_.Unlock();
 }
 
+bool IsSignalHandlerDisabled(absl::string_view signame) {
+  const char* disabled = std::getenv("FUZZTEST_DISABLE_SIGNAL_HANDLERS");
+  if (disabled == nullptr) {
+    return false;
+  }
+  for (absl::string_view name : absl::StrSplit(disabled, ',')) {
+    if (absl::StripAsciiWhitespace(name) == signame) {
+      return true;
+    }
+  }
+  return false;
+}
+
 #if defined(__linux__) || defined(__APPLE__)
 
 struct OldSignalHandler {
@@ -637,10 +652,16 @@ void InstallSignalHandlers(FILE* out) {
 #endif
 
   for (OldSignalHandler& h : crash_handlers) {
+    if (IsSignalHandlerDisabled(h.signame)) {
+      continue;
+    }
     SetNewSigAction(h.signum, &HandleCrash, &h.action);
   }
 
   for (OldSignalHandler& h : termination_handlers) {
+    if (IsSignalHandlerDisabled(h.signame)) {
+      continue;
+    }
     SetNewSigAction(h.signum, &HandleTermination, nullptr);
   }
 }
