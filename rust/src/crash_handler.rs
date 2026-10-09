@@ -15,9 +15,9 @@
 // SAFETY:
 // - `FuzzTestSetSanitizerErrorSummaryCallback` is declared with `extern "C"` linkage in
 //   `internal/sanitizer_interface.h` and defined in `internal/sanitizer_interface.cc`.
-// - The signature matches `void FuzzTestSetSanitizerErrorSummaryCallback(void (*)(const char*, size_t))`:
-//   `*const u8` is layout- and ABI-compatible with `const char*`, and `usize` is ABI-compatible
-//   with `size_t`.
+// - The signature matches `void FuzzTestSetSanitizerErrorSummaryCallback(void (*)(const char*,
+//   size_t))`: `*const u8` is layout- and ABI-compatible with `const char*`, and `usize` is
+//   ABI-compatible with `size_t`.
 unsafe extern "C" {
     fn FuzzTestSetSanitizerErrorSummaryCallback(
         callback: unsafe extern "C" fn(crash_type_data: *const u8, crash_type_size: usize),
@@ -52,6 +52,7 @@ unsafe extern "C" fn sanitizer_error_summary_callback(
         std::str::from_utf8(crash_type_bytes).unwrap_or("Sanitizer crash (invalid utf8)")
     };
     crate::worker::try_emit_finding(crash_type, crash_type);
+    crate::internal::try_print_finding_report();
 }
 
 /// Registers the sanitizer error summary callback and ensures the sanitizer crash handler hook is

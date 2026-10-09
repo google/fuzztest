@@ -655,9 +655,9 @@ pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
         .init(&mut rng)
         .expect("domain initialization should succeed to provide an initial corpus value");
 
-    let result = fuzztest.execute(&generic_corpus_value);
-    // DISCUSS: probably need a more "googletest" approach to handling the result here?
-    assert!(result);
+    if !fuzztest.execute(&generic_corpus_value) {
+        return;
+    }
 
     while start_time.elapsed() < smoke_test_duration {
         fuzztest
@@ -666,9 +666,9 @@ pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
             .expect("Failed to lock domains")
             .mutate(&mut generic_corpus_value, &mut rng, only_shrink)
             .expect("domain mutation should succeed");
-        let result = fuzztest.execute(&generic_corpus_value);
-        // DISCUSS: probably need a more "googletest" approach to handling the result here?
-        assert!(result);
+        if !fuzztest.execute(&generic_corpus_value) {
+            return;
+        }
     }
 }
 
