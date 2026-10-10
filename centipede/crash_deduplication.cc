@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -93,11 +94,13 @@ std::string_view ActionTypeToString(ActionType action_type) {
 struct ExistingCrash {
   CrashReport crash_report;
   std::string new_signature;
+  bool was_attempted = false;
 };
 
 struct IncubatingCrash {
   CrashDetails details;
   std::string new_signature;
+  bool was_attempted = false;
 };
 
 struct ExistingCrashAction {
@@ -107,12 +110,44 @@ struct ExistingCrashAction {
   std::string reason;
 };
 
+absl::StatusOr<std::vector<std::string>> ListFilesSortedByMTime(
+    const std::filesystem::path& dir) {
+  ASSIGN_OR_RETURN_IF_NOT_OK(
+      std::vector<std::string> files,
+      RemoteListFiles(dir.c_str(), /*recursively=*/false));
+
+  struct FileWithMTime {
+    std::string path;
+    absl::Time mtime;
+  };
+  std::vector<FileWithMTime> files_with_mtime;
+  files_with_mtime.reserve(files.size());
+  for (std::string& file : files) {
+    ASSIGN_OR_RETURN_IF_NOT_OK(absl::Time mtime, RemoteFileGetMTime(file));
+    files_with_mtime.push_back({std::move(file), mtime});
+  }
+
+  // Sort ascending by mtime (oldest first) so crashes starved from previous
+  // runs or closest to TTL expiry are replayed first. Use path as a
+  // deterministic tie-breaker.
+  std::sort(files_with_mtime.begin(), files_with_mtime.end(),
+            [](const FileWithMTime& a, const FileWithMTime& b) {
+              return std::tie(a.mtime, a.path) < std::tie(b.mtime, b.path);
+            });
+
+  std::vector<std::string> sorted_files;
+  sorted_files.reserve(files_with_mtime.size());
+  for (auto& item : files_with_mtime) {
+    sorted_files.push_back(std::move(item.path));
+  }
+  return sorted_files;
+}
+
 absl::StatusOr<std::vector<ExistingCrash>> ReadExistingCrashes(
     const std::filesystem::path& crashing_dir) {
   std::vector<ExistingCrash> existing_crashes;
-  ASSIGN_OR_RETURN_IF_NOT_OK(
-      const std::vector<std::string> input_files,
-      RemoteListFiles(crashing_dir.c_str(), /*recursively=*/false));
+  ASSIGN_OR_RETURN_IF_NOT_OK(const std::vector<std::string> input_files,
+                             ListFilesSortedByMTime(crashing_dir));
 
   existing_crashes.reserve(input_files.size());
   for (const std::string& input_file : input_files) {
@@ -137,9 +172,8 @@ absl::StatusOr<std::vector<ExistingCrash>> ReadExistingCrashes(
 absl::StatusOr<std::vector<IncubatingCrash>> ReadIncubatingCrashes(
     const std::filesystem::path& incubating_dir) {
   std::vector<IncubatingCrash> incubating_crashes;
-  ASSIGN_OR_RETURN_IF_NOT_OK(
-      const std::vector<std::string> input_files,
-      RemoteListFiles(incubating_dir.c_str(), /*recursively=*/false));
+  ASSIGN_OR_RETURN_IF_NOT_OK(const std::vector<std::string> input_files,
+                             ListFilesSortedByMTime(incubating_dir));
 
   incubating_crashes.reserve(input_files.size());
   for (const std::string& input_file : input_files) {
@@ -152,59 +186,124 @@ absl::StatusOr<std::vector<IncubatingCrash>> ReadIncubatingCrashes(
   return incubating_crashes;
 }
 
-absl::Status ReplayCrash(CentipedeCallbacks& callbacks, const Environment& env,
-                         absl::string_view input_path,
-                         std::string& out_signature,
-                         std::string& out_description) {
+struct CrashReplayTask {
+  CrashDetails& details;
+  std::string& new_signature;
+  bool& was_attempted;
   ByteArray input_bytes;
-  RETURN_IF_NOT_OK(RemoteFileGetContents(input_path, input_bytes));
+};
+
+std::optional<CrashReplayTask> ToCrashReplayTask(ExistingCrash& existing) {
+  if (existing.crash_report.signature.empty()) return std::nullopt;
+  return CrashReplayTask{existing.crash_report.details, existing.new_signature,
+                         existing.was_attempted};
+}
+
+std::optional<CrashReplayTask> ToCrashReplayTask(IncubatingCrash& incubating) {
+  return CrashReplayTask{incubating.details, incubating.new_signature,
+                         incubating.was_attempted};
+}
+
+template <typename CrashT>
+absl::StatusOr<std::vector<CrashReplayTask>> ToCrashReplayTasks(
+    absl::Span<CrashT> raw_crashes) {
+  std::vector<CrashReplayTask> crashes;
+  crashes.reserve(raw_crashes.size());
+  for (CrashT& raw_crash : raw_crashes) {
+    std::optional<CrashReplayTask> crash = ToCrashReplayTask(raw_crash);
+    if (!crash.has_value()) continue;
+    RETURN_IF_NOT_OK(
+        RemoteFileGetContents(crash->details.input_path, crash->input_bytes));
+    crashes.push_back(*std::move(crash));
+  }
+  return crashes;
+}
+
+// Returns a human-readable reason why a crash replay batch did not complete.
+// The returned view may refer to `batch_result`, so it must not outlive it.
+std::string_view IncompleteReplayReason(bool stopped,
+                                        const BatchResult& batch_result) {
+  if (stopped) return "replay was stopped";
+  if (batch_result.failure_description() == kExecutionFailurePerBatchTimeout) {
+    return "per-batch timeout exceeded";
+  }
+  return batch_result.failure_description();
+}
+
+// Attempts to replay `crash` up to `max_attempts` times in a single batch.
+// Marks `crash` as attempted only if the crash reproduced or all
+// `max_attempts` inputs ran without it reproducing.
+// Returns false if execution was stopped by `stop_condition`.
+bool ReplayCrash(CentipedeCallbacks& callbacks, const Environment& env,
+                 const StopCondition& stop_condition, size_t max_attempts,
+                 CrashReplayTask& crash) {
+  if (stop_condition.ShouldStop()) return false;
+
+  const std::vector<ByteSpan> inputs(max_attempts, crash.input_bytes);
+  BatchResult batch_result;
+  const bool success = callbacks.Execute(env.binary, inputs, batch_result);
+  const bool stopped = stop_condition.ShouldStop();
+
+  // The batch hit the global deadline or the per-batch timeout.
+  const bool timed_out = stopped || batch_result.failure_description() ==
+                                        kExecutionFailurePerBatchTimeout;
+  // The batch found an input failure and did not time out.
+  const bool reproduced =
+      !success && batch_result.IsInputFailure() && !timed_out;
+  // Every attempt ran without the crash reproducing.
+  const bool completed_all_attempts =
+      success && batch_result.num_outputs_read() >= max_attempts;
+
+  if (reproduced) {
+    crash.was_attempted = true;
+    crash.new_signature = batch_result.failure_signature();
+    crash.details.description = batch_result.failure_description();
+    if (batch_result.num_outputs_read() > 0) {
+      FUZZTEST_LOG(INFO) << "Crash reproduced on attempt "
+                         << (batch_result.num_outputs_read() + 1) << " of "
+                         << max_attempts << " for " << crash.details.input_path;
+    }
+  } else if (completed_all_attempts) {
+    crash.was_attempted = true;
+    if (max_attempts > 1) {
+      FUZZTEST_LOG(INFO) << "Crash failed to reproduce after " << max_attempts
+                         << " attempts for " << crash.details.input_path;
+    }
+  } else {
+    FUZZTEST_LOG(WARNING) << "Crash replay incomplete after "
+                          << batch_result.num_outputs_read() << " of "
+                          << max_attempts << " attempts ("
+                          << IncompleteReplayReason(stopped, batch_result)
+                          << ") for " << crash.details.input_path;
+  }
+
+  return !stopped;
+}
+
+absl::Status ReplayCrashes(CentipedeCallbacks& callbacks,
+                           const Environment& env,
+                           const StopCondition& stop_condition,
+                           absl::Span<CrashReplayTask> crashes) {
+  for (CrashReplayTask& crash : crashes) {
+    crash.new_signature.clear();
+    crash.details.description.clear();
+    crash.was_attempted = false;
+  }
 
   const size_t max_attempts = std::max<size_t>(1, env.replay_crash_attempts);
-  for (size_t attempt = 0; attempt < max_attempts; ++attempt) {
-    BatchResult batch_result;
-    if (!callbacks.Execute(env.binary, {input_bytes}, batch_result) &&
-        batch_result.IsInputFailure()) {
-      out_signature = batch_result.failure_signature();
-      out_description = batch_result.failure_description();
-      if (attempt > 0) {
-        FUZZTEST_LOG(INFO) << "Crash reproduced on attempt " << (attempt + 1)
-                           << " of " << max_attempts << " for " << input_path;
-      }
-      return absl::OkStatus();
-    }
+  size_t num_attempted = 0;
+  for (CrashReplayTask& crash : crashes) {
+    const bool stopped =
+        !ReplayCrash(callbacks, env, stop_condition, max_attempts, crash);
+    if (crash.was_attempted) ++num_attempted;
+    if (stopped) break;
   }
 
-  if (max_attempts > 1) {
-    FUZZTEST_LOG(INFO) << "Crash failed to reproduce after " << max_attempts
-                       << " attempts for " << input_path;
+  if (num_attempted < crashes.size()) {
+    FUZZTEST_LOG(WARNING) << "Crash replay completed for " << num_attempted
+                          << " of " << crashes.size() << " crashes";
   }
-  out_signature = "";
-  out_description = "";
-  return absl::OkStatus();
-}
 
-absl::Status ReplayExistingCrashes(
-    CentipedeCallbacks& callbacks, const Environment& env,
-    std::vector<ExistingCrash>& existing_crashes) {
-  for (auto& existing : existing_crashes) {
-    if (existing.crash_report.signature.empty()) {
-      continue;
-    }
-    RETURN_IF_NOT_OK(ReplayCrash(
-        callbacks, env, existing.crash_report.details.input_path,
-        existing.new_signature, existing.crash_report.details.description));
-  }
-  return absl::OkStatus();
-}
-
-absl::Status ReplayIncubatingCrashes(
-    CentipedeCallbacks& callbacks, const Environment& env,
-    std::vector<IncubatingCrash>& incubating_crashes) {
-  for (auto& incubating : incubating_crashes) {
-    RETURN_IF_NOT_OK(ReplayCrash(callbacks, env, incubating.details.input_path,
-                                 incubating.new_signature,
-                                 incubating.details.description));
-  }
   return absl::OkStatus();
 }
 
@@ -254,8 +353,18 @@ ExistingCrashAction ComputeExistingCrashAction(
             absl::StrCat("Crash reproduced with the same signature: ", sig)};
   }
 
-  // The signature changed or it no longer reproduces.
+  // The signature changed, it no longer reproduces, or it was not attempted.
   auto it = new_crashes.find(sig);
+  if (!existing.was_attempted) {
+    if (it != new_crashes.end()) {
+      return {existing, ActionType::kTouch, it->second,
+              absl::StrCat("Crash replay was incomplete, but "
+                           "active input reproduces signature '",
+                           sig, "'")};
+    }
+    return {existing, ActionType::kKeep, std::nullopt,
+            "Crash replay was incomplete; keeping on disk"};
+  }
   if (it == new_crashes.end()) {
     // No input reproduces this signature anymore. Keep it on disk (subject to
     // TTL).
@@ -620,10 +729,18 @@ absl::Status OrganizeCrashingInputs(
 
   ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
                                             stop_condition);
-  RETURN_IF_NOT_OK(ReplayExistingCrashes(*scoped_callbacks.callbacks(), env,
-                                         existing_crashes));
-  RETURN_IF_NOT_OK(ReplayIncubatingCrashes(*scoped_callbacks.callbacks(), env,
-                                           incubating_crashes));
+  ASSIGN_OR_RETURN_IF_NOT_OK(
+      std::vector<CrashReplayTask> existing_to_replay,
+      ToCrashReplayTasks(absl::MakeSpan(existing_crashes)));
+  RETURN_IF_NOT_OK(ReplayCrashes(*scoped_callbacks.callbacks(), env,
+                                 stop_condition,
+                                 absl::MakeSpan(existing_to_replay)));
+  ASSIGN_OR_RETURN_IF_NOT_OK(
+      std::vector<CrashReplayTask> incubating_to_replay,
+      ToCrashReplayTasks(absl::MakeSpan(incubating_crashes)));
+  RETURN_IF_NOT_OK(ReplayCrashes(*scoped_callbacks.callbacks(), env,
+                                 stop_condition,
+                                 absl::MakeSpan(incubating_to_replay)));
 
   absl::flat_hash_map<std::string, CrashDetails> new_crashes = FindNewCrashes(
       new_crashes_by_signature, incubating_crashes, existing_crashes);

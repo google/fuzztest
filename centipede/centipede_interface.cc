@@ -76,6 +76,8 @@ namespace fuzztest::internal {
 namespace {
 
 constexpr absl::Duration kDefaultRegressionTtl = absl::Hours(24 * 7);
+constexpr double kCrashDeduplicationTimeFraction = 0.25;
+constexpr absl::Duration kMinCrashDeduplicationTimeLimit = absl::Seconds(1);
 
 // Runs env.for_each_blob on every blob extracted from env.args.
 // Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
@@ -472,6 +474,12 @@ void RecordFuzzingResults(const Environment& env, const DatabasePaths& db_paths,
   }
 }
 
+absl::Duration GetCrashDeduplicationTimeLimit(
+    absl::Duration fuzzing_time_limit) {
+  return std::max(kCrashDeduplicationTimeFraction * fuzzing_time_limit,
+                  kMinCrashDeduplicationTimeLimit);
+}
+
 void UpdateCorpusDatabase(Environment env,
                           CentipedeCallbacksFactory& callbacks_factory,
                           StopCondition& stop_condition) {
@@ -663,8 +671,11 @@ void UpdateCorpusDatabase(Environment env,
     return;
   }
 
-  // The test time limit does not apply for updating the corpus database.
-  stop_condition.SetStopTime(absl::InfiniteFuture());
+  const absl::Duration dedup_time_limit =
+      GetCrashDeduplicationTimeLimit(env.fuzztest_time_limit_per_test);
+  FUZZTEST_LOG(INFO) << "Dedicating " << dedup_time_limit
+                     << " to updating corpus database for " << env.test_name;
+  stop_condition.SetStopTime(absl::Now() + dedup_time_limit);
   RecordFuzzingResults(env, db_paths, callbacks_factory, stop_condition);
 }
 

@@ -14,6 +14,7 @@
 
 #include "./centipede/crash_deduplication_test_util.h"
 
+#include <cstddef>
 #include <cstdlib>
 #include <string_view>
 
@@ -28,14 +29,16 @@ bool FakeCentipedeCallbacks::Execute(std::string_view binary,
                                      absl::Span<const ByteSpan> inputs,
                                      BatchResult& batch_result) {
   batch_result.ClearAndResize(inputs.size());
-  for (ByteSpan input : inputs) {
-    auto it = crashing_inputs_.find(AsStringView(input));
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    auto it = crashing_inputs_.find(AsStringView(inputs[i]));
     if (it == crashing_inputs_.end()) continue;
+    batch_result.num_outputs_read() = i;
     batch_result.exit_code() = EXIT_FAILURE;
     batch_result.failure_signature() = it->second.signature;
     batch_result.failure_description() = it->second.description;
     return false;
   }
+  batch_result.num_outputs_read() = inputs.size();
   return true;
 }
 

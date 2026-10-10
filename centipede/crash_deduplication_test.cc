@@ -14,6 +14,7 @@
 
 #include "./centipede/crash_deduplication.h"
 
+#include <chrono>  // NOLINT
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
@@ -52,6 +53,7 @@ namespace {
 using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::ContainsRegex;
+using ::testing::ElementsAre;
 using ::testing::EndsWith;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
@@ -228,6 +230,7 @@ class OrganizeCrashingInputsTest : public ::testing::Test {
   }
   const Environment& env() const { return env_; }
   CrashSummary& crash_summary() { return crash_summary_; }
+  StopCondition& stop_condition() { return stop_condition_; }
 
   absl::Status OrganizeCrashingInputs(
       const std::filesystem::path& regression_dir,
@@ -1128,21 +1131,28 @@ class FlakyCrashCallbacks : public CentipedeCallbacks {
 
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
-    ++execution_count_;
+    ++execute_calls_;
     batch_result.ClearAndResize(inputs.size());
-    if (execution_count_ == crash_on_attempt_) {
-      batch_result.exit_code() = EXIT_FAILURE;
-      batch_result.failure_signature() = "csig";
-      batch_result.failure_description() = "flaky crash";
-      return false;
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      ++execution_count_;
+      if (execution_count_ == crash_on_attempt_) {
+        batch_result.num_outputs_read() = i;
+        batch_result.exit_code() = EXIT_FAILURE;
+        batch_result.failure_signature() = "csig";
+        batch_result.failure_description() = "flaky crash";
+        return false;
+      }
     }
+    batch_result.num_outputs_read() = inputs.size();
     return true;
   }
 
+  int execute_calls() const { return execute_calls_; }
   int execution_count() const { return execution_count_; }
 
  private:
   int crash_on_attempt_;
+  int execute_calls_ = 0;
   int execution_count_ = 0;
   StopCondition internal_stop_condition_;
 };
@@ -1162,6 +1172,7 @@ TEST_F(OrganizeCrashingInputsTest, ReplaysCrashMultipleTimesUntilSuccess) {
                                      crash_summary())
                   .ok());
 
+  EXPECT_EQ(callbacks.execute_calls(), 1);
   EXPECT_EQ(callbacks.execution_count(), 2);
   EXPECT_THAT(log_capture.FullLog(),
               AllOf(HasSubstr("Crash reproduced on attempt 2 of 3 for "),
@@ -1185,9 +1196,494 @@ TEST_F(OrganizeCrashingInputsTest, ReplaysCrashUpToMaxAttemptsOnFailure) {
                                      crash_summary())
                   .ok());
 
+  EXPECT_EQ(callbacks.execute_calls(), 1);
   EXPECT_EQ(callbacks.execution_count(), 3);
   EXPECT_THAT(log_capture.FullLog(),
               HasSubstr("Crash failed to reproduce after 3 attempts for "));
+}
+
+class RecordingCrashCallbacks : public CentipedeCallbacks {
+ public:
+  // What `Execute` does once the stop condition is triggered.
+  enum class OnStop {
+    // Keep executing the remaining inputs in the batch.
+    kContinue,
+    // Simulate an in-flight termination that is reported as a failure.
+    kFail,
+    // Simulate the runner exiting cleanly before finishing the batch.
+    kSucceedEarly,
+  };
+
+  RecordingCrashCallbacks(
+      const Environment& env, StopCondition& stop_condition,
+      absl::flat_hash_map<std::string, int> crash_on_input_attempt,
+      int stop_after_total_executions = -1, OnStop on_stop = OnStop::kContinue)
+      : CentipedeCallbacks(env, stop_condition),
+        crash_on_input_attempt_(std::move(crash_on_input_attempt)),
+        stop_after_total_executions_(stop_after_total_executions),
+        on_stop_(on_stop) {}
+
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
+               BatchResult& batch_result) override {
+    batch_sizes_.push_back(inputs.size());
+    batch_result.ClearAndResize(inputs.size());
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      std::string input_str(AsStringView(inputs[i]));
+      executed_inputs_.push_back(input_str);
+      const int attempt = ++attempts_by_input_[input_str];
+      if (stop_after_total_executions_ > 0 &&
+          static_cast<int>(executed_inputs_.size()) >=
+              stop_after_total_executions_) {
+        stop_condition_.SetStopTime(absl::InfinitePast());
+        if (on_stop_ == OnStop::kFail) {
+          batch_result.num_outputs_read() = i;
+          batch_result.exit_code() = EXIT_FAILURE;
+          batch_result.failure_signature() = "stop-failure-sig";
+          batch_result.failure_description() = "stop-failure-desc";
+          return false;
+        }
+        if (on_stop_ == OnStop::kSucceedEarly) {
+          batch_result.num_outputs_read() = i + 1;
+          return true;
+        }
+      }
+      auto it = crash_on_input_attempt_.find(input_str);
+      if (it != crash_on_input_attempt_.end() && attempt == it->second) {
+        batch_result.num_outputs_read() = i;
+        batch_result.exit_code() = EXIT_FAILURE;
+        batch_result.failure_signature() = "csig_" + input_str;
+        batch_result.failure_description() = "desc_" + input_str;
+        return false;
+      }
+    }
+    batch_result.num_outputs_read() = inputs.size();
+    return true;
+  }
+
+  const std::vector<std::string>& executed_inputs() const {
+    return executed_inputs_;
+  }
+  const std::vector<size_t>& batch_sizes() const { return batch_sizes_; }
+
+ private:
+  absl::flat_hash_map<std::string, int> crash_on_input_attempt_;
+  int stop_after_total_executions_;
+  OnStop on_stop_ = OnStop::kContinue;
+  absl::flat_hash_map<std::string, int> attempts_by_input_;
+  std::vector<std::string> executed_inputs_;
+  std::vector<size_t> batch_sizes_;
+};
+
+TEST_F(OrganizeCrashingInputsTest, ReplaysEachCrashInBatchOfMaxAttempts) {
+  const std::filesystem::path path1 =
+      SetContentsAndGetPath(crashing_dir(), "bug1-csig_input1-isig1", "input1");
+  const std::filesystem::path path2 =
+      SetContentsAndGetPath(crashing_dir(), "bug2-csig_input2-isig2", "input2");
+
+  const auto now = std::filesystem::file_time_type::clock::now();
+  std::filesystem::last_write_time(path1, now - std::chrono::hours(2));
+  std::filesystem::last_write_time(path2, now - std::chrono::hours(1));
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  // input2 reproduces on its 2nd attempt; input1 never reproduces.
+  RecordingCrashCallbacks callbacks(test_env, stop_condition(),
+                                    /*crash_on_input_attempt=*/{{"input2", 2}});
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  EXPECT_THAT(callbacks.batch_sizes(), ElementsAre(3, 3));
+  EXPECT_THAT(callbacks.executed_inputs(),
+              ElementsAre("input1", "input1", "input1", "input2", "input2"));
+}
+
+class BatchTimeoutCallbacks : public CentipedeCallbacks {
+ public:
+  explicit BatchTimeoutCallbacks(const Environment& env)
+      : CentipedeCallbacks(env, internal_stop_condition_) {}
+
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
+               BatchResult& batch_result) override {
+    batch_result.ClearAndResize(inputs.size());
+    batch_result.exit_code() = EXIT_FAILURE;
+    batch_result.failure_description() =
+        std::string(kExecutionFailurePerBatchTimeout);
+    return false;
+  }
+
+ private:
+  StopCondition internal_stop_condition_;
+};
+
+TEST_F(OrganizeCrashingInputsTest, IgnoresPerBatchTimeoutDuringReplay) {
+  SetContentsAndGetPath(incubating_dir(), "isig_inc", "input_inc");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  BatchTimeoutCallbacks callbacks(test_env);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  // A per-batch timeout must not graduate an incubating crash or be recorded in
+  // the crash summary.
+  EXPECT_THAT(ReadFiles(crashing_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(incubating_dir()),
+              UnorderedElementsAre(FieldsAre("isig_inc", "input_inc")));
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+  EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
+}
+
+TEST_F(OrganizeCrashingInputsTest, StopsReplayingWhenStopConditionIsTriggered) {
+  const std::filesystem::path path1 =
+      SetContentsAndGetPath(crashing_dir(), "bug1-csig_input1-isig1", "input1");
+  const std::filesystem::path path2 =
+      SetContentsAndGetPath(crashing_dir(), "bug2-csig_input2-isig2", "input2");
+  const std::filesystem::path path3 =
+      SetContentsAndGetPath(crashing_dir(), "bug3-csig_input3-isig3", "input3");
+
+  const auto now = std::filesystem::file_time_type::clock::now();
+  std::filesystem::last_write_time(path2, now - std::chrono::hours(3));
+  std::filesystem::last_write_time(path1, now - std::chrono::hours(2));
+  std::filesystem::last_write_time(path3, now - std::chrono::hours(1));
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 5;
+
+  // Ordered by mtime: input2 (reproduces on attempt 1 -> 1 execution), then
+  // input1 (5 attempts without crashing -> 5 executions, triggering
+  // stop_condition at 6 total executions), so input3 is never attempted.
+  RecordingCrashCallbacks callbacks(test_env, stop_condition(),
+                                    /*crash_on_input_attempt=*/{{"input2", 1}},
+                                    /*stop_after_total_executions=*/6);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  EXPECT_THAT(callbacks.batch_sizes(), ElementsAre(5, 5));
+  EXPECT_EQ(callbacks.executed_inputs().size(), 6);
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+  EXPECT_THAT(crash_report,
+              AllOf(HasSubstr("Total crashes: 1"),
+                    HasSubstr("Crash ID   : bug2-csig_input2-isig2")));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       StopTriggeredDuringExecutionDoesNotReplaceOrDeleteExistingCrash) {
+  const std::filesystem::path existing_path =
+      SetContentsAndGetPath(crashing_dir(), "bug1-csig_input1-isig1", "input1");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  // Trigger stop on the first execution and simulate in-flight deadline
+  // termination.
+  RecordingCrashCallbacks callbacks(
+      test_env, stop_condition(),
+      /*crash_on_input_attempt=*/{},
+      /*stop_after_total_executions=*/1,
+      /*on_stop=*/RecordingCrashCallbacks::OnStop::kFail);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  absl::flat_hash_map<std::string, CrashDetails> new_crashes_by_signature;
+  new_crashes_by_signature["csig_input1"] = CrashDetails{
+      /*input_signature=*/"isig_new",
+      /*description=*/"new_desc",
+      /*input_path=*/
+      SetContentsAndGetPath(new_crashes_dir(), "isig_new", "new"),
+  };
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
+
+  // Existing crash must NOT be replaced or deleted despite the in-flight
+  // failure and the presence of a new active crash for csig_input1.
+  EXPECT_TRUE(std::filesystem::exists(existing_path));
+  std::string contents;
+  ReadFromLocalFile(existing_path.c_str(), contents);
+  EXPECT_EQ(contents, "input1");
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       StopTriggeredDuringExecutionDoesNotGraduateIncubatingCrash) {
+  const std::filesystem::path incubating_path =
+      SetContentsAndGetPath(incubating_dir(), "isig_inc", "input_inc");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  // Trigger stop on the first execution and simulate in-flight deadline
+  // termination.
+  RecordingCrashCallbacks callbacks(
+      test_env, stop_condition(),
+      /*crash_on_input_attempt=*/{},
+      /*stop_after_total_executions=*/1,
+      /*on_stop=*/RecordingCrashCallbacks::OnStop::kFail);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  // Incubating crash must NOT graduate to crashing_dir() and must remain in
+  // incubating_dir().
+  EXPECT_TRUE(std::filesystem::exists(incubating_path));
+  EXPECT_THAT(ReadFiles(crashing_dir()), IsEmpty());
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       StopTriggeredMidBatchWithSuccessDoesNotReplaceOrDeleteExistingCrash) {
+  LogCapture log_capture;
+  SetContentsAndGetPath(crashing_dir(), "bug1-csig_input1-isig1", "input1");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  // Trigger stop on the first execution and simulate the runner exiting
+  // cleanly after 1 of 3 attempts.
+  RecordingCrashCallbacks callbacks(
+      test_env, stop_condition(),
+      /*crash_on_input_attempt=*/{},
+      /*stop_after_total_executions=*/1,
+      /*on_stop=*/RecordingCrashCallbacks::OnStop::kSucceedEarly);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  absl::flat_hash_map<std::string, CrashDetails> new_crashes_by_signature;
+  new_crashes_by_signature["csig_input1"] = CrashDetails{
+      /*input_signature=*/"isig_new",
+      /*description=*/"new_desc",
+      /*input_path=*/
+      SetContentsAndGetPath(new_crashes_dir(), "isig_new", "new"),
+  };
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
+
+  ASSERT_THAT(callbacks.executed_inputs(), ElementsAre("input1"));
+  // Not all attempts ran, so the crash must be treated as unattempted: it is
+  // neither moved to incubating nor replaced by the new crash.
+  EXPECT_THAT(
+      ReadFiles(crashing_dir()),
+      UnorderedElementsAre(FieldsAre("bug1-csig_input1-isig1", "input1")));
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
+  EXPECT_THAT(
+      log_capture.FullLog(),
+      AllOf(HasSubstr("Crash replay incomplete after 1 of 3 attempts (replay "
+                      "was stopped)"),
+            HasSubstr("Crash replay completed for 0 of 1 crashes")));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       PerBatchTimeoutDoesNotReplaceOrDeleteExistingCrash) {
+  LogCapture log_capture;
+  SetContentsAndGetPath(crashing_dir(), "bug1-csig1-isig1", "input1");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 3;
+
+  BatchTimeoutCallbacks callbacks(test_env);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  absl::flat_hash_map<std::string, CrashDetails> new_crashes_by_signature;
+  new_crashes_by_signature["csig1"] = CrashDetails{
+      /*input_signature=*/"isig_new",
+      /*description=*/"new_desc",
+      /*input_path=*/
+      SetContentsAndGetPath(new_crashes_dir(), "isig_new", "new"),
+  };
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
+
+  // A per-batch timeout means not all attempts ran, so the crash must be
+  // treated as unattempted: it is neither moved to incubating nor replaced.
+  EXPECT_THAT(ReadFiles(crashing_dir()),
+              UnorderedElementsAre(FieldsAre("bug1-csig1-isig1", "input1")));
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
+  EXPECT_THAT(
+      log_capture.FullLog(),
+      AllOf(
+          HasSubstr("Crash replay incomplete after 0 of 3 attempts (per-batch "
+                    "timeout exceeded)"),
+          HasSubstr("Crash replay completed for 0 of 1 crashes")));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       UnattemptedExistingCrashIsKeptOnDiskAndNotReplaced) {
+  SetContentsAndGetPath(crashing_dir(), "bug1-csig_input1-isig1", "input1");
+  SetContentsAndGetPath(crashing_dir(), "bug2-csig_input2-isig2", "input2");
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 1;
+
+  // Trigger stop after the first execution so the second crash is never
+  // attempted.
+  RecordingCrashCallbacks callbacks(test_env, stop_condition(),
+                                    /*crash_on_input_attempt=*/{},
+                                    /*stop_after_total_executions=*/1);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  absl::flat_hash_map<std::string, CrashDetails> new_crashes_by_signature;
+  new_crashes_by_signature["csig_input1"] = CrashDetails{
+      /*input_signature=*/"isig_new1",
+      /*description=*/"new_desc1",
+      /*input_path=*/
+      SetContentsAndGetPath(new_crashes_dir(), "isig_new1", "new1"),
+  };
+  new_crashes_by_signature["csig_input2"] = CrashDetails{
+      /*input_signature=*/"isig_new2",
+      /*description=*/"new_desc2",
+      /*input_path=*/
+      SetContentsAndGetPath(new_crashes_dir(), "isig_new2", "new2"),
+  };
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
+
+  // Exactly one input ("input1", which was created first and sorts first by
+  // (mtime, path)) was executed before the stop condition halted replay.
+  ASSERT_THAT(callbacks.executed_inputs(), ElementsAre("input1"));
+
+  // The attempted crash (bug1) failed to reproduce, so it moved to incubating
+  // and was replaced by its new candidate. The unattempted crash (bug2) must
+  // remain in crashing_dir() with its original input and not be replaced.
+  EXPECT_THAT(
+      ReadFiles(crashing_dir()),
+      UnorderedElementsAre(FieldsAre("bug1-csig_input1-isig_new1", "new1"),
+                           FieldsAre("bug2-csig_input2-isig2", "input2")));
+  EXPECT_THAT(ReadFiles(incubating_dir()),
+              UnorderedElementsAre(FieldsAre("isig1", "input1")));
+
+  // Both crashes should be reported: the replaced crash and the touched
+  // unattempted crash.
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+  EXPECT_THAT(crash_report, HasSubstr("Total crashes: 2"));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       UnattemptedExistingCrashIsTouchedAndReportedIfSignatureInNewCrashes) {
+  const std::filesystem::path existing_path =
+      SetContentsAndGetPath(crashing_dir(), "bug1-csig1-isig1", "input1");
+
+  // Pre-trigger the stop condition so no crashes are attempted.
+  stop_condition().SetStopTime(absl::InfinitePast());
+
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{});
+  NonOwningCallbacksFactory factory(callbacks);
+
+  absl::flat_hash_map<std::string, CrashDetails> new_crashes_by_signature;
+  new_crashes_by_signature["csig1"] = CrashDetails{
+      /*input_signature=*/"isig_new",
+      /*description=*/"new_desc",
+      /*input_path=*/
+      SetContentsAndGetPath(new_crashes_dir(), "isig_new", "new"),
+  };
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
+
+  // Existing crash file must be kept with its original input (not replaced).
+  EXPECT_TRUE(std::filesystem::exists(existing_path));
+  std::string contents;
+  ReadFromLocalFile(existing_path.c_str(), contents);
+  EXPECT_EQ(contents, "input1");
+
+  // Since signature was found in new_crashes, it should be touched and
+  // reported.
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+  EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 1"),
+                                  HasSubstr("Crash ID   : bug1-csig1-isig1"),
+                                  HasSubstr("Category   : new_desc"),
+                                  HasSubstr("Signature  : csig1"),
+                                  HasSubstr("Description: new_desc")));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       UnattemptedExistingCrashIsKeptAndNotReportedIfSignatureNotInNewCrashes) {
+  const std::filesystem::path existing_path =
+      SetContentsAndGetPath(crashing_dir(), "bug1-csig1-isig1", "input1");
+
+  // Pre-trigger the stop condition so no crashes are attempted.
+  stop_condition().SetStopTime(absl::InfinitePast());
+
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{});
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  // Existing crash file must be kept with its original input.
+  EXPECT_TRUE(std::filesystem::exists(existing_path));
+  std::string contents;
+  ReadFromLocalFile(existing_path.c_str(), contents);
+  EXPECT_EQ(contents, "input1");
+
+  // Since signature was not in new_crashes, it is kept on disk but not
+  // reported.
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+  EXPECT_THAT(crash_report, HasSubstr("Total crashes: 0"));
+}
+
+TEST_F(OrganizeCrashingInputsTest, ReplaysExistingCrashesOldestMTimeFirst) {
+  // Create crash A with a newer mtime (1 hour ago) and crash B with an older
+  // mtime (2 hours ago). Notice that "bugA" alphabetically precedes "bugB",
+  // so alphabetical/directory listing order would replay A first without
+  // mtime sorting.
+  const std::filesystem::path crash_a =
+      SetContentsAndGetPath(crashing_dir(), "bugA-csigA-isigA", "inputA");
+  const std::filesystem::path crash_b =
+      SetContentsAndGetPath(crashing_dir(), "bugB-csigB-isigB", "inputB");
+
+  const auto now = std::filesystem::file_time_type::clock::now();
+  std::filesystem::last_write_time(crash_a, now - std::chrono::hours(1));
+  std::filesystem::last_write_time(crash_b, now - std::chrono::hours(2));
+
+  Environment test_env = env();
+  test_env.replay_crash_attempts = 1;
+
+  // Stop after 1 execution so only the highest priority crash is replayed.
+  RecordingCrashCallbacks callbacks(test_env, stop_condition(),
+                                    /*crash_on_input_attempt=*/{},
+                                    /*stop_after_total_executions=*/1);
+  NonOwningCallbacksFactory factory(callbacks);
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), test_env,
+                                     factory, /*new_crashes_by_signature=*/{},
+                                     crash_summary())
+                  .ok());
+
+  // Crash B (older mtime) must be replayed before Crash A (newer mtime).
+  EXPECT_THAT(callbacks.executed_inputs(), ElementsAre("inputB"));
 }
 
 }  // namespace
