@@ -1654,7 +1654,7 @@ TEST_P(FuzzingModeCrashFindingTest,
 
 TEST_P(FuzzingModeCrashFindingTest,
        DereferencingEmptyOptionalTriggersLibcppAssertionsWhenEnabled) {
-#if defined(_LIBCPP_VERSION) && defined(_LIBCPP_ENABLE_ASSERTIONS)
+#if defined(_LIBCPP_VERSION) && (defined(_LIBCPP_ENABLE_ASSERTIONS) || (defined(_LIBCPP_HARDENING_MODE) && _LIBCPP_HARDENING_MODE != _LIBCPP_HARDENING_MODE_NONE))
   auto [status, std_out, std_err] = Run("MySuite.DereferenceEmptyOptional");
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: std::nullopt"));
   ExpectTargetAbort(status, std_err);

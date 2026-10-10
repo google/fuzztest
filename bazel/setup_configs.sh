@@ -17,6 +17,22 @@ cat <<EOF
 
 EOF
 
+# In LLVM 18+, _LIBCPP_ENABLE_ASSERTIONS is deprecated in favor of _LIBCPP_HARDENING_MODE.
+# See https://libcxx.llvm.org/Hardening.html
+LIBCPP_ASSERTION_FLAG="-D_LIBCPP_ENABLE_ASSERTIONS=1"
+CXX_COMPILER="${CXX:-clang++}"
+if [[ -n "${LIBCPP_HARDENING_MODE:-}" ]]; then
+  LIBCPP_ASSERTION_FLAG="-D_LIBCPP_HARDENING_MODE=${LIBCPP_HARDENING_MODE}"
+elif command -v "${CXX_COMPILER}" >/dev/null 2>&1; then
+  if echo '#include <ciso646>' 2>/dev/null | "${CXX_COMPILER}" -E -dM -x c++ -stdlib=libc++ - 2>/dev/null | grep -q "_LIBCPP_HARDENING_MODE"; then
+    LIBCPP_ASSERTION_FLAG="-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE"
+  elif echo '#include <ciso646>' 2>/dev/null | "${CXX_COMPILER}" -E -dM -x c++ - 2>/dev/null | grep -q "_LIBCPP_HARDENING_MODE"; then
+    LIBCPP_ASSERTION_FLAG="-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE"
+  elif "${CXX_COMPILER}" --version 2>/dev/null | grep -qE "clang version (1[8-9]|[2-9][0-9])"; then
+    LIBCPP_ASSERTION_FLAG="-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE"
+  fi
+fi
+
 cat <<EOF
 ### Common options.
 #
@@ -28,9 +44,9 @@ build:fuzztest-common --copt=-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 # In fuzz tests, we want to catch assertion violations even in optimized builds.
 build:fuzztest-common --copt=-UNDEBUG
 
-# Enable libc++ assertions.
-# See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
-build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
+# Enable libc++ assertions or hardening mode (LLVM 18+).
+# See https://libcxx.llvm.org/Hardening.html
+build:fuzztest-common --copt=${LIBCPP_ASSERTION_FLAG}
 
 EOF
 
