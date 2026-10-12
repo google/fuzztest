@@ -42,6 +42,23 @@ impl Fixture for EnvVars {
     }
 }
 
+const BAZEL_TEST_ENV_VARS: [&str; 14] = [
+    "TEST_DIAGNOSTICS_OUTPUT_DIR",
+    "TEST_INFRASTRUCTURE_FAILURE_FILE",
+    "TEST_LOGSPLITTER_OUTPUT_FILE",
+    "TEST_PREMATURE_EXIT_FILE",
+    "TEST_RANDOM_SEED",
+    "TEST_RUN_NUMBER",
+    "TEST_SHARD_INDEX",
+    "TEST_SHARD_STATUS_FILE",
+    "TEST_TOTAL_SHARDS",
+    "TEST_UNDECLARED_OUTPUTS_ANNOTATIONS_DIR",
+    "TEST_UNDECLARED_OUTPUTS_DIR",
+    "TEST_WARNINGS_OUTPUT_FILE",
+    "GTEST_OUTPUT",
+    "XML_OUTPUT_FILE",
+];
+
 /// Returns stderr of a Centipede process with `args` that is expected to terminate through some
 /// internal flag. e.g. `--exit_on_crash` or `--stop_after`.
 ///
@@ -51,22 +68,7 @@ impl Fixture for EnvVars {
 /// `--persistent_mode=0`, and `--env_diff_for_binaries`.
 pub fn run_centipede_with_args_expect_termination(fixture: &EnvVars, args: &[&str]) -> String {
     // Disable interference from Bazel environment variables.
-    let env_diff = [
-        "-TEST_DIAGNOSTICS_OUTPUT_DIR",
-        "-TEST_INFRASTRUCTURE_FAILURE_FILE",
-        "-TEST_LOGSPLITTER_OUTPUT_FILE",
-        "-TEST_PREMATURE_EXIT_FILE",
-        "-TEST_RANDOM_SEED",
-        "-TEST_RUN_NUMBER",
-        "-TEST_SHARD_INDEX",
-        "-TEST_SHARD_STATUS_FILE",
-        "-TEST_TOTAL_SHARDS",
-        "-TEST_UNDECLARED_OUTPUTS_ANNOTATIONS_DIR",
-        "-TEST_UNDECLARED_OUTPUTS_DIR",
-        "-TEST_WARNINGS_OUTPUT_FILE",
-        "-GTEST_OUTPUT",
-        "-XML_OUTPUT_FILE",
-    ];
+    let env_diff: Vec<String> = BAZEL_TEST_ENV_VARS.iter().map(|var| format!("-{var}")).collect();
     let process = Command::new(&fixture.centipede_path)
         .arg("--populate_binary_info=0")
         .arg(format!("--env_diff_for_binaries={}", env_diff.join(",")))
@@ -86,7 +88,11 @@ pub fn run_target_binary_with_args_and_env_expect_termination(
     args: &[&str],
     envs: &[(&str, &str)],
 ) -> String {
-    let process = Command::new(&fixture.target_binary_path)
+    let mut command = Command::new(&fixture.target_binary_path);
+    for env_var in BAZEL_TEST_ENV_VARS {
+        command.env_remove(env_var);
+    }
+    let process = command
         .args(args)
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
         .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)

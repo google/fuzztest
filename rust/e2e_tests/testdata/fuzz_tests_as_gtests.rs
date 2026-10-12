@@ -30,3 +30,13 @@ fn bool_fuzz_test(_a: bool) {
     _c = Arbitrary::<bool>::default(),
 )]
 fn multi_arg_fuzz_test(_a: i32, _b: f32, _c: bool) {}
+
+#[fuzztest(a = Arbitrary::<i32>::default())]
+fn panicking_fuzz_test(a: i32) {
+    assert_eq!(a.wrapping_add(1), a);
+}
+
+#[fuzztest(a = Arbitrary::<i32>::default())]
+fn expect_failing_fuzz_test(a: i32) {
+    googletest::prelude::expect_that!(a.wrapping_add(1), googletest::prelude::eq(a));
+}
