@@ -329,9 +329,6 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
   return CentipedeLLVMFuzzerMutateCallback(data, size, max_size);
 }
 
-// An arbitrary large size for input data.
-static const size_t kMaxDataSize = 1 << 20;
-
 static void WriteFeaturesToFile(FILE* file, const feature_t* features,
                                 size_t size) {
   if (!size) return;
