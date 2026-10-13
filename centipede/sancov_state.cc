@@ -300,10 +300,15 @@ SancovState::~SancovState() {
 // * linker sees them and decides to drop sancov_callbacks.o.
 extern void Sancov();
 [[maybe_unused]] auto fake_reference_for_sancov = &Sancov;
-// Same for sancov_interceptors.cc.
-extern void SancovInterceptor();
-[[maybe_unused]] auto fake_reference_for_sancov_interceptor =
-    &SancovInterceptor;
+// Same for runtime_interceptors.cc and coverage_interceptors.cc.
+extern void RuntimeInterceptor();
+[[maybe_unused]] auto fake_reference_for_runtime_interceptor =
+    &RuntimeInterceptor;
+#ifndef FUZZTEST_REPLAY
+extern void CoverageInterceptor();
+[[maybe_unused]] auto fake_reference_for_coverage_interceptor =
+    &CoverageInterceptor;
+#endif  // FUZZTEST_REPLAY
 
 void MaybeAddFeature(feature_t feature) {
   if (!sancov_state->flags.skip_seen_features) {
