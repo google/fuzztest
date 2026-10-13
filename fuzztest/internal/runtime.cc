@@ -436,8 +436,13 @@ static size_t GetPeakRSSBytes() {
 #else
   struct rusage usage = {};
   if (getrusage(RUSAGE_SELF, &usage) != 0) return 0;
-  // On Linux, ru_maxrss is in KiB
+#ifdef __APPLE__
+  // On MacOS, ru_maxrss is in bytes.
+  return usage.ru_maxrss;
+#else
+  // On Linux, ru_maxrss is in KiB.
   return usage.ru_maxrss * 1024;
+#endif
 #endif
 }
 
