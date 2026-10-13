@@ -112,9 +112,7 @@ build:fuzztest-experimental --dynamic_mode=off
 
 # We apply coverage tracking instrumentation to everything but Centipede and the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
-# TODO(b/374840534): Add -fsanitize-coverage=control-flow once we start building
-# with clang 16+.
-build:fuzztest-experimental --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp
+build:fuzztest-experimental --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp,control-flow
 build:fuzztest-experimental --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
 
 EOF
@@ -125,6 +123,13 @@ EXTRA_CONFIGS="${EXTRA_CONFIGS:-none}"
 
 # Find llvm-config.
 LLVM_CONFIG=$(command -v llvm-config    ||
+              command -v llvm-config-22 ||
+              command -v llvm-config-21 ||
+              command -v llvm-config-20 ||
+              command -v llvm-config-19 ||
+              command -v llvm-config-18 ||
+              command -v llvm-config-17 ||
+              command -v llvm-config-16 ||
               command -v llvm-config-15 ||
               command -v llvm-config-14 ||
               command -v llvm-config-13 ||

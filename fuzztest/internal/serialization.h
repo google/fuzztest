@@ -284,7 +284,9 @@ class IRObject {
         if (v) {
           T out;
           out.resize(v->size());
-          std::memcpy(out.data(), v->data(), v->size());
+          if (!v->empty()) {
+            std::memcpy(out.data(), v->data(), v->size());
+          }
           return out;
         }
       }

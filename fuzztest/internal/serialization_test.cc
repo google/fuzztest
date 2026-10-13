@@ -386,10 +386,13 @@ TEST(CorpusToIR, ValidRoundTrips) {
   EXPECT_THAT(round_trip(E2::kEnum), Optional(E2::kEnum));
 
   // Specializations
+  EXPECT_THAT(round_trip(std::vector<int8_t>{}), Optional(ElementsAre()));
   EXPECT_THAT(round_trip(std::vector<int8_t>{1, 2, 3}),
               Optional(ElementsAre(1, 2, 3)));
+  EXPECT_THAT(round_trip(std::vector<uint8_t>{}), Optional(ElementsAre()));
   EXPECT_THAT(round_trip(std::vector<uint8_t>{1, 2, 3}),
               Optional(ElementsAre(1, 2, 3)));
+  EXPECT_THAT(round_trip(std::vector<std::byte>{}), Optional(ElementsAre()));
   EXPECT_THAT(round_trip(std::vector<std::byte>{std::byte{1}, std::byte{2},
                                                 std::byte{3}}),
               Optional(ElementsAre(std::byte{1}, std::byte{2}, std::byte{3})));

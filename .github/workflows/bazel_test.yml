@@ -27,22 +27,20 @@ on:
 jobs:
   run_unit_tests:
     name: Run unit tests
-    # TODO(xinhaoyuan): Bump to 24.04 after https://github.com/llvm/llvm-project/issues/102443
-    # is fixed.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     strategy:
       matrix:
         compilation_mode: ['fastbuild', 'opt', 'dbg']
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang
       - name: Restore latest cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-unit-${{ matrix.compilation_mode }}
@@ -53,15 +51,13 @@ jobs:
             -c ${{ matrix.compilation_mode }} -- //... -//e2e_tests/... -//centipede/...
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-unit-${{ matrix.compilation_mode }}-${{ github.run_id }}
   run_e2e_tests:
     name: Run e2e tests
-    # TODO(xinhaoyuan): Bump to 24.04 after https://github.com/llvm/llvm-project/issues/102443
-    # is fixed.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     strategy:
       matrix:
@@ -71,7 +67,7 @@ jobs:
         run: |
           sudo sysctl -w kernel.core_pattern=""
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -yq \
@@ -80,7 +76,7 @@ jobs:
         run: |
           EXTRA_CONFIGS=libfuzzer bazel run //bazel:setup_configs > fuzztest.bazelrc
       - name: Restore latest cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-e2e-${{ matrix.config }}
@@ -113,7 +109,7 @@ jobs:
             //e2e_tests:compatibility_mode_test
       - name: Save new cache based on main
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-e2e-${{ matrix.config }}-${{ github.run_id }}

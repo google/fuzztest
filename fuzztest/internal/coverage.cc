@@ -101,14 +101,14 @@ FUZZTEST_INTERNAL_NOSANITIZE void ExecutionCoverage::UpdateCmpMap(
     max_cmp_map_[index].counter = bucketized_counter;
     max_cmp_map_[index].hamming = hamming_dist;
     max_cmp_map_[index].absolute = absolute_dist;
-    new_coverage_.store(true, std::memory_order_relaxed);
+    SetNewCoverage(true);
   } else if (bucketized_counter == max_cmp_map_[index].counter) {
     if (max_cmp_map_[index].hamming < hamming_dist) {
-      new_coverage_.store(true, std::memory_order_relaxed);
+      SetNewCoverage(true);
       max_cmp_map_[index].hamming = hamming_dist;
     }
     if (max_cmp_map_[index].absolute < absolute_dist) {
-      new_coverage_.store(true, std::memory_order_relaxed);
+      SetNewCoverage(true);
       max_cmp_map_[index].absolute = absolute_dist;
     }
   }
@@ -159,7 +159,7 @@ void ExecutionCoverage::UpdateMaxStack(uintptr_t PC) {
   if (this_stack > max_stack_map_[index]) {
     max_stack_map_[index] = this_stack;
     // Reaching a new max on any PC is new coverage.
-    new_coverage_.store(true, std::memory_order_relaxed);
+    SetNewCoverage(true);
 
     // Keep the total max for stats.
     if (this_stack > max_stack_recorded_) {

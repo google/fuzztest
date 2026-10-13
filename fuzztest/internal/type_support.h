@@ -102,6 +102,11 @@ constexpr bool ConsumeUnnecessaryNamespacePrefix(absl::string_view& name) {
   return false;
 }
 
+namespace type_support_internal {
+
+// Use a dedicated namespace so that GCC 12+'s __PRETTY_FUNCTION__ does not
+// omit the `fuzztest::internal::` prefix for types defined in
+// `fuzztest::internal`.
 template <typename T>
 constexpr auto GetTypeName() {
   absl::string_view name, prefix, suffix;
@@ -113,7 +118,7 @@ constexpr auto GetTypeName() {
   prefix = "GetTypeName() [with T = ";
   suffix = "]";
 #else
-  return "<TYPE>"
+  return "<TYPE>";
 #endif
   // First we remove the prefix and suffix to get a fully qualified type name.
   ConsumePrefixUntil(name, prefix);
@@ -122,6 +127,10 @@ constexpr auto GetTypeName() {
   ConsumeUnnecessaryNamespacePrefix(name);
   return name;
 }
+
+}  // namespace type_support_internal
+
+using type_support_internal::GetTypeName;
 
 template <typename T>
 absl::string_view GetTypeNameIfUserDefined() {
