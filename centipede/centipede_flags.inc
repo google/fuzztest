@@ -532,3 +532,7 @@ CENTIPEDE_FLAG(
     "or deduplication before considering it non-reproducible.")
 CENTIPEDE_FLAG(int, replay_coverage_attempts, 1,
                "Number of attempts to replay coverage/corpus inputs.")
+CENTIPEDE_FLAG(absl::Duration, fuzztest_minimize_new_crashes_duration,
+               absl::ZeroDuration(),
+               "The time limit for minimizing new crashes when updating the "
+               "FuzzTest corpus database.")

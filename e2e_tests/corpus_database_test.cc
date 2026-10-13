@@ -152,9 +152,11 @@ absl::NoDestructor<
     UpdateCorpusDatabaseTest::run_map_{};
 
 TEST_P(UpdateCorpusDatabaseTest, RunsFuzzTests) {
-  EXPECT_THAT_LOG(GetUpdateCorpusDatabaseStdErr(),
-                  AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
-                        HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow")));
+  EXPECT_THAT_LOG(
+      GetUpdateCorpusDatabaseStdErr(),
+      AllOf(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays"),
+            HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow"),
+            HasSubstr("Fuzzing FuzzTest.FailsWithMinimizableCrashingSeed")));
 }
 
 TEST_P(UpdateCorpusDatabaseTest, UsesMultipleShardsForFuzzingAndDistillation) {
@@ -170,7 +172,8 @@ TEST_P(UpdateCorpusDatabaseTest, FindsAllCrashes) {
       GetUpdateCorpusDatabaseStdErr(),
       AllOf(ContainsRegex(R"re(Failure\s*: GoogleTest assertion failure)re"),
             ContainsRegex(R"re(Failure\s*: heap-buffer-overflow)re"),
-            ContainsRegex(R"re(Failure\s*: stack-limit-exceeded)re")));
+            ContainsRegex(R"re(Failure\s*: stack-limit-exceeded)re"),
+            ContainsRegex(R"re(Failure\s*: SIGABRT)re")));
 }
 
 TEST_P(UpdateCorpusDatabaseTest, DeduplicatesCrashes) {
@@ -189,6 +192,11 @@ TEST_P(UpdateCorpusDatabaseTest, ReportsCrashSummary) {
                         ContainsRegex(
                             R"re((?s)=== Summary of detected crashes ===
 .*?Fuzz test    : FuzzTest.FailsWithStackOverflow
+.*?Total crashes: 1
+.*?=== End of summary of detected crashes ===)re"),
+                        ContainsRegex(
+                            R"re((?s)=== Summary of detected crashes ===
+.*?Fuzz test    : FuzzTest.FailsWithMinimizableCrashingSeed
 .*?Total crashes: 1
 .*?=== End of summary of detected crashes ===)re")));
 }
@@ -209,6 +217,10 @@ TEST_P(UpdateCorpusDatabaseTest, RunsOnFilteredTests) {
                   HasSubstr("Fuzzing FuzzTest.FailsWithStackOverflow for 10s"));
   EXPECT_THAT_LOG(std_err,
                   Not(HasSubstr("Fuzzing FuzzTest.FailsInTwoWays for 10s")));
+  EXPECT_THAT_LOG(
+      std_err,
+      Not(HasSubstr(
+          "Fuzzing FuzzTest.FailsWithMinimizableCrashingSeed for 10s")));
 }
 
 TEST_P(UpdateCorpusDatabaseTest, StartsNewFuzzTestRunsWithoutExecutionIds) {
@@ -378,6 +390,10 @@ TEST_P(UpdateCorpusDatabaseTest,
                         ContainsRegex(
                             R"re((?s)=== Summary of detected crashes ===
 .*?Fuzz test    : FuzzTest.FailsWithStackOverflow
+.*?=== End of summary of detected crashes ===)re"),
+                        ContainsRegex(
+                            R"re((?s)=== Summary of detected crashes ===
+.*?Fuzz test    : FuzzTest.FailsWithMinimizableCrashingSeed
 .*?=== End of summary of detected crashes ===)re")));
 }
 
@@ -489,6 +505,43 @@ TEST_P(UpdateCorpusDatabaseTest, FuzzingDoesNotUpdateDatabaseWithFlag) {
   const absl::StatusOr<std::string> fuzzing_time_file =
       FindFile(corpus_database.path().c_str(), "fuzzing_time");
   EXPECT_FALSE(fuzzing_time_file.ok()) << *fuzzing_time_file;
+}
+
+TEST_P(UpdateCorpusDatabaseTest, MinimizesNewCrashesWithFlagSet) {
+  TempDir corpus_database;
+
+  // 1st run that minimizes the new crash.
+  RunOptions fst_run_options;
+  fst_run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.path()},
+      {"fuzz", "FailsWithMinimizableCrashingSeed"},
+      {"fuzz_for", "5s"},
+      {"minimize_corpus_database_new_crashes_duration", "5s"},
+      {"execution_id", "some_execution_id_1"},
+  };
+  fst_run_options.timeout = absl::Seconds(20);
+  auto [fst_status_unused, fst_std_out_unused, fst_std_err] =
+      RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
+                                  fst_run_options);
+
+  EXPECT_THAT_LOG(fst_std_err,
+                  HasSubstr("Starting the crash minimization loop"));
+
+  // 2nd run that should not trigger minimization due to no new crashes.
+  RunOptions snd_run_options;
+  snd_run_options.fuzztest_flags = {
+      {"corpus_database", corpus_database.path()},
+      {"fuzz", "FailsWithMinimizableCrashingSeed"},
+      {"fuzz_for", "5s"},
+      {"minimize_corpus_database_new_crashes_duration", "5s"},
+      {"execution_id", "some_execution_id_2"},
+  };
+  snd_run_options.timeout = absl::Seconds(20);
+  auto [snd_status_unused, snd_std_out_unused, snd_std_err] =
+      RunBinaryMaybeWithCentipede(GetCorpusDatabaseTestingBinaryPath(),
+                                  snd_run_options);
+  EXPECT_THAT_LOG(snd_std_err,
+                  Not(HasSubstr("Starting the crash minimization loop")));
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -123,7 +123,9 @@ void MinimizeCrash(const Environment& env,
     ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
                                               stop_condition);
     CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
-    if (scoped_callbacks.callbacks()->Execute(env.binary, {crashy_input},
+    const std::vector<ByteSpan> inputs(
+        std::max<size_t>(1, env.replay_crash_attempts), crashy_input);
+    if (scoped_callbacks.callbacks()->Execute(env.binary, inputs,
                                               batch_result)) {
       FUZZTEST_LOG(ERROR) << "The original crashy input did not crash; exiting";
       stop_condition.RequestStop(EXIT_FAILURE,

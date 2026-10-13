@@ -99,6 +99,8 @@ struct Configuration {
   absl::Duration time_limit = absl::InfiniteDuration();
   // Whether the time limit is for each test or for all tests in the binary.
   TimeBudgetType time_budget_type = TimeBudgetType::kPerTest;
+  // The duration for minimizing new crashes when updating corpus database.
+  absl::Duration minimize_corpus_database_new_crashes_duration;
   // The number of fuzzing jobs to run in parallel. Zero indicates that the
   // number of jobs is unspecified by the test binary.
   size_t jobs = 0;

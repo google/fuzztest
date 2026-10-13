@@ -198,6 +198,7 @@ TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
   config.replay_coverage_inputs = true;
   config.time_limit = absl::Seconds(10);
   config.time_budget_type = TimeBudgetType::kPerTest;
+  config.minimize_corpus_database_new_crashes_duration = absl::Seconds(123);
 
   env.UpdateWithTargetConfig(config);
 
@@ -209,6 +210,7 @@ TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
   EXPECT_EQ(env.fuzztest_execution_id, "exec");
   EXPECT_TRUE(env.fuzztest_replay_coverage_inputs);
   EXPECT_EQ(env.fuzztest_time_limit_per_test, absl::Seconds(10));
+  EXPECT_EQ(env.fuzztest_minimize_new_crashes_duration, absl::Seconds(123));
 }
 
 TEST(Environment, UpdatesReplayOnlyConfiguration) {
