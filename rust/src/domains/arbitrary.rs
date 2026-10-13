@@ -13,10 +13,12 @@
 // limitations under the License.
 
 use super::utility::choose_value;
+use super::utility::map_char_to_int;
+use super::utility::map_int_to_char;
 use super::utility::mutate_integer;
 use super::utility::shrink_towards;
+use super::utility::NUM_VALID_CODEPOINTS;
 use super::Domain;
-use std::char;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -239,43 +241,6 @@ macro_rules! impl_domain_for_float {
 
 impl_domain_for_float!(f32);
 impl_domain_for_float!(f64);
-
-const SURROGATE_START: u32 = 0xD800;
-const SURROGATE_END: u32 = 0xDFFF;
-const MAX_VALID_CODEPOINT: u32 = 0x10FFFF;
-const NUM_VALID_CODEPOINTS: u32 = MAX_VALID_CODEPOINT - (SURROGATE_END - SURROGATE_START);
-
-/// Maps a `char` to a `u32` in a contiguous range.
-///
-/// Rust's `char` type represents a Unicode Scalar Value, which means it cannot be a
-/// surrogate code point (U+D800 to U+DFFF). This function maps `char` values to a
-/// contiguous integer range by shifting down the code points that are above the
-/// surrogate range. This is useful for mutation strategies like random walks over
-/// a dense integer space.
-fn map_char_to_int(c: char) -> u32 {
-    let val = c as u32;
-    if val >= SURROGATE_START {
-        val - (SURROGATE_END - SURROGATE_START + 1)
-    } else {
-        val
-    }
-}
-
-/// Maps a `u32` from the contiguous range back to a `char`.
-///
-/// This is the inverse of `map_char_to_int`. It converts an integer from the
-/// dense range back to a `char`. Integers that fall within the range previously
-/// occupied by surrogates are shifted up to their correct code points.
-fn map_int_to_char(u: u32) -> char {
-    assert!(
-        u < NUM_VALID_CODEPOINTS,
-        "input to map_int_to_char out of range: got {}, expected value < {}",
-        u,
-        NUM_VALID_CODEPOINTS
-    );
-    let val = if u >= SURROGATE_START { u + (SURROGATE_END - SURROGATE_START + 1) } else { u };
-    char::from_u32(val).unwrap()
-}
 
 impl Domain for Arbitrary<char> {
     type UserValue<'user> = char;
@@ -765,25 +730,6 @@ mod tests {
 
         val = '\u{E000}'; // After surrogate
         domain.mutate(&mut val, &mut rng, false).unwrap();
-    }
-
-    #[test]
-    fn test_char_mapping() {
-        // Test boundary conditions and values around the surrogate range
-        assert_eq!(map_char_to_int('\u{0000}'), 0);
-        assert_eq!(map_int_to_char(0), '\u{0000}');
-
-        let before_surrogate = SURROGATE_START - 1;
-        assert_eq!(map_char_to_int(char::from_u32(before_surrogate).unwrap()), before_surrogate);
-        assert_eq!(map_int_to_char(before_surrogate), char::from_u32(before_surrogate).unwrap());
-
-        let after_surrogate = SURROGATE_END + 1;
-        let mapped_after_surrogate = map_char_to_int(char::from_u32(after_surrogate).unwrap());
-        assert_eq!(mapped_after_surrogate, SURROGATE_START);
-        assert_eq!(map_int_to_char(SURROGATE_START), char::from_u32(after_surrogate).unwrap());
-
-        assert_eq!(map_char_to_int('\u{10FFFF}'), NUM_VALID_CODEPOINTS - 1);
-        assert_eq!(map_int_to_char(NUM_VALID_CODEPOINTS - 1), '\u{10FFFF}');
     }
 
     #[test]

@@ -60,9 +60,9 @@ where
 /// Mutates an integer value using one of several strategies.
 ///
 /// The mutation strategies are:
-/// 1.  Random Walk: Add/subtract a small value within the given `range`.
-/// 2.  Bit Flip: Flip a single random bit.
-/// 3.  Random Choice: Replace with a new completely random value.
+/// 1. Random Walk: Add/subtract a small value within the given `range`.
+/// 2. Bit Flip: Flip a single random bit.
+/// 3. Random Choice: Replace with a new completely random value.
 ///
 /// # Arguments
 /// * `rng`: Random number generator.
@@ -89,9 +89,12 @@ where
     let min_val = min_value.unwrap_or(T::min_value());
     let max_val = max_value.unwrap_or(T::max_value());
     assert!(
-        min_val < max_val,
-        "mutate_integer: min_val must be strictly smaller than max_val: min={min_val}, max={max_val}"
+        min_val <= max_val,
+        "mutate_integer: min_val must be <= max_val: min={min_val}, max={max_val}"
     );
+    if min_val == max_val {
+        return min_val;
+    }
 
     match rng.random_range(0..3) {
         0 => {
@@ -107,21 +110,84 @@ where
         }
         1 => {
             // 1/3 chance: Flip a random bit
-            let num_bits = size_of::<T>() * 8;
-            let bit_index = rng.random_range(0..num_bits);
-            let mask = T::one() << bit_index;
-            let result = val ^ mask;
-            if result < min_val || result > max_val {
-                val
-            } else {
-                result
-            }
+            bit_flip_integer(rng, val, min_val, max_val)
         }
         _ => {
             // 1/3 chance: Replace with a new random value
             rng.random_range(min_val..=max_val)
         }
     }
+}
+
+fn bit_flip_integer<T, R: rand::Rng + ?Sized>(rng: &mut R, val: T, lower: T, upper: T) -> T
+where
+    T: PrimInt + Display + Copy,
+{
+    assert!(lower <= upper, "bit_flip_integer: lower bound must be <= upper bound");
+
+    // For same-sign bounds, `lower ^ upper` zeros shared high-order bits so flips stay
+    // within the active bit width of the interval. When the range straddles zero
+    // (`lower < 0 <= upper`), `lower ^ upper` has the sign bit set (`leading_zeros() == 0`),
+    // so bound the magnitude bit width by the active sign half and include the sign bit
+    // (`type_bits - 1`) as one additional candidate. This avoids sampling dead
+    // sign-extension bits for narrow ranges while still allowing sign-bit flips for
+    // full-range signed types (`Arbitrary<iN>`) and asymmetric ranges straddling zero.
+    let type_bits = size_of::<T>() * 8;
+    let bit = if lower < T::zero() && upper >= T::zero() {
+        let mag_width = if val >= T::zero() {
+            type_bits - upper.leading_zeros() as usize
+        } else {
+            type_bits - (!lower).leading_zeros() as usize
+        };
+        let idx = rng.random_range(0..=mag_width);
+        if idx == mag_width {
+            type_bits - 1
+        } else {
+            idx
+        }
+    } else {
+        let width = type_bits - (lower ^ upper).leading_zeros() as usize;
+        if width == 0 {
+            return val;
+        }
+        rng.random_range(0..width)
+    };
+
+    let next = val ^ (T::one() << bit);
+    if next >= lower && next <= upper {
+        next
+    } else {
+        val
+    }
+}
+
+const SURROGATE_START: u32 = 0xD800;
+const SURROGATE_END: u32 = 0xDFFF;
+const MAX_VALID_CODEPOINT: u32 = 0x10FFFF;
+pub(crate) const NUM_VALID_CODEPOINTS: u32 =
+    MAX_VALID_CODEPOINT - (SURROGATE_END - SURROGATE_START);
+
+/// Maps a `char` to a `u32` in a contiguous range `[0, NUM_VALID_CODEPOINTS)` by
+/// shifting down code points above the UTF-16 surrogate range (`0xD800..=0xDFFF`).
+pub(crate) fn map_char_to_int(c: char) -> u32 {
+    let val = c as u32;
+    if val >= SURROGATE_START {
+        val - (SURROGATE_END - SURROGATE_START + 1)
+    } else {
+        val
+    }
+}
+
+/// Maps a `u32` from the contiguous range `[0, NUM_VALID_CODEPOINTS)` back to a `char`.
+pub(crate) fn map_int_to_char(u: u32) -> char {
+    assert!(
+        u < NUM_VALID_CODEPOINTS,
+        "input to map_int_to_char out of range: got {}, expected value < {}",
+        u,
+        NUM_VALID_CODEPOINTS
+    );
+    let val = if u >= SURROGATE_START { u + (SURROGATE_END - SURROGATE_START + 1) } else { u };
+    char::from_u32(val).unwrap()
 }
 
 pub trait SpecialValues: Sized + Copy {
@@ -152,8 +218,8 @@ macro_rules! impl_special_values_unsigned {
     };
 }
 
-impl_special_values_signed!(i8, i16, i32, i64, i128);
-impl_special_values_unsigned!(u8, u16, u32, u64, u128);
+impl_special_values_signed!(i8, i16, i32, i64, i128, isize);
+impl_special_values_unsigned!(u8, u16, u32, u64, u128, usize);
 
 macro_rules! impl_special_values_float {
     ($($ty:ty),*) => {
@@ -194,8 +260,8 @@ impl SpecialValues for char {
 /// * `rng`: Random number generator.
 ///
 /// # Type Parameters
-/// * `T`: The type of the value to choose. Must implement `SpecialValues` and
-///   `StandardUniform` must be able to generate values of type `T`.
+/// * `T`: The type of the value to choose. Must implement `SpecialValues` and `StandardUniform`
+///   must be able to generate values of type `T`.
 pub fn choose_value<T, R: rand::Rng + ?Sized>(rng: &mut R) -> T
 where
     T: SpecialValues + 'static,
@@ -215,25 +281,83 @@ pub fn mutate_float<T, R: rand::Rng + ?Sized>(
     rng: &mut R,
     val: &mut T,
     only_shrink: bool,
-    _range: Option<(T, T)>, // TODO: Implement range support for floats.
+    range: Option<(T, T)>,
 ) -> anyhow::Result<()>
 where
     T: num_traits::Float + SampleUniform + Display + Copy + SpecialValues + 'static,
     StandardUniform: Distribution<T>,
 {
+    if let Some((lower, upper)) = range {
+        assert!(lower <= upper, "mutate_float: lower bound must be <= upper bound");
+        assert!(!lower.is_nan() && !upper.is_nan(), "mutate_float: bounds cannot be NaN");
+    }
+
     if only_shrink {
-        // Shrink only finite, non-terminal values.
-        if val.is_finite() && *val != T::zero() {
-            *val = shrink_towards(rng, *val, T::zero());
+        if val.is_finite() {
+            let target = if let Some((lower, upper)) = range {
+                if lower <= T::zero() && upper >= T::zero() {
+                    T::zero()
+                } else if lower > T::zero() {
+                    lower
+                } else {
+                    upper
+                }
+            } else {
+                T::zero()
+            };
+            if *val != target {
+                *val = shrink_towards(rng, *val, target);
+            }
         }
         return Ok(());
     }
-    // Non-shrinking mutation.
+
+    if let Some((lower, upper)) = range {
+        if lower == upper {
+            *val = lower;
+            return Ok(());
+        }
+
+        if !val.is_finite() || *val < lower || *val > upper {
+            *val = rng.random_range(lower..=upper);
+            return Ok(());
+        }
+
+        let original_val = *val;
+        // Cap retry attempts because for narrow float ranges (e.g. a few ULPs wide),
+        // `delta = width / 100.0` underflows relative to `*val` (`lo == hi == *val`),
+        // and uniform float sampling can repeatedly round to the current value.
+        for _ in 0..10 {
+            match rng.random_range(0..2) {
+                0 => {
+                    // Random Walk
+                    let width = upper - lower;
+                    let delta = if width > T::zero() && width.is_finite() {
+                        width / T::from(100.0).unwrap()
+                    } else {
+                        T::from(1.0).unwrap()
+                    };
+                    let lo = (*val - delta).max(lower);
+                    let hi = (*val + delta).min(upper);
+                    *val = rng.random_range(lo..=hi);
+                }
+                1 => {
+                    // Uniform Choice
+                    *val = rng.random_range(lower..=upper);
+                }
+                _ => unreachable!(),
+            }
+            if *val != original_val {
+                return Ok(());
+            }
+        }
+        *val = if original_val == lower { upper } else { lower };
+        return Ok(());
+    }
+
     let original_val = *val;
     loop {
-        // Loop to ensure mutation
         if !val.is_finite() {
-            // NaN or Infinity
             *val = choose_value(rng);
         } else {
             match rng.random_range(0..4) {
@@ -410,5 +534,60 @@ mod tests {
     fn test_mutate_float_all_types() {
         check_mutate_float::<f32>();
         check_mutate_float::<f64>();
+    }
+
+    #[test]
+    fn test_bit_flip_integer_sign_bit() {
+        let mut rng = get_rng();
+        // Full signed range [i8::MIN, i8::MAX]: flipping the sign bit of 3 yields -125.
+        let mut flipped_sign_full = false;
+        for _ in 0..200 {
+            if bit_flip_integer(&mut rng, 3i8, i8::MIN, i8::MAX) == -125i8 {
+                flipped_sign_full = true;
+                break;
+            }
+        }
+        assert!(
+            flipped_sign_full,
+            "bit_flip_integer should be able to flip sign bit on full i8 range"
+        );
+
+        // Asymmetric range straddling zero [i8::MIN, 5]: flipping the sign bit of 3 yields -125.
+        let mut flipped_sign_asymmetric = false;
+        for _ in 0..200 {
+            if bit_flip_integer(&mut rng, 3i8, i8::MIN, 5i8) == -125i8 {
+                flipped_sign_asymmetric = true;
+                break;
+            }
+        }
+        assert!(
+            flipped_sign_asymmetric,
+            "bit_flip_integer should be able to flip sign bit on asymmetric range straddling zero"
+        );
+    }
+
+    #[test]
+    fn test_mutate_integer_singleton() {
+        let mut rng = get_rng();
+        assert_eq!(mutate_integer(&mut rng, 5i32, 5, Some(5), Some(5)), 5);
+    }
+
+    #[test]
+    fn test_char_mapping() {
+        // Test boundary conditions and values around the surrogate range
+        assert_eq!(map_char_to_int('\u{0000}'), 0);
+        assert_eq!(map_int_to_char(0), '\u{0000}');
+
+        let before_surrogate = SURROGATE_START - 1;
+        assert_eq!(map_char_to_int(char::from_u32(before_surrogate).unwrap()), before_surrogate);
+        assert_eq!(map_int_to_char(before_surrogate), char::from_u32(before_surrogate).unwrap());
+
+        let after_surrogate = SURROGATE_END + 1;
+        let mapped_after_surrogate = map_char_to_int(char::from_u32(after_surrogate).unwrap());
+        assert_eq!(mapped_after_surrogate, SURROGATE_START);
+        assert_eq!(map_int_to_char(SURROGATE_START), char::from_u32(after_surrogate).unwrap());
+
+        assert_eq!(map_char_to_int('\u{10FFFF}'), NUM_VALID_CODEPOINTS - 1);
+        assert_eq!(map_int_to_char(NUM_VALID_CODEPOINTS - 1), '\u{10FFFF}');
     }
 }
