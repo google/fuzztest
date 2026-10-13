@@ -32,6 +32,9 @@ build:fuzztest-common --copt=-UNDEBUG
 # See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
 build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
 
+# Enable stack depth tracking.
+build:fuzztest-common --copt=-fsanitize-coverage=stack-depth
+
 EOF
 
 cat <<EOF
@@ -116,6 +119,27 @@ build:fuzztest-experimental --dynamic_mode=off
 # with clang 16+.
 build:fuzztest-experimental --copt=-fsanitize-coverage=trace-pc-guard,pc-table,trace-loads,trace-cmp
 build:fuzztest-experimental --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
+
+EOF
+
+cat <<EOF
+### FuzzTest replay build configuration.
+#
+# Use with: --config=fuzztest-replay
+#
+# Note that this configuration includes the ASan configuration.
+
+build:fuzztest-replay --config=asan
+build:fuzztest-replay --config=fuzztest-common
+build:fuzztest-replay --@com_google_fuzztest//fuzztest:centipede_integration
+build:fuzztest-replay --copt=-DFUZZTEST_REPLAY
+
+# Link statically.
+build:fuzztest-replay --dynamic_mode=off
+
+# Do not apply coverage tracking instrumentation to Centipede and the FuzzTest
+# framework itself (including GoogleTest and GoogleMock).
+build:fuzztest-replay --per_file_copt=${COMMON_FILTER},${FUZZTEST_FILTER},${CENTIPEDE_FILTER},googletest/.*,googlemock/.*@-fsanitize-coverage=0
 
 EOF
 
