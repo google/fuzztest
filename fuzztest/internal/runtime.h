@@ -163,28 +163,6 @@ class Runtime {
   void SetRunMode(RunMode run_mode) { run_mode_ = run_mode; }
   RunMode run_mode() const { return run_mode_; }
 
-  // Records that `InitFuzzTest` has been called.
-  void SetInitFuzzTestCalled() { init_fuzztest_called_ = true; }
-  bool init_fuzztest_called() const { return init_fuzztest_called_; }
-
-  // Sets the command-line arguments passed to `InitFuzzTest`. `argc()` and
-  // `argv()` are only valid after `InitFuzzTest` has been called.
-  void SetArgs(int* argc, char*** argv) {
-    argc_ = argc;
-    argv_ = argv;
-  }
-  int* argc() const { return argc_; }
-  char*** argv() const { return argv_; }
-
-  // Sets the initial configuration created by `InitFuzzTest`.
-  // `init_configuration()` is only valid after `InitFuzzTest` has been called.
-  void SetInitConfiguration(Configuration configuration) {
-    init_configuration_ = std::move(configuration);
-  }
-  const Configuration& init_configuration() const {
-    return init_configuration_;
-  }
-
   // Enables the crash reporter.
   // REQUIRES: `SetCurrentTest()` has been called with non-null arguments.
   void EnableReporter(const RuntimeStats* stats, absl::Time (*clock_fn)()) {
@@ -286,11 +264,6 @@ class Runtime {
   const Configuration* current_configuration_;
   const RuntimeStats* stats_ = nullptr;
   absl::Time (*clock_fn_)() = nullptr;
-
-  bool init_fuzztest_called_ = false;
-  int* argc_ = nullptr;
-  char*** argv_ = nullptr;
-  Configuration init_configuration_;
 
   // We use a simple custom spinlock instead of absl::Mutex to reduce
   // dependencies and avoid potential issues with code instrumentation.

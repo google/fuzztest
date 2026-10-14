@@ -92,7 +92,6 @@ fuzztest_cc_library(
   DEPS
     fuzztest::domain
     fuzztest::fuzztest_macros
-    fuzztest::googletest_adaptor
 )
 
 fuzztest_cc_library(

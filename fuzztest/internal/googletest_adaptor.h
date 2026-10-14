@@ -16,7 +16,6 @@
 #define FUZZTEST_FUZZTEST_GOOGLETEST_ADAPTOR_H_
 
 #include <cstdlib>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,33 +30,23 @@ namespace fuzztest::internal {
 
 class GTest_TestAdaptor : public ::testing::Test {
  public:
-  explicit GTest_TestAdaptor(
-      FuzzTest& test, std::optional<Configuration> configuration = std::nullopt)
-      : test_(test), configuration_(std::move(configuration)) {}
+  explicit GTest_TestAdaptor(FuzzTest& test, int* argc, char*** argv,
+                             Configuration configuration)
+      : test_(test),
+        argc_(argc),
+        argv_(argv),
+        configuration_(std::move(configuration)) {}
 
   void TestBody() override {
-    if (!Runtime::instance().init_fuzztest_called()) {
-      ADD_FAILURE()
-          << "FUZZ_TEST(" << test_.suite_name() << ", " << test_.test_name()
-          << ") was registered, but InitFuzzTest was never called in main(). "
-          << "If you are using a custom main(), please call "
-          << "fuzztest::InitFuzzTest(&argc, &argv)"
-          << " before RUN_ALL_TESTS().";
-      return;
-    }
     RecordProperty("fuzz_test", "true");
     auto test = test_.make();
-    Configuration configuration =
-        configuration_.has_value() ? *configuration_
-                                   : Runtime::instance().init_configuration();
-    configuration.fuzz_tests_in_current_shard =
-        GetFuzzTestsInCurrentShard(configuration);
+    configuration_.fuzz_tests_in_current_shard = GetFuzzTestsInCurrentShard();
     // We replay a reproducer in the same process to help debugging when
     // (1) we're replaying a single reproducer and (2) we're running locally.
     const bool running_locally =
         !std::getenv("FUZZTEST_RUNNING_UNDER_CI");
-    configuration.replay_in_single_process =
-        configuration.crashing_input_to_reproduce.has_value() &&
+    configuration_.replay_in_single_process =
+        configuration_.crashing_input_to_reproduce.has_value() &&
         testing::UnitTest::GetInstance()->test_to_run_count() == 1 &&
         running_locally;
     if (Runtime::instance().run_mode() == RunMode::kUnitTest) {
@@ -65,8 +54,8 @@ class GTest_TestAdaptor : public ::testing::Test {
       // bugs, i.e., run multiple tests that lead to a crash.
 #if defined(GTEST_HAS_DEATH_TEST) && !defined(FUZZTEST_USE_CENTIPEDE)
       const bool needs_subprocess =
-          configuration.crashing_input_to_reproduce.has_value() &&
-          (!configuration.replay_in_single_process ||
+          configuration_.crashing_input_to_reproduce.has_value() &&
+          (!configuration_.replay_in_single_process ||
            // EXPECT_EXIT is required in the death-test subprocess, but in
            // the subprocess there's only one test to run.
            testing::internal::InDeathTestChild());
@@ -74,7 +63,7 @@ class GTest_TestAdaptor : public ::testing::Test {
       const bool needs_subprocess = false;
 #endif
       if (needs_subprocess) {
-        configuration.preprocess_crash_reproducing = [] {
+        configuration_.preprocess_crash_reproducing = [] {
           // EXPECT_EXIT disables event forwarding in gtest and as a result,
           // EXPECT/ASSERT-s are disabled. Here, we overwrite this option.
           testing::UnitTest::GetInstance()->listeners().SuppressEventForwarding(
@@ -87,7 +76,7 @@ class GTest_TestAdaptor : public ::testing::Test {
         // test below fails without terminating the process.
 #ifdef GTEST_HAS_DEATH_TEST
         EXPECT_EXIT(
-            (test->RunInUnitTestMode(configuration),
+            (test->RunInUnitTestMode(configuration_),
              void(
                  R"( FuzzTest failure! Please see 'actual message' below for the crash report. )"),
              std::exit(0)),
@@ -96,7 +85,7 @@ class GTest_TestAdaptor : public ::testing::Test {
         EXPECT_TRUE(false) << "Death test is not supported.";
 #endif
       } else {
-        EXPECT_TRUE(test->RunInUnitTestMode(configuration) ||
+        EXPECT_TRUE(test->RunInUnitTestMode(configuration_) ||
                     Runtime::instance().skipping_requested())
             << "Failure(s) found in the unit-test mode - please see the test "
                "log for more details.";
@@ -104,9 +93,7 @@ class GTest_TestAdaptor : public ::testing::Test {
     } else {
       // TODO(b/245753736): Consider using `tolerate_failure` when FuzzTest can
       // tolerate crashes in fuzzing mode.
-      EXPECT_TRUE(test->RunInFuzzingMode(Runtime::instance().argc(),
-                                         Runtime::instance().argv(),
-                                         configuration) ||
+      EXPECT_TRUE(test->RunInFuzzingMode(argc_, argv_, configuration_) ||
                   Runtime::instance().skipping_requested())
           << "Failure(s) found in the fuzzing mode - please see the test log "
              "for more details.";
@@ -126,11 +113,12 @@ class GTest_TestAdaptor : public ::testing::Test {
   }
 
  private:
-  std::vector<std::string> GetFuzzTestsInCurrentShard(
-      const Configuration& configuration) const;
+  std::vector<std::string> GetFuzzTestsInCurrentShard() const;
 
   FuzzTest& test_;
-  std::optional<Configuration> configuration_;
+  int* argc_;
+  char*** argv_;
+  Configuration configuration_;
 };
 
 template <typename Base, typename TestPartResult>
@@ -154,14 +142,9 @@ class GTest_EventListener : public Base {
   }
 };
 
-// Registers a separate GoogleTest TEST for each crashing input of each
-// FUZZ_TEST when `configuration.reproduce_findings_as_separate_tests` is true.
-void RegisterSeparateRegressionTestsForEachCrashingInput(
-    const Configuration& configuration);
-
-// Registers a GoogleTest event listener that reports assertion failures to
-// FuzzTest.
-void RegisterGoogleTestEventListener();
+// Registers FUZZ_TEST as GoogleTest TEST-s.
+void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv,
+                                    const Configuration& configuration);
 
 // Set listing mode validator for GoogleTest to check that fuzz test listing was
 // properly handled.

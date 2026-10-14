@@ -352,7 +352,6 @@ fuzztest_cc_library(
   SRCS
     "registry.cc"
   DEPS
-    fuzztest::common_logging
     fuzztest::compatibility_mode
     fuzztest::fixture_driver
     fuzztest::registration

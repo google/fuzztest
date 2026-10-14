@@ -138,16 +138,6 @@ cc_binary(
 )
 
 cc_binary(
-    name = "fuzz_test_without_init_fuzztest",
-    testonly = 1,
-    srcs = ["fuzz_test_without_init_fuzztest.cc"],
-    deps = [
-        "@com_google_fuzztest//fuzztest",
-        "@googletest//:gtest",
-    ],
-)
-
-cc_binary(
     name = "fuzz_tests_for_corpus_database_testing",
     testonly = 1,
     srcs = ["fuzz_tests_for_corpus_database_testing.cc"],

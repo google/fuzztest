@@ -383,7 +383,6 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/strings:string_view",
-        "@com_google_fuzztest//common:logging",
     ] + select({
         "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
         "//conditions:default": [],

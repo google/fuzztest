@@ -16,6 +16,7 @@
 #include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
 #include "./common/logging.h"
+#include "./fuzztest/fuzztest.h"
 #include "./fuzztest/fuzztest_macros.h"
 #include "./fuzztest/internal/domains/arbitrary_impl.h"
 #include "./fuzztest/internal/domains/container_of_impl.h"

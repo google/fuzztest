@@ -2,7 +2,6 @@
 #include "./fuzztest/internal/googletest_adaptor.h"
 
 #include <cstdlib>
-#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -26,13 +25,12 @@
 
 namespace fuzztest::internal {
 
-std::vector<std::string> GTest_TestAdaptor::GetFuzzTestsInCurrentShard(
-    const Configuration& configuration) const {
+std::vector<std::string> GTest_TestAdaptor::GetFuzzTestsInCurrentShard() const {
   std::vector<std::string> result;
   for (const auto* test : GetRegisteredTests()) {
     if (!test->should_run()) continue;
     if (test->is_in_another_shard()) continue;
-    for (const auto& fuzztest : configuration.fuzz_tests) {
+    for (const auto& fuzztest : configuration_.fuzz_tests) {
       if (fuzztest ==
           absl::StrCat(test->test_suite_name(), ".", test->name())) {
         result.push_back(fuzztest);
@@ -45,12 +43,13 @@ std::vector<std::string> GTest_TestAdaptor::GetFuzzTestsInCurrentShard(
 
 namespace {
 template <typename T>
-void RegisterFuzzTestAsGTest(
-    FuzzTest& test, std::optional<Configuration> configuration = std::nullopt,
-    absl::string_view crashing_input_path = "") {
-  auto fixture_factory = [&test,
-                          configuration = std::move(configuration)]() -> T* {
-    return new ::fuzztest::internal::GTest_TestAdaptor(test, configuration);
+void RegisterFuzzTestAsGTest(int* argc, char*** argv, FuzzTest& test,
+                             const Configuration& configuration,
+                             absl::string_view crashing_input_path = "") {
+  auto fixture_factory = [argc, argv, &test,
+                          configuration = configuration]() mutable -> T* {
+    return new ::fuzztest::internal::GTest_TestAdaptor(
+        test, argc, argv, std::move(configuration));
   };
   if (crashing_input_path.empty()) {
     ::testing::RegisterTest(test.suite_name().c_str(), test.test_name().c_str(),
@@ -73,8 +72,9 @@ void RegisterFuzzTestAsGTest(
 }
 
 template <typename T>
-void RegisterRegressionTestsForTest(FuzzTest& test,
-                                    const Configuration& configuration) {
+void RegisterSeparateRegressionTestForEachCrashingInput(
+    int* argc, char*** argv, FuzzTest& test,
+    const Configuration& configuration) {
   if (!configuration.reproduce_findings_as_separate_tests) return;
 #ifdef FUZZTEST_USE_CENTIPEDE
   const std::vector<std::string> crash_inputs =
@@ -87,33 +87,31 @@ void RegisterRegressionTestsForTest(FuzzTest& test,
   for (const std::string& input : crash_inputs) {
     Configuration updated_configuration = configuration;
     updated_configuration.crashing_input_to_reproduce = input;
-    RegisterFuzzTestAsGTest<T>(test, updated_configuration, input);
+    RegisterFuzzTestAsGTest<T>(argc, argv, test, updated_configuration, input);
   }
+}
+
+template <typename T>
+void RegisterTests(int* argc, char*** argv, FuzzTest& test,
+                   const Configuration& configuration) {
+  RegisterFuzzTestAsGTest<T>(argc, argv, test, configuration);
+  RegisterSeparateRegressionTestForEachCrashingInput<T>(argc, argv, test,
+                                                        configuration);
 }
 
 }  // namespace
 
-void RegisterFuzzTestAsGoogleTest(FuzzTest& test) {
-  if (test.uses_fixture()) {
-    RegisterFuzzTestAsGTest<::fuzztest::internal::GTest_TestAdaptor>(test);
-  } else {
-    RegisterFuzzTestAsGTest<::testing::Test>(test);
-  }
-}
-
-void RegisterSeparateRegressionTestsForEachCrashingInput(
-    const Configuration& configuration) {
+void RegisterFuzzTestsAsGoogleTests(int* argc, char*** argv,
+                                    const Configuration& configuration) {
   ::fuzztest::internal::ForEachTest([&](auto& test) {
     if (test.uses_fixture()) {
-      RegisterRegressionTestsForTest<::fuzztest::internal::GTest_TestAdaptor>(
-          test, configuration);
+      RegisterTests<::fuzztest::internal::GTest_TestAdaptor>(argc, argv, test,
+                                                             configuration);
     } else {
-      RegisterRegressionTestsForTest<::testing::Test>(test, configuration);
+      RegisterTests<::testing::Test>(argc, argv, test, configuration);
     }
   });
-}
 
-void RegisterGoogleTestEventListener() {
   ::testing::UnitTest::GetInstance()->listeners().Append(
       new ::fuzztest::internal::GTest_EventListener<
           ::testing::EmptyTestEventListener, ::testing::TestPartResult>());
