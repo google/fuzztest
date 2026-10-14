@@ -82,6 +82,7 @@ TEST(ExecutionResult, WriteThenRead) {
   EXPECT_EQ(batch_result.results()[1].stats(), stats2);
   EXPECT_THAT(batch_result.results()[1].metadata().cmp_data,
               ElementsAre(3,        // size
+                          0,        // is_integer
                           1, 2, 3,  // cmp0
                           4, 5, 6   // cmp1
                           ));
@@ -162,6 +163,7 @@ TEST(ExecutionResult, WriteIntoFileThenRead) {
   EXPECT_EQ(batch_result.results()[1].stats(), stats2);
   EXPECT_THAT(batch_result.results()[1].metadata().cmp_data,
               ElementsAre(3,        // size
+                          0,        // is_integer
                           1, 2, 3,  // cmp0
                           4, 5, 6   // cmp1
                           ));
@@ -267,7 +269,7 @@ TEST(ExecutionResult, KeepArbitraryBytesFromMetadata) {
   EXPECT_EQ(batch_result.results()[0].metadata().cmp_data, bytes);
   // `ForEachEntry()` should fail but not crash.
   EXPECT_FALSE(batch_result.results()[0].metadata().ForEachCmpEntry(
-      [](ByteSpan, ByteSpan) {}));
+      [](ByteSpan, ByteSpan, bool) {}));
 }
 
 }  // namespace
