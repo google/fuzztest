@@ -394,6 +394,7 @@ fuzztest_cc_library(
     absl::statusor
     absl::strings
     absl::str_format
+    absl::synchronization
     absl::time
     absl::span
     fuzztest::bazel
