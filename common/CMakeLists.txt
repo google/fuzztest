@@ -178,6 +178,13 @@ fuzztest_cc_library(
     absl::strings
 )
 
+fuzztest_cc_library(
+  NAME
+    windows_includes
+  HDRS
+    "windows_includes.h"
+)
+
 ### Tests
 
 fuzztest_cc_test(
