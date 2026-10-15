@@ -1984,6 +1984,7 @@ cc_test(
         "@abseil-cpp//absl/time:simulated_clock",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:temp_dir",
         "@googletest//:gtest_main",
     ],
