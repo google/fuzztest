@@ -19,6 +19,9 @@ function(link_fuzztest name)
     fuzztest::fuzztest
     fuzztest::fuzztest_gtest_main
   )
+  if (FUZZTEST_FUZZING_MODE)
+    target_compile_options(${name} PRIVATE -fsanitize-coverage=inline-8bit-counters -fsanitize-coverage=trace-cmp)
+  endif ()
 endfunction()
 
 function(link_fuzztest_core name)
@@ -28,4 +31,7 @@ function(link_fuzztest_core name)
     fuzztest::fuzztest_core
     fuzztest::fuzztest_gtest_main
   )
+  if (FUZZTEST_FUZZING_MODE)
+    target_compile_options(${name} PRIVATE -fsanitize-coverage=inline-8bit-counters -fsanitize-coverage=trace-cmp)
+  endif ()
 endfunction()
