@@ -15,9 +15,11 @@
 #ifndef FUZZTEST_FUZZTEST_INTERNAL_RUNTIME_H_
 #define FUZZTEST_FUZZTEST_INTERNAL_RUNTIME_H_
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <deque>
 #include <iostream>
 #include <memory>
@@ -122,12 +124,10 @@ bool IsSignalHandlerDisabled(absl::string_view signame);
 void InstallUnexpectedExitHandler();
 
 // A function that is called when crash metadata is available.
-using CrashMetadataListener =
-    absl::AnyInvocable<void(absl::string_view crash_type,
-                            absl::Span<const std::string> stack_frames) const>;
-using CrashMetadataListenerRef =
-    absl::FunctionRef<void(absl::string_view crash_type,
-                           absl::Span<const std::string> stack_frames) const>;
+using CrashMetadataListener = absl::AnyInvocable<void(
+    absl::string_view description, absl::string_view signature) const>;
+using CrashMetadataListenerRef = absl::FunctionRef<void(
+    absl::string_view description, absl::string_view signature) const>;
 
 // This class encapsulates the runtime state that is global by necessity.
 // The state is accessed by calling `Runtime::instance()`, which handles the
@@ -235,12 +235,33 @@ class Runtime {
   void RegisterCrashMetadataListener(CrashMetadataListener listener) {
     crash_metadata_listeners_.push_back(std::move(listener));
   }
-  void SetCrashTypeIfUnset(std::string crash_type) {
-    if (!crash_type_.has_value()) {
-      crash_type_ = std::move(crash_type);
-    }
+  void RegisterCrashMetadataListener(
+      absl::AnyInvocable<void(absl::string_view, absl::Span<const std::string>)
+                             const>
+          listener) {
+    crash_metadata_listeners_.push_back(
+        [listener = std::move(listener)](absl::string_view description,
+                                         absl::string_view /*signature*/) {
+          listener(description, {});
+        });
   }
-  void ResetCrashType() { crash_type_ = std::nullopt; }
+  void SetCrashTypeIfUnset(absl::string_view crash_type) {
+    crash_type_.SetIfUnset(crash_type);
+  }
+  std::optional<absl::string_view> crash_type() const {
+    return crash_type_.Get();
+  }
+  void SetCrashSignatureIfUnset(absl::string_view crash_signature) {
+    crash_signature_.SetIfUnset(crash_signature);
+  }
+  std::optional<absl::string_view> crash_signature() const {
+    return crash_signature_.Get();
+  }
+  void OnSanitizerErrorSummary(absl::string_view crash_type);
+  void ResetCrashType() {
+    crash_type_.Reset();
+    crash_signature_.Reset();
+  }
 
   // If the crash reporter is enabled, sets the crash type to unexpected-exit
   // and aborts the process. Otherwise, does nothing.
@@ -322,10 +343,43 @@ class Runtime {
   bool test_iteration_started_ ABSL_GUARDED_BY(watchdog_spinlock_) = false;
   bool watchdog_limit_exceeded_ ABSL_GUARDED_BY(watchdog_spinlock_) = false;
 
+  // A fixed-size string buffer that avoids heap allocations for signal safety.
+  template <size_t kCapacity>
+  class CrashMetadataBuffer {
+   public:
+    void SetIfUnset(absl::string_view value) {
+      if (has_value_) return;
+      size_ = std::min(value.size(), kCapacity);
+      if (size_ > 0) {
+        std::memcpy(buffer_, value.data(), size_);
+      }
+      has_value_ = true;
+    }
+
+    void Reset() {
+      has_value_ = false;
+      size_ = 0;
+    }
+
+    bool has_value() const { return has_value_; }
+
+    std::optional<absl::string_view> Get() const {
+      if (!has_value_) return std::nullopt;
+      return absl::string_view(buffer_, size_);
+    }
+
+   private:
+    char buffer_[kCapacity] = {};
+    size_t size_ = 0;
+    bool has_value_ = false;
+  };
+
   // A registry of crash metadata listeners.
   std::vector<CrashMetadataListener> crash_metadata_listeners_;
   // In case of a crash, contains the crash type.
-  std::optional<std::string> crash_type_;
+  CrashMetadataBuffer<256> crash_type_;
+  // In case of a crash, contains the crash signature.
+  CrashMetadataBuffer<1024> crash_signature_;
 };
 
 struct ReproducerOutputLocation {
