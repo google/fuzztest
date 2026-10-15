@@ -2150,7 +2150,12 @@ TEST_P(FuzzingModeCrashFindingTest, AsanCrashMetadataIsDumpedIfEnvVarIsSet) {
           {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
 
   EXPECT_THAT(ReadFile(crash_metadata_path),
-              Optional(Eq("heap-buffer-overflow")));
+              Optional(Eq("heap-buffer-overflow\n"
+                          "CRASH_TYPE=heap-buffer-overflow\n"
+                          "CRASH_SIGNATURE=heap-buffer-overflow:"
+                          "(anonymous namespace)::BufferOverreadImpl/"
+                          "(anonymous namespace)::BufferOverread/"
+                          "(anonymous namespace)::BufferOverreadWithString")));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, SignalCrashMetadataIsDumpedIfEnvVarIsSet) {
@@ -2160,7 +2165,9 @@ TEST_P(FuzzingModeCrashFindingTest, SignalCrashMetadataIsDumpedIfEnvVarIsSet) {
       Run("MySuite.Aborts", kDefaultTargetBinary,
           {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
 
-  EXPECT_THAT(ReadFile(crash_metadata_path), Optional(Eq("SIGABRT")));
+  EXPECT_THAT(
+      ReadFile(crash_metadata_path),
+      Optional(Eq("SIGABRT\nCRASH_TYPE=SIGABRT\nCRASH_SIGNATURE=SIGABRT")));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
@@ -2171,7 +2178,9 @@ TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
           {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
 
   EXPECT_THAT(ReadFile(crash_metadata_path),
-              Optional(Eq("GoogleTest assertion failure")));
+              Optional(Eq("GoogleTest assertion failure\n"
+                          "CRASH_TYPE=GoogleTest assertion failure\n"
+                          "CRASH_SIGNATURE=GoogleTest assertion failure")));
 }
 
 TEST_P(FuzzingModeCrashFindingTest,
@@ -2183,7 +2192,9 @@ TEST_P(FuzzingModeCrashFindingTest,
           {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
 
   EXPECT_THAT(ReadFile(crash_metadata_path),
-              Optional(Eq("SETUP FAILURE: SIGABRT")));
+              Optional(Eq("SETUP FAILURE: SIGABRT\n"
+                          "CRASH_TYPE=SIGABRT\n"
+                          "CRASH_SIGNATURE=SIGABRT")));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, HandlesUnexpectedExit) {
@@ -2193,7 +2204,10 @@ TEST_P(FuzzingModeCrashFindingTest, HandlesUnexpectedExit) {
       Run("MySuite.UnexpectedlyExits", kDefaultTargetBinary,
           {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
 
-  EXPECT_THAT(ReadFile(crash_metadata_path), Optional(Eq("unexpected-exit")));
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("unexpected-exit\n"
+                          "CRASH_TYPE=unexpected-exit\n"
+                          "CRASH_SIGNATURE=unexpected-exit")));
   ExpectTargetAbort(status, std_err);
 }
 
