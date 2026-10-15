@@ -32,6 +32,9 @@ build:fuzztest-common --copt=-UNDEBUG
 # See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
 build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
 
+# Preserve frame pointers for stack-based crash signature unwinding.
+build:fuzztest-common --copt=-fno-omit-frame-pointer
+
 EOF
 
 cat <<EOF
