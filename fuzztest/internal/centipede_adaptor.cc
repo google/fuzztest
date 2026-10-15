@@ -936,9 +936,9 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   }
   if (runner_mode) {
     runtime_.RegisterCrashMetadataListener(
-        [](absl::string_view crash_type,
-           absl::Span<const std::string> /*stack_frames*/) {
-          CentipedeSetFailureDescription(std::string{crash_type}.c_str());
+        [](absl::string_view description, absl::string_view signature) {
+          CentipedeSetFailure(std::string{description}.c_str(),
+                              std::string{signature}.c_str());
         });
   }
   if (runner_mode) {
