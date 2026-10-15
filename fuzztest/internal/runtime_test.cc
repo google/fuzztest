@@ -14,6 +14,8 @@
 
 #include "./fuzztest/internal/runtime.h"
 
+#include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -21,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/configuration.h"
@@ -93,6 +96,77 @@ For reproducing findings please rely on file based reproduction.
 
   runtime.DisableReporter();
   EXPECT_EQ(get_failure(), "");
+}
+
+TEST(OnFailureTest, CrashMetadataListenerReceivesDescriptionAndSignature) {
+  auto& runtime = Runtime::instance();
+  auto received = std::make_shared<std::pair<std::string, std::string>>();
+  runtime.RegisterCrashMetadataListener(
+      [received](absl::string_view description, absl::string_view signature) {
+        *received = {std::string(description), std::string(signature)};
+      });
+
+  FuzzTest test({"SUITE_NAME", "TEST_NAME", "FILE", 123}, nullptr);
+  Configuration configuration;
+  std::tuple args(17);
+  const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4, 5};
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  runtime.SetRunMode(RunMode::kFuzz);
+  UntypedDomain domain = TupleOf(Arbitrary<int>());
+  GenericDomainCorpusType generic_args(std::in_place_type<std::tuple<int>>,
+                                       args);
+  Runtime::Args debug_args{generic_args, domain};
+  runtime.SetCurrentTest(&test, &configuration);
+  runtime.SetCurrentArgs(&debug_args);
+
+  const auto trigger_report = [&] {
+    std::string unused;
+    runtime.PrintReport(&unused);
+  };
+
+  // Both crash_type_ and crash_signature_ are unset.
+  EXPECT_EQ(runtime.crash_type(), std::nullopt);
+  trigger_report();
+  EXPECT_EQ(received->first, "Generic crash");
+  EXPECT_EQ(received->second, "Generic crash");
+
+  // crash_type_ is set, crash_signature_ is unset (defaults to crash_type_).
+  runtime.SetCrashTypeIfUnset("SIGSEGV");
+  runtime.SetCrashTypeIfUnset("ignored");
+  EXPECT_EQ(runtime.crash_type(), "SIGSEGV");
+  trigger_report();
+  EXPECT_EQ(received->first,
+            "SIGSEGV\nCRASH_TYPE=SIGSEGV\nCRASH_SIGNATURE=SIGSEGV");
+  EXPECT_EQ(received->second, "SIGSEGV");
+
+  // crash_signature_ is explicitly set.
+  runtime.SetCrashSignatureIfUnset("SIGSEGV Foo bar.cc:10:5");
+  runtime.SetCrashSignatureIfUnset("ignored");
+  trigger_report();
+  EXPECT_EQ(received->first,
+            "SIGSEGV\nCRASH_TYPE=SIGSEGV\n"
+            "CRASH_SIGNATURE=SIGSEGV Foo bar.cc:10:5");
+  EXPECT_EQ(received->second, "SIGSEGV Foo bar.cc:10:5");
+
+  // Setup failure (current_args_ == nullptr) prefixes both description and
+  // signature.
+  runtime.UnsetCurrentArgs();
+  trigger_report();
+  EXPECT_EQ(received->first,
+            "SETUP FAILURE: SIGSEGV\nCRASH_TYPE=SIGSEGV\n"
+            "CRASH_SIGNATURE=SIGSEGV Foo bar.cc:10:5");
+  EXPECT_EQ(received->second, "SETUP FAILURE: SIGSEGV Foo bar.cc:10:5");
+
+  // ResetCrashType() resets both crash_type_ and crash_signature_.
+  runtime.SetCurrentArgs(&debug_args);
+  runtime.ResetCrashType();
+  EXPECT_EQ(runtime.crash_type(), std::nullopt);
+  trigger_report();
+  EXPECT_EQ(received->first, "Generic crash");
+  EXPECT_EQ(received->second, "Generic crash");
+
+  runtime.UnsetCurrentArgs();
+  runtime.DisableReporter();
 }
 
 TEST(RegressionTestNameForCrashingInputTest,
