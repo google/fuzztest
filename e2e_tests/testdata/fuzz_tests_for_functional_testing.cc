@@ -84,6 +84,9 @@ void Aborts(int foo, int bar) {
 }
 FUZZ_TEST(MySuite, Aborts);
 
+void RaisesSigterm(int) { std::raise(SIGTERM); }
+FUZZ_TEST(MySuite, RaisesSigterm);
+
 void PassesString(const std::string& v) {
   absl::FPrintF(stderr, "==<<Saw size=%zu>>==\n", v.size());
 }

@@ -17,6 +17,10 @@
 // Used by `functional_test` only. We separate these into a different .cc file
 // to show that regular FUZZ_TEST work without having to #include GoogleTest.
 
+#include <sys/mman.h>
+#include <unistd.h>
+
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 
@@ -44,6 +48,64 @@ class GlobalEnvironment : public testing::Environment {
 
 testing::Environment* const global_environment =
     testing::AddGlobalTestEnvironment(new GlobalEnvironment);
+
+// Emulates targets (e.g., V8's Wasm trap handler) that install their own
+// SIGSEGV/SIGBUS handler before FuzzTest does and recover from faults they
+// expect. The handler only recovers from faults on `guard_page`, by making the
+// page accessible so that the faulting access is retried and succeeds. Any
+// other fault falls back to the default action. Both signals are handled
+// because some platforms (e.g., macOS) may deliver this fault as SIGBUS.
+void* guard_page = nullptr;
+
+void RecoveringFaultHandler(int signum, siginfo_t* info, void*) {
+  if (info->si_addr == guard_page &&
+      mprotect(guard_page, getpagesize(), PROT_READ | PROT_WRITE) == 0) {
+    constexpr char kMsg[] = "<<Recovered from expected fault>>\n";
+    write(STDERR_FILENO, kMsg, sizeof(kMsg) - 1);
+    return;  // The faulting access is retried and now succeeds.
+  }
+  signal(signum, SIG_DFL);  // Retrying the access now crashes.
+}
+
+// Installs `RecoveringFaultHandler` if INSTALL_RECOVERING_FAULT_HANDLER is set.
+// Global environments are set up before any test runs, and therefore before
+// FuzzTest installs its own signal handlers.
+class RecoveringFaultHandlerEnvironment : public testing::Environment {
+ public:
+  void SetUp() override {
+    if (std::getenv("INSTALL_RECOVERING_FAULT_HANDLER") == nullptr) {
+      return;
+    }
+    guard_page = mmap(nullptr, getpagesize(), PROT_NONE,
+                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (guard_page == MAP_FAILED) {
+      perror("mmap");
+      std::abort();
+    }
+    struct sigaction action = {};
+    sigemptyset(&action.sa_mask);
+    action.sa_sigaction = RecoveringFaultHandler;
+    action.sa_flags = SA_SIGINFO;
+    if (sigaction(SIGSEGV, &action, nullptr) != 0 ||
+        sigaction(SIGBUS, &action, nullptr) != 0) {
+      perror("sigaction");
+      std::abort();
+    }
+  }
+};
+
+testing::Environment* const recovering_fault_handler_environment =
+    testing::AddGlobalTestEnvironment(new RecoveringFaultHandlerEnvironment);
+
+// Writes to `guard_page`, which faults on the first run only and is recovered
+// by `RecoveringFaultHandler`. Does nothing if the handler is not installed.
+void RecoversFromExpectedFault(int) {
+  if (guard_page == nullptr) {
+    return;
+  }
+  *static_cast<volatile char*>(guard_page) = 1;
+}
+FUZZ_TEST(MySuite, RecoversFromExpectedFault);
 
 void GoogleTestExpect(int a) {
   // Make sure this will fail.

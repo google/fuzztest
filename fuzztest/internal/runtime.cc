@@ -51,6 +51,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/clock.h"
@@ -514,6 +515,19 @@ void Runtime::OnTestIterationEnd() {
   watchdog_spinlock_.Unlock();
 }
 
+bool IsSignalHandlerDisabled(absl::string_view signame) {
+  const char* disabled = std::getenv("FUZZTEST_DISABLE_SIGNAL_HANDLERS");
+  if (disabled == nullptr) {
+    return false;
+  }
+  for (absl::string_view name : absl::StrSplit(disabled, ',')) {
+    if (name == signame) {
+      return true;
+    }
+  }
+  return false;
+}
+
 #if defined(__linux__) || defined(__APPLE__)
 
 struct OldSignalHandler {
@@ -641,11 +655,27 @@ void InstallSignalHandlers(FILE* out) {
       [](auto...) { Runtime::instance().PrintReport(&signal_out_sink); });
 #endif
 
+  if (const char* disabled = std::getenv("FUZZTEST_DISABLE_SIGNAL_HANDLERS");
+      disabled != nullptr) {
+    absl::FPrintF(GetStderr(), "[*] FUZZTEST_DISABLE_SIGNAL_HANDLERS=%s\n",
+                  disabled);
+  }
+
   for (OldSignalHandler& h : crash_handlers) {
+    if (IsSignalHandlerDisabled(h.signame)) {
+      absl::FPrintF(GetStderr(), "[*] Not installing handlers for: %s\n",
+                    h.signame);
+      continue;
+    }
     SetNewSigAction(h.signum, &HandleCrash, &h.action);
   }
 
   for (OldSignalHandler& h : termination_handlers) {
+    if (IsSignalHandlerDisabled(h.signame)) {
+      absl::FPrintF(GetStderr(), "[*] Not installing handlers for: %s\n",
+                    h.signame);
+      continue;
+    }
     SetNewSigAction(h.signum, &HandleTermination, nullptr);
   }
 }
