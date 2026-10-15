@@ -164,6 +164,26 @@ absl::string_view GetSeparator() {
          "\n";
 }
 
+class SignalSafeBufferWriter {
+ public:
+  explicit SignalSafeBufferWriter(absl::Span<char> buffer) : buffer_(buffer) {}
+
+  void Append(absl::string_view str) {
+    if (size_ >= buffer_.size() || str.empty()) return;
+    const size_t to_copy = std::min(str.size(), buffer_.size() - size_);
+    std::memcpy(buffer_.data() + size_, str.data(), to_copy);
+    size_ += to_copy;
+  }
+
+  absl::string_view view() const {
+    return absl::string_view(buffer_.data(), size_);
+  }
+
+ private:
+  absl::Span<char> buffer_;
+  size_t size_ = 0;
+};
+
 }  // namespace
 
 ReproducerOutputLocation GetReproducerOutputLocation() {
@@ -234,18 +254,51 @@ void (*crash_handler_hook)();
 Runtime::Runtime() {
   FuzzTestSetSanitizerErrorSummaryCallback(
       [](const char* crash_type_data, size_t crash_type_size) {
-        Runtime::instance().SetCrashTypeIfUnset(
-            std::string(crash_type_data, crash_type_size));
+        Runtime::instance().OnSanitizerErrorSummary(
+            absl::string_view(crash_type_data, crash_type_size));
       });
+  FuzzTestSetTsanOnReportCallback([](const char* f0_data, size_t f0_size,
+                                     const char* f1_data, size_t f1_size) {
+    Runtime::instance().OnTsanReport(absl::string_view(f0_data, f0_size),
+                                     absl::string_view(f1_data, f1_size));
+  });
   if (const char* crash_metadata_path =
           std::getenv("FUZZTEST_CRASH_METADATA_PATH");
       crash_metadata_path != nullptr) {
     RegisterCrashMetadataListener(
-        [=](absl::string_view crash_type,
-            absl::Span<const std::string> /*stack_frames*/) {
-          WriteFile(crash_metadata_path, crash_type);
+        [=](absl::string_view description, absl::string_view /*signature*/) {
+          WriteFile(crash_metadata_path, description);
         });
   }
+}
+
+void Runtime::OnSanitizerErrorSummary(absl::string_view crash_type) {
+  SetCrashTypeIfUnset(crash_type);
+#if defined(THREAD_SANITIZER)
+  if (crash_type == "data-race") {
+    return;
+  }
+#endif
+  if (!crash_signature_.has_value()) {
+    absl::string_view frame_storage[3];
+    char symbol_storage[3 * 1024];
+    char signature_buffer[1024];
+    const absl::Span<const absl::string_view> frames =
+        GetTopAppFunctions(frame_storage, symbol_storage);
+    SetCrashSignatureIfUnset(
+        FormatStackCrashSignature(crash_type, frames, signature_buffer));
+  }
+}
+
+void Runtime::OnTsanReport(absl::string_view f0, absl::string_view f1) {
+  SetCrashTypeIfUnset("data-race");
+  const std::optional<absl::string_view> current_crash_type = crash_type();
+  if (current_crash_type != "data-race") {
+    return;
+  }
+  char signature_buffer[1024];
+  SetCrashSignatureIfUnset(FormatTwoThreadCrashSignature(
+      *current_crash_type, f0, f1, signature_buffer));
 }
 
 // TODO(lszekeres): Return absl::StatusOr when WriteDataToDir returns StatusOr.
@@ -304,10 +357,31 @@ void Runtime::PrintReport(RawSink out) const {
   if (crash_handler_hook) crash_handler_hook();
 
   for (CrashMetadataListenerRef listener : crash_metadata_listeners_) {
-    const std::string final_crash_type =
-        absl::StrCat(current_args_ == nullptr ? "SETUP FAILURE: " : "",
-                     crash_type_.value_or("Generic crash"));
-    listener(final_crash_type, {});
+    const std::optional<absl::string_view> crash_type = this->crash_type();
+    const absl::string_view resolved_crash_type =
+        crash_type.value_or("Generic crash");
+    const absl::string_view raw_signature =
+        crash_signature().value_or(resolved_crash_type);
+    const absl::string_view prefix =
+        current_args_ == nullptr ? "SETUP FAILURE: " : "";
+
+    char description_buffer[2048];
+    SignalSafeBufferWriter description_writer(description_buffer);
+    description_writer.Append(prefix);
+    description_writer.Append(resolved_crash_type);
+    if (crash_type.has_value()) {
+      description_writer.Append("\nCRASH_TYPE=");
+      description_writer.Append(*crash_type);
+      description_writer.Append("\nCRASH_SIGNATURE=");
+      description_writer.Append(raw_signature);
+    }
+
+    char signature_buffer[1024];
+    SignalSafeBufferWriter signature_writer(signature_buffer);
+    signature_writer.Append(prefix);
+    signature_writer.Append(raw_signature);
+
+    listener(description_writer.view(), signature_writer.view());
   }
 
   if (run_mode() != RunMode::kUnitTest) {
@@ -577,7 +651,16 @@ static void HandleCrash(int signum, siginfo_t* info, void* ucontext) {
       std::abort();
   }
   Runtime& runtime = Runtime::instance();
-  runtime.SetCrashTypeIfUnset(std::string(it->signame));
+  if (!runtime.crash_type().has_value()) {
+    runtime.SetCrashTypeIfUnset(it->signame);
+    absl::string_view frame_storage[3];
+    char symbol_storage[3 * 1024];
+    char signature_buffer[1024];
+    const absl::Span<const absl::string_view> frames =
+        GetTopAppFunctions(frame_storage, symbol_storage);
+    runtime.SetCrashSignatureIfUnset(
+        FormatStackCrashSignature(it->signame, frames, signature_buffer));
+  }
   const bool has_old_handler = HasCustomHandler(it->action);
   // SIGTRAP generated by perf_event_open(sigtrap=1) may be used by
   // debugging/analysis tools, so don't consider these as a crash.
