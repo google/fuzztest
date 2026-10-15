@@ -16,10 +16,13 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_SANITIZER_INTERFACE_H_
 
 #include <cstddef>
+#include <string>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 
 extern "C" {
 
@@ -37,6 +40,20 @@ using FuzzTestSanitizerErrorSummaryCallback =
 void FuzzTestSetSanitizerErrorSummaryCallback(
     FuzzTestSanitizerErrorSummaryCallback callback);
 
+using FuzzTestTsanOnReportCallback = void (*)(const char* f0_data,
+                                              size_t f0_size,
+                                              const char* f1_data,
+                                              size_t f1_size);
+
+// Registers a callback to be invoked with the top application function names
+// of the two racing memory operations whenever the ThreadSanitizer runtime
+// reports a multi-threaded error (`mop_count >= 2`).
+//
+// Each `(f*_data, f*_size)` slice passed to `callback` is valid for reads for
+// the duration of the callback invocation; `f*_size` may be 0 if no application
+// frame was found in that memory operation's stack trace.
+void FuzzTestSetTsanOnReportCallback(FuzzTestTsanOnReportCallback callback);
+
 }  // extern "C"
 
 namespace fuzztest::internal {
@@ -50,6 +67,26 @@ namespace fuzztest::internal {
 // valid.
 absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
     absl::string_view error_summary ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
+// Captures the current stack trace, symbolizes each PC, filters out internal
+// frames, strips trailing parameter lists `(...)` and file/line info, and
+// returns at most `max_frames` application function names.
+std::vector<std::string> GetTopAppFunctions(int max_frames = 3);
+
+// Formats a stack-based crash signature from `crash_type` and `frames`:
+// - Returns `crash_type` if `frames` is empty.
+// - Otherwise returns `<crash_type>:<f0>/<f1>/...`.
+std::string FormatStackCrashSignature(absl::string_view crash_type,
+                                      absl::Span<const std::string> frames);
+
+// Formats a commutative two-thread crash signature from `crash_type`, `f0`, and
+// `f1`:
+// - Returns `crash_type` if both `f0` and `f1` are empty.
+// - Otherwise substitutes `"<unknown>"` for an empty frame and returns
+//   `<crash_type>:<min(f0, f1)> <-> <max(f0, f1)>`.
+std::string FormatTwoThreadCrashSignature(absl::string_view crash_type,
+                                          absl::string_view f0,
+                                          absl::string_view f1);
 
 }  // namespace fuzztest::internal
 

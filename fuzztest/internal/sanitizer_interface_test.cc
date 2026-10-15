@@ -15,17 +15,300 @@
 #include "./fuzztest/internal/sanitizer_interface.h"
 
 #include <cstddef>
+#include <functional>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 
+#if defined(THREAD_SANITIZER)
+#include <cstdio>
+#include <cstdlib>
+#include <thread>  // NOLINT
+
+#include "absl/strings/str_format.h"
+#endif
+
+namespace test_app {
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> Helper4(int max_frames) {
+  auto frames = fuzztest::internal::GetTopAppFunctions(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> Helper3(int max_frames) {
+  auto frames = Helper4(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> Helper2(int max_frames) {
+  auto frames = Helper3(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> Helper1(int max_frames) {
+  auto frames = Helper2(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+struct Functor {
+  ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> operator()(
+      int max_frames) const {
+    auto frames = fuzztest::internal::GetTopAppFunctions(max_frames);
+    ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+    return frames;
+  }
+};
+
+struct Buffer {
+  ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> operator[](
+      int max_frames) const {
+    Functor functor;
+    auto frames = functor(max_frames);
+    ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+    return frames;
+  }
+};
+
+}  // namespace test_app
+
+namespace {
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((__abi_tag__("cxx11")))
+#endif
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> AnonAppHelper(int max_frames) {
+  test_app::Buffer buffer;
+  auto frames = buffer[max_frames];
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+}  // namespace
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FuzzTestUserFunction(
+    int max_frames) {
+  auto frames = AnonAppHelper(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+// Functions and namespaces matching internal frame prefixes in
+// `IsInternalFrame` to verify they are skipped during stack unwinding.
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> __fake_double_underscore_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = next(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> sanitizer_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = __fake_double_underscore_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> asan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = sanitizer_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> msan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = asan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> tsan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = msan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> ubsan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = tsan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> lsan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = ubsan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> hwasan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = lsan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> SignalAction(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = hwasan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> SignalHandler(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = SignalAction(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FuzzTestWorkerFakeFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = SignalHandler(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> CentipedeFakeFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = FuzzTestWorkerFakeFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> LLVMFuzzerFakeFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = CentipedeFakeFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+namespace centipede {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeCentipedeNamespaceFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = LLVMFuzzerFakeFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace centipede
+
+namespace tcmalloc {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeTcmallocFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = centipede::FakeCentipedeNamespaceFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace tcmalloc
+
+namespace absl {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeAbslFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = tcmalloc::FakeTcmallocFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace absl
+
+namespace testing {
+namespace internal {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeGTestInternalFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = absl::FakeAbslFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace internal
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeGTestFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = internal::FakeGTestInternalFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace testing
+
+namespace fuzztest {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeFuzzTestFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = testing::FakeGTestFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+#if defined(THREAD_SANITIZER)
+ABSL_ATTRIBUTE_NOINLINE void InternalRaceWrite(volatile int* shared) {
+  *shared = *shared + 1;
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+ABSL_ATTRIBUTE_NOINLINE void InternalOnlyRaceThread(volatile int* shared) {
+  while (*shared < 100) {
+    if (*shared % 2 == 1) {
+      InternalRaceWrite(shared);
+    }
+  }
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+#endif  // defined(THREAD_SANITIZER)
+}  // namespace fuzztest
+
+namespace test_app {
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> InnerAppFunc(int max_frames) {
+  auto frames = fuzztest::FakeFuzzTestFrame(
+      &fuzztest::internal::GetTopAppFunctions, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> OuterAppFunc(int max_frames) {
+  auto frames = fuzztest::FakeFuzzTestFrame(&InnerAppFunc, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+#if defined(THREAD_SANITIZER)
+ABSL_ATTRIBUTE_NOINLINE void RaceThreadA(volatile int* shared) {
+  while (*shared < 100) {
+    if (*shared % 2 == 0) {
+      fuzztest::InternalRaceWrite(shared);
+    }
+  }
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+ABSL_ATTRIBUTE_NOINLINE void RaceThreadB(volatile int* shared) {
+  while (*shared < 100) {
+    if (*shared % 2 == 1) {
+      fuzztest::InternalRaceWrite(shared);
+    }
+  }
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+#endif  // defined(THREAD_SANITIZER)
+
+}  // namespace test_app
+
 namespace fuzztest::internal {
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeWhenItIsTheOnlyToken) {
@@ -295,6 +578,129 @@ TEST(FuzzTestSanitizerErrorSummaryCallbackTest,
 
   FuzzTestSetSanitizerErrorSummaryCallback(nullptr);
 }
+
+TEST(GetTopAppFunctionsTest, CapturesTopApplicationFunctionsFromCallStack) {
+  EXPECT_THAT(test_app::Helper1(3),
+              ElementsAre("test_app::Helper4", "test_app::Helper3",
+                          "test_app::Helper2"));
+  EXPECT_THAT(test_app::Helper1(2),
+              ElementsAre("test_app::Helper4", "test_app::Helper3"));
+  // Requesting more frames than exist in `test_app` walks the rest of the
+  // stack (`fuzztest::internal`, `testing::internal`, `testing::Test::Run`,
+  // `main`, `__libc_start_main`, `_start`) and filters all of them out.
+  EXPECT_THAT(test_app::Helper1(10),
+              ElementsAre("test_app::Helper4", "test_app::Helper3",
+                          "test_app::Helper2", "test_app::Helper1"));
+  EXPECT_THAT(test_app::Helper1(0), IsEmpty());
+  EXPECT_THAT(test_app::Helper1(-1), IsEmpty());
+}
+
+TEST(GetTopAppFunctionsTest,
+     FiltersOutSanitizerFuzzTestGTestAbseilAndStlFrames) {
+  EXPECT_THAT(test_app::OuterAppFunc(10),
+              ElementsAre("test_app::InnerAppFunc", "test_app::OuterAppFunc"));
+}
+
+TEST(GetTopAppFunctionsTest,
+     PreservesUserOperatorsAnonNamespacesAndFuzzTestPrefixedUserNames) {
+  EXPECT_THAT(FuzzTestUserFunction(10),
+              ElementsAre("test_app::Functor::operator()",
+                          "test_app::Buffer::operator[]",
+                          "(anonymous namespace)::AnonAppHelper",
+                          "FuzzTestUserFunction"));
+}
+
+TEST(FormatStackCrashSignatureTest, FormatsCrashTypeAndFrames) {
+  EXPECT_EQ(FormatStackCrashSignature("heap-buffer-overflow", {}),
+            "heap-buffer-overflow");
+  EXPECT_EQ(
+      FormatStackCrashSignature("heap-buffer-overflow", {"MyApp::ParseHeader"}),
+      "heap-buffer-overflow:MyApp::ParseHeader");
+  EXPECT_EQ(FormatStackCrashSignature(
+                "heap-buffer-overflow",
+                {"Buffer::operator[]", "MyApp::ParseHeader", "ProcessPacket"}),
+            "heap-buffer-overflow:Buffer::operator[]/MyApp::ParseHeader/"
+            "ProcessPacket");
+}
+
+TEST(FormatTwoThreadCrashSignatureTest,
+     FormatsCommutativeSignatureFromTwoThreadFrames) {
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "", ""), "data-race");
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "ThreadA", "ThreadB"),
+            "data-race:ThreadA <-> ThreadB");
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "ThreadB", "ThreadA"),
+            "data-race:ThreadA <-> ThreadB");
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "Worker", "Worker"),
+            "data-race:Worker <-> Worker");
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "Worker", ""),
+            "data-race:<unknown> <-> Worker");
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "", "Worker"),
+            "data-race:<unknown> <-> Worker");
+}
+
+#if defined(THREAD_SANITIZER)
+extern "C" void __tsan_on_report(void* report);
+
+TEST(FuzzTestTsanOnReportCallbackTest, NullReportIsIgnored) {
+  static bool callback_called = false;
+  callback_called = false;
+  FuzzTestSetTsanOnReportCallback(
+      [](const char*, size_t, const char*, size_t) { callback_called = true; });
+  __tsan_on_report(nullptr);
+  EXPECT_FALSE(callback_called);
+  FuzzTestSetTsanOnReportCallback(nullptr);
+}
+
+TEST(FuzzTestTsanOnReportCallbackDeathTest,
+     ExtractsBothRacingThreadFunctionsOnDataRace) {
+  EXPECT_DEATH(
+      {
+        FuzzTestSetTsanOnReportCallback([](const char* f0_data, size_t f0_size,
+                                           const char* f1_data,
+                                           size_t f1_size) {
+          const std::string sig = FormatTwoThreadCrashSignature(
+              "data-race", absl::string_view(f0_data, f0_size),
+              absl::string_view(f1_data, f1_size));
+          absl::FPrintF(stderr, "TSAN_CALLBACK_SIG=%s\n", sig);
+          std::fflush(stderr);
+          std::_Exit(1);
+        });
+        volatile int shared = 0;
+        std::thread t1(test_app::RaceThreadA, &shared);
+        std::thread t2(test_app::RaceThreadB, &shared);
+        t1.join();
+        t2.join();
+        std::_Exit(0);
+      },
+      HasSubstr("TSAN_CALLBACK_SIG=data-race:test_app::RaceThreadA <-> "
+                "test_app::RaceThreadB"));
+}
+
+TEST(FuzzTestTsanOnReportCallbackDeathTest,
+     SubstitutesUnknownWhenRacingThreadHasOnlyInternalFrames) {
+  EXPECT_DEATH(
+      {
+        FuzzTestSetTsanOnReportCallback([](const char* f0_data, size_t f0_size,
+                                           const char* f1_data,
+                                           size_t f1_size) {
+          const std::string sig = FormatTwoThreadCrashSignature(
+              "data-race", absl::string_view(f0_data, f0_size),
+              absl::string_view(f1_data, f1_size));
+          absl::FPrintF(stderr, "TSAN_CALLBACK_SIG=%s\n", sig);
+          std::fflush(stderr);
+          std::_Exit(1);
+        });
+        volatile int shared = 0;
+        std::thread t1(test_app::RaceThreadA, &shared);
+        std::thread t2(fuzztest::InternalOnlyRaceThread, &shared);
+        t1.join();
+        t2.join();
+        std::_Exit(0);
+      },
+      HasSubstr("TSAN_CALLBACK_SIG=data-race:<unknown> <-> "
+                "test_app::RaceThreadA"));
+}
+#endif  // defined(THREAD_SANITIZER)
 
 }  // namespace
 }  // namespace fuzztest::internal
