@@ -142,6 +142,10 @@ pub struct FuzzTestOptions {
     /// sessions, or skipping tests that already finished with the same execution ID.
     #[arg(env = "FUZZTEST_EXECUTION_ID", long, requires = "corpus_db")]
     pub execution_id: Option<String>,
+
+    /// If true, carries out fuzzing without coverage guidance.
+    #[arg(env = "FUZZTEST_UNGUIDED", long)]
+    pub unguided: bool,
 }
 
 /// Strongly-typed domain execution mode for test runs.
@@ -818,5 +822,18 @@ mod tests {
                 execution_id: Some("exec_123".to_string()),
             }))
         );
+    }
+
+    #[gtest]
+    fn test_unguided_parsing_env() {
+        assert_single_threaded_test_environment();
+        // SAFETY: Single-threaded test environment and no background threads.
+        let options = unsafe {
+            with_env_var("FUZZTEST_UNGUIDED", "true", || {
+                FuzzTestOptions::parse_from(std::iter::empty::<OsString>())
+            })
+        };
+
+        expect_true!(options.unguided);
     }
 }
