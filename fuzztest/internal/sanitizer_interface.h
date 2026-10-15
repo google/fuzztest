@@ -16,10 +16,13 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_SANITIZER_INTERFACE_H_
 
 #include <cstddef>
+#include <string>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 
 extern "C" {
 
@@ -50,6 +53,17 @@ namespace fuzztest::internal {
 // valid.
 absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
     absl::string_view error_summary ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
+// Captures the current stack trace, symbolizes each PC, filters out internal
+// frames, strips trailing parameter lists `(...)` and file/line info, and
+// returns at most `max_frames` application function names.
+std::vector<std::string> GetTopAppFunctions(int max_frames = 3);
+
+// Formats a stack-based crash signature from `crash_type` and `frames`:
+// - Returns `crash_type` if `frames` is empty.
+// - Otherwise returns `<crash_type>:<f0>/<f1>/...`.
+std::string FormatStackCrashSignature(absl::string_view crash_type,
+                                      absl::Span<const std::string> frames);
 
 }  // namespace fuzztest::internal
 
