@@ -17,6 +17,9 @@ pub mod containers;
 pub mod range;
 pub mod tuple_of;
 pub mod utility;
+
+mod seeds;
+
 use ::serde::de::DeserializeOwned;
 use ::serde::Serialize;
 
@@ -24,6 +27,10 @@ use anyhow;
 use anyhow::Context;
 
 use std::any::Any;
+
+pub use seeds::ReversibleDomain;
+pub use seeds::SeedableDomainExt;
+pub use seeds::Seeded;
 
 pub trait CloneAny: Any {
     fn clone_box(&self) -> Box<dyn CloneAny>;
@@ -99,17 +106,18 @@ pub type GenericUserValue = Box<dyn CloneAny>;
 ///
 /// ### Relationship diagram
 ///
-/// The methods below are responsible for transforming between `UserValue`, `CorpusValue`, and the
-/// serialized representation of `CorpusValue`. Here's a quick overview:
+/// The methods below (along with [`SeedableDomainExt::into_corpus_value`] for [`ReversibleDomain`]s) are
+/// responsible for transforming between `UserValue` (or a convertible seed type `T`),
+/// `CorpusValue`, and the serialized representation of `CorpusValue`. Here's a quick overview:
 ///
 /// ```text
 ///        +-- corpus_to_user_value() <---+     +-- parse_corpus() <---+
 ///        |                              |     |                      |
 ///        v                              |     v                      |
 ///   UserValue<'a>                     CorpusValue                  &[u8]
-///                                             |                      ^
-///                                             |                      |
-///                                             +-> serialize_corpus() +
+///   (or seed T)                         ^     |                      ^
+///        |                              |     |                      |
+///        +--- into_corpus_value() ------+     +-> serialize_corpus() +
 /// ```
 pub trait Domain {
     /// The type of the values that the domain outputs. This should of the same type as the
@@ -164,11 +172,16 @@ pub trait Domain {
         self.get_user_value(corpus_value)
     }
 
-    /// Turns a slice of bytes into `CorpusValue`.
+    /// Turns a slice of bytes into `CorpusValue` and validates it against the domain's constraints.
     ///
-    /// By default, it uses Postcard to deserialize the data.
+    /// By default, it uses Postcard to deserialize the data and then calls
+    /// [`Domain::validate_corpus_value`].
     fn parse_corpus(&self, data: &[u8]) -> anyhow::Result<Self::CorpusValue> {
-        postcard::from_bytes(data).context("Failed to deserialize corpus value from bytes")
+        let corpus_value =
+            postcard::from_bytes(data).context("Failed to deserialize corpus value from bytes")?;
+        self.validate_corpus_value(&corpus_value)
+            .context("Failed to validate deserialized corpus value")?;
+        Ok(corpus_value)
     }
 
     /// Serializes `corpus_value` to a Vec of bytes (ie, Vec<u8>).
@@ -184,9 +197,7 @@ pub trait Domain {
     /// user provided value.
     /// For example, when the domain is seeded, this method is used to check that seeds specified by
     /// the users are valid given the domain's constraints.
-    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
-        Ok(())
-    }
+    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()>;
 }
 
 /// A type-erased interface for Domain types.

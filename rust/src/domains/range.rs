@@ -19,6 +19,7 @@ use super::utility::mutate_integer;
 use super::utility::shrink_towards;
 use super::utility::SpecialValues;
 use super::Domain;
+use super::ReversibleDomain;
 use std::fmt::Display;
 
 use anyhow;
@@ -206,6 +207,21 @@ macro_rules! impl_domain_for_in_range_integer {
                 Ok(())
             }
         }
+
+        impl ReversibleDomain<$ty> for InRange<$ty> {
+            fn to_unvalidated_corpus_value(&self, value: $ty) -> anyhow::Result<Self::CorpusValue> {
+                Ok(value)
+            }
+        }
+
+        impl<'a> ReversibleDomain<&'a $ty> for InRange<$ty> {
+            fn to_unvalidated_corpus_value(
+                &self,
+                value: &'a $ty,
+            ) -> anyhow::Result<Self::CorpusValue> {
+                Ok(*value)
+            }
+        }
     };
 }
 
@@ -277,6 +293,21 @@ macro_rules! impl_domain_for_in_range_float {
                     );
                 }
                 Ok(())
+            }
+        }
+
+        impl ReversibleDomain<$ty> for InRange<$ty> {
+            fn to_unvalidated_corpus_value(&self, value: $ty) -> anyhow::Result<Self::CorpusValue> {
+                Ok(value)
+            }
+        }
+
+        impl<'a> ReversibleDomain<&'a $ty> for InRange<$ty> {
+            fn to_unvalidated_corpus_value(
+                &self,
+                value: &'a $ty,
+            ) -> anyhow::Result<Self::CorpusValue> {
+                Ok(*value)
             }
         }
     };
@@ -355,11 +386,26 @@ impl Domain for InRange<char> {
     }
 }
 
+impl ReversibleDomain<char> for InRange<char> {
+    fn to_unvalidated_corpus_value(&self, value: char) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+}
+
+impl<'a> ReversibleDomain<&'a char> for InRange<char> {
+    fn to_unvalidated_corpus_value(&self, value: &'a char) -> anyhow::Result<Self::CorpusValue> {
+        Ok(*value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::any::type_name;
+    use std::collections::HashSet;
     use std::fmt::Debug;
 
+    use crate::domains::SeedableDomainExt;
+    use googletest::prelude::*;
     use rand::rngs::{SmallRng, SysRng};
     use rand::SeedableRng;
 
@@ -615,5 +661,108 @@ mod tests {
         assert_eq!(char_val, 'a');
         char_range.mutate(&mut char_val, &mut rng, true).unwrap();
         assert_eq!(char_val, 'a');
+    }
+
+    fn test_in_range_seeding_property<T>(lower: T, mid: T, upper: T)
+    where
+        T: DomainRangeBounds + PartialOrd + Debug + Copy + PartialEq + Display + Send + 'static,
+        for<'u> InRange<T>: ReversibleDomain<T, UserValue<'u> = T, CorpusValue = T>,
+    {
+        let mut domain = InRange::new(lower, upper)
+            .with_seeds([lower, upper])
+            .with_seed_provider(move || vec![mid]);
+        let mut rng = get_rng();
+        let mut observed = HashSet::new();
+        for _ in 0..200 {
+            let val = domain.init(&mut rng).unwrap();
+            expect_that!(val, ge(lower));
+            expect_that!(val, le(upper));
+            if val == lower {
+                observed.insert("lower");
+            }
+            if val == mid {
+                observed.insert("mid");
+            }
+            if val == upper {
+                observed.insert("upper");
+            }
+        }
+        expect_that!(observed, contains(eq(&"lower")));
+        expect_that!(observed, contains(eq(&"mid")));
+        expect_that!(observed, contains(eq(&"upper")));
+    }
+
+    #[gtest]
+    fn test_in_range_seeding_all_types() {
+        test_in_range_seeding_property::<i8>(-10, 0, 10);
+        test_in_range_seeding_property::<u8>(10, 25, 50);
+        test_in_range_seeding_property::<i16>(-100, 0, 100);
+        test_in_range_seeding_property::<u16>(100, 250, 500);
+        test_in_range_seeding_property::<i32>(-1000, 42, 1000);
+        test_in_range_seeding_property::<u32>(1000, 2500, 5000);
+        test_in_range_seeding_property::<i64>(-10000, 42, 10000);
+        test_in_range_seeding_property::<u64>(10000, 25000, 50000);
+        test_in_range_seeding_property::<i128>(-100000, 42, 100000);
+        test_in_range_seeding_property::<u128>(100000, 250000, 500000);
+        test_in_range_seeding_property::<isize>(-1000, 42, 1000);
+        test_in_range_seeding_property::<usize>(1000, 2500, 5000);
+        test_in_range_seeding_property::<f32>(-10.0, 2.5, 10.0);
+        test_in_range_seeding_property::<f64>(-100.0, 42.5, 100.0);
+        test_in_range_seeding_property::<char>('a', 'm', 'z');
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_in_range_integer_seed_below_lower_panics() {
+        let _ = InRange::<i32>::new(10, 20).with_seeds([9]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_in_range_integer_seed_above_upper_panics() {
+        let _ = InRange::<i32>::new(10, 20).with_seeds([21]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_in_range_float_seed_below_lower_panics() {
+        let _ = InRange::<f64>::new(0.0, 1.0).with_seeds([-0.1]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_in_range_float_seed_above_upper_panics() {
+        let _ = InRange::<f64>::new(0.0, 1.0).with_seeds([1.1]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_in_range_float_seed_nan_panics() {
+        let _ = InRange::<f64>::new(0.0, 1.0).with_seeds([f64::NAN]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_in_range_float_seed_infinity_panics() {
+        let _ = InRange::<f32>::new(0.0, 1.0).with_seeds([f32::INFINITY]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_in_range_char_seed_below_lower_panics() {
+        let _ = InRange::<char>::new('b', 'y').with_seeds(['a']);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_in_range_char_seed_above_upper_panics() {
+        let _ = InRange::<char>::new('b', 'y').with_seeds(['z']);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to retrieve seeds from seed provider")]
+    fn test_in_range_seed_provider_out_of_bounds_panics_on_init() {
+        let mut domain = InRange::<i32>::new(10, 20).with_seed_provider(|| vec![25]);
+        let _ = domain.init(&mut get_rng());
     }
 }
