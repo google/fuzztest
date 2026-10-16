@@ -103,6 +103,24 @@ TEST(UtilTest, PackAndUnpackFeaturesAsRawBytes) {
   EXPECT_EQ(hash, unpacked_hash);
 }
 
+TEST(UtilTest, UnpackFeaturesAndHashRejectsBlobShorterThanHash) {
+  const ByteArray kShortBlob{1, 2, 3};
+  FeatureVec unpacked_features = {123};
+  EXPECT_EQ(UnpackFeaturesAndHash(kShortBlob, &unpacked_features), "");
+  EXPECT_TRUE(unpacked_features.empty());
+}
+
+TEST(UtilTest, UnpackFeaturesAndHashRejectsMisalignedFeatures) {
+  const ByteArray kData{1, 2, 3, 4};
+  ByteArray packed = PackFeaturesAndHash(kData, {102, 30});
+  // Corrupt the record: the features portion is no longer a multiple of
+  // sizeof(feature_t).
+  packed.insert(packed.begin(), 1);
+  FeatureVec unpacked_features = {123};
+  EXPECT_EQ(UnpackFeaturesAndHash(packed, &unpacked_features), "");
+  EXPECT_TRUE(unpacked_features.empty());
+}
+
 // Tests TemporaryLocalDirPath from several threads.
 TEST(UtilTest, TemporaryLocalDirPath) {
   {
