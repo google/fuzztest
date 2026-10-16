@@ -338,6 +338,23 @@ TEST(Corpus, PruneCorpusWithAllEmptyFeatureInputs) {
   corpus.Prune(fs, coverage_frontier, max_corpus_size, rng);
 }
 
+TEST(Corpus, PruneCorpusWithAllZeroWeights) {
+  Corpus corpus;
+  Rng rng(0);
+
+  // Newly added inputs have weight 0 before UpdateWeights is called.
+  corpus.Add({1}, {}, {}, {}, FeatureSet(1, {}),
+             CoverageFrontier(BinaryInfo{}));
+  corpus.Add({2}, {}, {}, {}, FeatureSet(1, {}),
+             CoverageFrontier(BinaryInfo{}));
+
+  EXPECT_EQ(corpus.Prune(FeatureSet(1, {}), CoverageFrontier(BinaryInfo{}),
+                         /*max_corpus_size=*/1000, rng),
+            1);
+  EXPECT_EQ(corpus.NumActive(), 1);
+  EXPECT_EQ(corpus.WeightedRandom(rng), 0);
+}
+
 // Regression test for a crash in Corpus::Prune().
 TEST(Corpus, PruneRegressionTest1) {
   PCTable pc_table(100);
