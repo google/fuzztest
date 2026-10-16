@@ -17,6 +17,9 @@ pub mod containers;
 pub mod range;
 pub mod tuple_of;
 pub mod utility;
+
+mod seeds;
+
 use ::serde::de::DeserializeOwned;
 use ::serde::Serialize;
 
@@ -24,6 +27,10 @@ use anyhow;
 use anyhow::Context;
 
 use std::any::Any;
+
+pub use seeds::SeedableDomainExt;
+pub use seeds::Seeded;
+pub use seeds::UserValueConstructible;
 
 pub trait CloneAny: Any {
     fn clone_box(&self) -> Box<dyn CloneAny>;
