@@ -145,7 +145,7 @@ void ControlFlowGraph::InitializeControlFlowGraph(const CFTable &cf_table,
     ++j;
 
     // Iterate over successors.
-    while (cf_table[j]) {
+    while (j < cf_table.size() && cf_table[j]) {
       successors.push_back(cf_table[j]);
       ++j;
     }
@@ -157,11 +157,11 @@ void ControlFlowGraph::InitializeControlFlowGraph(const CFTable &cf_table,
     FUZZTEST_VLOG(100) << "Added PC: " << curr_pc;
 
     // Iterate over callees.
-    while (cf_table[j]) {
+    while (j < cf_table.size() && cf_table[j]) {
       ++j;
     }
     ++j;  // Step over the delimiter.
-    FUZZTEST_CHECK_LE(j, cf_table.size());
+    FUZZTEST_CHECK_LE(j, cf_table.size()) << "Malformed CF table";
   }
   // Calculate cyclomatic complexity for all functions.
   for (PCIndex i = 0; i < pc_table.size(); ++i) {
