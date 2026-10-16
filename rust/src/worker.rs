@@ -203,9 +203,10 @@ impl RustFuzzTestAdapter {
 
         let result = self.fuzz_test.execute(input);
 
-        coverage::post_process_coverage(false);
-
-        sink.emit_sancov_features();
+        if !options::get_fuzztest_options().unguided {
+            coverage::post_process_coverage(false);
+            sink.emit_sancov_features();
+        }
 
         if !result {
             // TODO(the-shank): the signature should be different for different panics. Currently,
