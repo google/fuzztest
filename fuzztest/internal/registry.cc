@@ -57,6 +57,8 @@ void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func) {
   for (auto& t : Regs()) func(t);
 }
 
+bool HasRegisteredFuzzTests() { return !Regs().empty(); }
+
 void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
   Regs().emplace_back(std::move(test_info), std::move(factory));
 }
