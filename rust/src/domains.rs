@@ -14,9 +14,15 @@
 
 pub mod arbitrary;
 pub mod containers;
+pub mod filter;
+pub mod map;
 pub mod range;
 pub mod tuple_of;
 pub mod utility;
+
+pub use filter::Filter;
+pub use map::Map;
+
 use ::serde::de::DeserializeOwned;
 use ::serde::Serialize;
 
@@ -186,6 +192,24 @@ pub trait Domain {
     /// the users are valid given the domain's constraints.
     fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
         Ok(())
+    }
+
+    /// Transforms the user values produced by this domain using `mapper`.
+    fn map<F, U>(self, mapper: F) -> Map<Self, F>
+    where
+        Self: Sized,
+        F: for<'a> Fn(Self::UserValue<'a>) -> U,
+    {
+        Map::new(self, mapper)
+    }
+
+    /// Filters the values produced by this domain to only those satisfying `predicate`.
+    fn filter<P>(self, predicate: P) -> Filter<Self, P>
+    where
+        Self: Sized,
+        P: for<'a> Fn(&Self::UserValue<'a>) -> bool,
+    {
+        Filter::new(self, predicate)
     }
 }
 
