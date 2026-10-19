@@ -213,6 +213,8 @@ size_t Corpus::Prune(const FeatureSet &fs,
     subset_to_remove.erase(
         subset_to_remove.begin() +
         absl::Uniform<size_t>(rng, 0, subset_to_remove.size()));
+    // Restore one weight since RemoveRandomWeightedSubset removed all of them.
+    weighted_distribution_.AddWeight(0);
   }
   RemoveSubset(subset_to_remove, records_);
 
