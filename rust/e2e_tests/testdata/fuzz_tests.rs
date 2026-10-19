@@ -78,6 +78,10 @@ impl Domain for ByteVectorDomain {
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(val.clone())
     }
+
+    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 #[fuzztest(_a = Arbitrary::<bool>::default())]
@@ -178,6 +182,10 @@ impl Domain for FallibleDomain {
         val: &'a Self::CorpusValue,
     ) -> anyhow::Result<Self::UserValue<'a>> {
         Ok(*val)
+    }
+
+    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 
