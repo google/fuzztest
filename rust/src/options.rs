@@ -159,7 +159,9 @@ impl CentipedeArgs {
         // ==============================================================================
         let argv0 = env::args().next().context("while attempting to get argv[0]")?;
 
-        add_arg(format!("--binary={argv0} {current_test_name} --exact --nocapture"))?;
+        let stripped_test_name = strip_crate_name(current_test_name);
+        // Under libtest harness, will parse everything until the first `--`.
+        add_arg(format!("--binary={argv0} {stripped_test_name} --exact --nocapture --"))?;
         let normalized_test_name = current_test_name.replace("::", ".");
         add_arg(format!("--test_name={normalized_test_name}"))?;
 
@@ -204,7 +206,7 @@ impl CentipedeArgs {
         // ==============================================================================
         // 3. Common Environment Variables Differential
         // ==============================================================================
-        let env_diff = Self::default_env_diff();
+        let env_diff = Self::default_env_diff(current_test_name);
         add_arg(format!("--env_diff_for_binaries={}", env_diff.join(",")))?;
 
         // ==============================================================================
@@ -302,7 +304,7 @@ impl CentipedeArgs {
     /// could cause the subprocess to think it's running in a sharded environment, try to
     /// write to restricted output files, or trigger other harness-specific behavior that
     /// interferes with fuzzing.
-    fn default_env_diff() -> Vec<String> {
+    fn default_env_diff(current_test_name: &str) -> Vec<String> {
             let env_diff = vec![
             "-TEST_DIAGNOSTICS_OUTPUT_DIR".to_string(),
             "-TEST_INFRASTRUCTURE_FAILURE_FILE".to_string(),
@@ -318,6 +320,7 @@ impl CentipedeArgs {
             "-TEST_WARNINGS_OUTPUT_FILE".to_string(),
             "-GTEST_OUTPUT".to_string(),
             "-XML_OUTPUT_FILE".to_string(),
+            format!("TESTBRIDGE_TEST_ONLY={current_test_name}"),
         ];
 
         env_diff
@@ -327,6 +330,13 @@ impl CentipedeArgs {
     pub fn as_bytes_views(&self) -> engine_ffi::FuzzTestBytesViews {
         engine_ffi::FuzzTestBytesViews { views: self.views.as_ptr(), count: self.views.len() }
     }
+}
+
+/// Strips the leading crate name segment from a `module_path!()`-derived test name
+/// (e.g., `crate_name::mod_name::test_name` -> `mod_name::test_name`) to match
+/// standard `libtest` paths.
+fn strip_crate_name(test_name: &str) -> &str {
+    test_name.split_once("::").expect("Crate name is always the first path segment").1
 }
 
 /// Determines the `ExecutionAction` for the given test name by inspecting global options.
@@ -435,7 +445,7 @@ mod tests {
     fn test_determine_execution_action_standalone_indefinite() {
         let options =
             FuzzTestOptions { fuzz_for: Some(RunDuration::Indefinitely), ..Default::default() };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -447,13 +457,13 @@ mod tests {
         // When running indefinitely, --stop_after must be omitted so Centipede runs until
         // interrupted.
         expect_false!(args_str.iter().any(|s| s.starts_with("--stop_after=")));
-        expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
+        expect_true!(args_str.contains(&"--test_name=my_crate.my_mod.my_test"));
     }
 
     #[gtest]
     fn test_determine_execution_action_smoke_test() {
         let options = FuzzTestOptions::default();
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         assert!(matches!(action, ExecutionAction::SmokeTest));
     }
 
@@ -461,7 +471,7 @@ mod tests {
     fn test_determine_execution_action_standalone() {
         let expected_duration: RunDuration = "10s".parse().unwrap();
         let options = FuzzTestOptions { fuzz_for: Some(expected_duration), ..Default::default() };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -474,10 +484,11 @@ mod tests {
 
         expect_true!(args_str
             .iter()
-            .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
+            .any(|s| s.starts_with("--binary=")
+                && s.contains("my_mod::my_test --exact --nocapture --")));
 
         expect_true!(args_str.contains(&"--stop_after=10s"));
-        expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
+        expect_true!(args_str.contains(&"--test_name=my_crate.my_mod.my_test"));
         expect_true!(args_str.iter().any(|s| s.starts_with("--env_diff_for_binaries=")));
 
         // Verify that a temporary workdir was created and passed as an argument.
@@ -491,7 +502,7 @@ mod tests {
     fn test_centipede_args_binary_identifier() {
         let expected_duration = "1s".parse().unwrap();
         let options = FuzzTestOptions { fuzz_for: Some(expected_duration), ..Default::default() };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -513,7 +524,7 @@ mod tests {
         let options_no_jobs =
             FuzzTestOptions { fuzz_for: Some(expected_duration), ..Default::default() };
         let action_no_jobs =
-            determine_execution_action_internal(&options_no_jobs, "my_mod::my_test");
+            determine_execution_action_internal(&options_no_jobs, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args_no_jobs) = action_no_jobs else {
             panic!("Expected Standalone action");
         };
@@ -527,7 +538,7 @@ mod tests {
             ..Default::default()
         };
         let action_with_jobs =
-            determine_execution_action_internal(&options_with_jobs, "my_mod::my_test");
+            determine_execution_action_internal(&options_with_jobs, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args_with_jobs) = action_with_jobs else {
             panic!("Expected Standalone action");
         };
@@ -540,7 +551,7 @@ mod tests {
     fn test_default_env_diff_set() {
         let duration = "1s".parse().unwrap();
         let options = FuzzTestOptions { fuzz_for: Some(duration), ..Default::default() };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
         };
@@ -555,7 +566,47 @@ mod tests {
 
         expect_true!(env_diff_arg.contains("-TEST_SHARD_INDEX"));
         expect_true!(env_diff_arg.contains("-XML_OUTPUT_FILE"));
+        expect_true!(env_diff_arg.contains("TESTBRIDGE_TEST_ONLY=my_crate::my_mod::my_test"));
         expect_true!(env_diff_arg.contains("-GTEST_OUTPUT"));
+    }
+
+    #[gtest]
+    fn test_strip_crate_name() {
+        expect_that!(
+            strip_crate_name("my_crate::__fuzztest_mod__foo::foo"),
+            eq("__fuzztest_mod__foo::foo")
+        );
+        expect_that!(
+            strip_crate_name("my_crate::outer::inner::__fuzztest_mod__foo::foo"),
+            eq("outer::inner::__fuzztest_mod__foo::foo")
+        );
+    }
+
+    #[gtest]
+    fn test_centipede_args_nested_module_test_name() {
+        let duration = "1s".parse().unwrap();
+        let options = FuzzTestOptions { fuzz_for: Some(duration), ..Default::default() };
+        let action = determine_execution_action_internal(
+            &options,
+            "my_crate::outer::inner::__fuzztest_mod__foo::foo",
+        );
+        let ExecutionAction::Standalone(args) = action else {
+            panic!("Expected Standalone action");
+        };
+
+        let args_str: Vec<&str> =
+            args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
+
+        expect_true!(args_str.iter().any(|s| s.starts_with("--binary=")
+            && s.contains("outer::inner::__fuzztest_mod__foo::foo --exact --nocapture --")));
+        expect_true!(args_str.contains(&"--test_name=my_crate.outer.inner.__fuzztest_mod__foo.foo"));
+
+        let env_diff_arg = args_str
+            .iter()
+            .find(|s| s.starts_with("--env_diff_for_binaries="))
+            .expect("missing --env_diff_for_binaries arg");
+        expect_true!(env_diff_arg
+            .contains("TESTBRIDGE_TEST_ONLY=my_crate::outer::inner::__fuzztest_mod__foo::foo"));
     }
 
     #[gtest]
@@ -565,7 +616,7 @@ mod tests {
             corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -577,7 +628,7 @@ mod tests {
         expect_true!(args_str.contains(&"--replay_crash"));
         expect_true!(args_str.contains(&"--crash_id=my_crash_123"));
         expect_true!(args_str.contains(&"--fuzztest_corpus_database=/tmp/corpus_db"));
-        expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
+        expect_true!(args_str.contains(&"--test_name=my_crate.my_mod.my_test"));
         expect_true!(args_str.iter().any(|s| s.starts_with("--workdir=")));
     }
 
@@ -588,7 +639,7 @@ mod tests {
             corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::ReplayAllCrashes { args, list_file } = action else {
             panic!("Expected ReplayAllCrashes action");
@@ -602,7 +653,7 @@ mod tests {
             .contains(&format!("--list_crash_ids_file={}", list_file.path().display()).as_str()));
         expect_true!(args_str.contains(&"--fuzztest_corpus_database=/tmp/corpus_db"));
         expect_true!(args_str.iter().any(|s| s.starts_with("--workdir=")));
-        expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
+        expect_true!(args_str.contains(&"--test_name=my_crate.my_mod.my_test"));
     }
 
     #[gtest]
@@ -613,7 +664,7 @@ mod tests {
             time_budget_type: TimeBudgetType::PerTest,
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -624,7 +675,8 @@ mod tests {
 
         assert!(args_str
             .iter()
-            .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
+            .any(|s| s.starts_with("--binary=")
+                && s.contains("my_mod::my_test --exact --nocapture --")));
         assert!(args_str.contains(&"--fuzztest_only_replay=true"));
         assert!(args_str.contains(&"--fuzztest_time_limit_per_test=10s"));
         assert!(!args_str.iter().any(|s| s.starts_with("--j=")));
@@ -639,7 +691,7 @@ mod tests {
             time_budget_type: TimeBudgetType::PerTest,
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -660,7 +712,7 @@ mod tests {
             time_budget_type: TimeBudgetType::PerTest,
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -671,7 +723,8 @@ mod tests {
 
         assert!(args_str
             .iter()
-            .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
+            .any(|s| s.starts_with("--binary=")
+                && s.contains("my_mod::my_test --exact --nocapture --")));
         assert!(args_str.contains(&"--fuzztest_only_replay=true"));
         assert!(args_str.contains(&"--fuzztest_replay_coverage_inputs=true"));
         assert!(args_str.contains(&"--load_shards_only=true"));
@@ -686,7 +739,7 @@ mod tests {
             time_budget_type: TimeBudgetType::Total,
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -716,7 +769,7 @@ mod tests {
             time_budget_type: TimeBudgetType::Total,
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -807,7 +860,7 @@ mod tests {
         let duration = "1s".parse().expect("fixed test string should parse as duration");
         let options =
             FuzzTestOptions { fuzz_for: Some(duration), corpus_db: None, ..Default::default() };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action when fuzzing for duration");
@@ -834,7 +887,7 @@ mod tests {
             corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action when fuzzing with corpus_db and duration");
@@ -859,7 +912,7 @@ mod tests {
             corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action for ListCrashIds");
@@ -872,7 +925,7 @@ mod tests {
         expect_true!(args_str.contains(&"--list_crash_ids_file=/tmp/custom_crashes.txt"));
         expect_true!(args_str.contains(&"--fuzztest_corpus_database=/tmp/corpus_db"));
         expect_true!(args_str.iter().any(|s| s.starts_with("--workdir=")));
-        expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
+        expect_true!(args_str.contains(&"--test_name=my_crate.my_mod.my_test"));
     }
 
     #[gtest]
@@ -882,7 +935,7 @@ mod tests {
             continue_after_crash: false,
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
         };
@@ -897,7 +950,7 @@ mod tests {
             continue_after_crash: true,
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
         };
@@ -913,7 +966,7 @@ mod tests {
             corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
         };
@@ -929,7 +982,7 @@ mod tests {
             corpus_db: Some("/tmp/corpus_db".into()),
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
         };
@@ -945,7 +998,7 @@ mod tests {
             execution_id: Some("my_exec_123".to_string()),
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
         };
@@ -961,7 +1014,7 @@ mod tests {
             execution_id: Some("my_exec_456".to_string()),
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
         };
@@ -977,7 +1030,7 @@ mod tests {
             execution_id: None,
             ..Default::default()
         };
-        let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let action = determine_execution_action_internal(&options, "my_crate::my_mod::my_test");
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
         };
