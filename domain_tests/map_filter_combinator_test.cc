@@ -173,7 +173,7 @@ TEST(ReversibleMap, WorksWithSeeds) {
                               InRange(0, 1000000))
                     .WithSeeds({8});
 
-  EXPECT_THAT(GenerateInitialValues(domain, 20), Contains(8));
+  EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains(8));
   EXPECT_THAT(domain.FromValue(7), Eq(std::nullopt));
 }
 
@@ -533,8 +533,8 @@ TEST(ReversibleFlatMap, WorksWithSeeds) {
                         InRange(2, 5))
           .WithSeeds({"ABC", "WXYZ"});
 
-  EXPECT_THAT(GenerateInitialValues(domain, 20), Contains("ABC"));
-  EXPECT_THAT(GenerateInitialValues(domain, 20), Contains("WXYZ"));
+  EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains("ABC"));
+  EXPECT_THAT(GenerateInitialValues(domain, 1000), Contains("WXYZ"));
 }
 
 TEST(ReversibleFlatMap, FromValueReturnsNulloptWhenInverseOrConstraintsFail) {
