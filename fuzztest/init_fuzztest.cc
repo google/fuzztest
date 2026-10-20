@@ -460,9 +460,6 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
       GetReplayCorpusTime();
   FUZZTEST_CHECK(!fuzzing_time_limit || !replay_corpus_time_limit)
       << "Cannot run in fuzzing and corpus replay mode at the same time.";
-  const auto test_to_fuzz = absl::GetFlag(FUZZTEST_FLAG(fuzz));
-  const auto test_to_replay_corpus =
-      absl::GetFlag(FUZZTEST_FLAG(replay_corpus));
   const auto specified_test = []() -> std::optional<std::string> {
     if (auto internal_selected_test =
             absl::GetFlag(FUZZTEST_FLAG(internal_override_fuzz_test));
