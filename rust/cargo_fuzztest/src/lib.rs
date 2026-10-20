@@ -323,6 +323,10 @@ impl FuzztestRunner {
             cmd.arg("--nocapture");
         }
 
+        if self.options.fuzztest_options.unguided {
+            cmd.env("FUZZTEST_UNGUIDED", "true");
+        }
+
         Ok(cmd)
     }
 

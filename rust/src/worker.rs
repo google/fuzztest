@@ -196,6 +196,8 @@ impl RustFuzzTestAdapter {
     pub fn execute(&self, input: &GenericCorpusValue, sink: &mut FeedbackSink) {
         // TODO(the-shank): modify this in order to support persistent mode and batch execution.
         static CLEAR_STARTUP_COVERAGE: AtomicBool = AtomicBool::new(true);
+        // Called even in unguided mode: besides clearing coverage, this frees the SanCov state of
+        // threads that exited during the previous execution, which would otherwise accumulate.
         coverage::prepare_coverage(CLEAR_STARTUP_COVERAGE.swap(false, Ordering::AcqRel));
 
         // SAFETY: We are currently in the `execute` callback of `RustFuzzTestAdapter`.
@@ -203,9 +205,10 @@ impl RustFuzzTestAdapter {
 
         let result = self.fuzz_test.execute(input);
 
-        coverage::post_process_coverage(false);
-
-        sink.emit_sancov_features();
+        if !options::get_fuzztest_options().unguided {
+            coverage::post_process_coverage(false);
+            sink.emit_sancov_features();
+        }
 
         if !result {
             // TODO(the-shank): the signature should be different for different panics. Currently,
