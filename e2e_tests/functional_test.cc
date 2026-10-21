@@ -92,19 +92,33 @@ absl::flat_hash_map<std::string, std::string> WithTestSanitizerOptions(
 // the code under test runs in a runner subprocess, so the controller reports
 // the runner's termination signal instead of being killed by it.
 void ExpectTargetKilledBySignal(TerminationStatus status,
-                                absl::string_view std_err, int signum) {
+                                absl::string_view std_err, int signum,
+                                bool direct_termination =
 #ifdef FUZZTEST_USE_CENTIPEDE
-  EXPECT_THAT(status, Ne(ExitCode(0)));
-  EXPECT_TRUE(
-      RE2::PartialMatch(std_err, absl::StrCat("[Ee]xit code\\s*:\\s*", signum)))
-      << std_err;
+                                    false
 #else
-  EXPECT_THAT(status, Eq(Signal(signum)));
+                                    true
 #endif
+) {
+  if (direct_termination) {
+    EXPECT_THAT(status, Eq(Signal(signum)));
+  } else {
+    EXPECT_THAT(status, Ne(ExitCode(0)));
+    EXPECT_TRUE(RE2::PartialMatch(
+        std_err, absl::StrCat("[Ee]xit code\\s*:\\s*", signum)))
+        << std_err;
+  }
 }
 
-void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err) {
-  ExpectTargetKilledBySignal(status, std_err, SIGABRT);
+void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err,
+                       bool direct_termination =
+#ifdef FUZZTEST_USE_CENTIPEDE
+                           false
+#else
+                           true
+#endif
+) {
+  ExpectTargetKilledBySignal(status, std_err, SIGABRT, direct_termination);
 }
 
 int CountSubstrs(absl::string_view haystack, absl::string_view needle) {
@@ -151,6 +165,16 @@ class UnitTestModeTest : public ::testing::Test {
     }
     return RunWithExactFuzzerFlags(test_filter, target_binary, env,
                                    std::move(fuzzer_flags));
+  }
+
+  void ExpectTargetAbort(TerminationStatus status, absl::string_view std_err) {
+    fuzztest::internal::ExpectTargetAbort(status, std_err, true);
+  }
+
+  void ExpectTargetKilledBySignal(TerminationStatus status,
+                                  absl::string_view std_err, int signum) {
+    fuzztest::internal::ExpectTargetKilledBySignal(status, std_err, signum,
+                                                   true);
   }
 };
 
@@ -1589,6 +1613,7 @@ TEST_P(FuzzingModeFixtureTest, FixtureGoesThroughCompleteLifecycle) {
 #else
   const int target_controller_runs = 0;
 #endif
+  SCOPED_TRACE(std_err);
   EXPECT_GT(CountTargetRuns(std_err) - target_controller_runs, 0);
   EXPECT_EQ(CountTargetRuns(std_err) - target_controller_runs,
             CountSubstrs(std_err, "<<FixtureTest::FixtureTest()>>"));
