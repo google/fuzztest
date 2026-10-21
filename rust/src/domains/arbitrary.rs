@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::containers::VecOf;
 use super::utility::choose_value;
 use super::utility::map_char_to_int;
 use super::utility::map_int_to_char;
@@ -318,6 +319,87 @@ impl Domain for Arbitrary<()> {
         Ok(())
     }
 }
+
+impl<T> Domain for Arbitrary<Vec<T>>
+where
+    Arbitrary<T>: Domain,
+{
+    type UserValue<'user> = Vec<<Arbitrary<T> as Domain>::UserValue<'user>>;
+    type CorpusValue = Vec<<Arbitrary<T> as Domain>::CorpusValue>;
+
+    fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+        VecOf::new(Arbitrary::<T>::default()).init(rng)
+    }
+
+    fn mutate(
+        &mut self,
+        val: &mut Self::CorpusValue,
+        rng: &mut dyn rand::Rng,
+        only_shrink: bool,
+    ) -> anyhow::Result<()> {
+        VecOf::new(Arbitrary::<T>::default()).mutate(val, rng, only_shrink)
+    }
+
+    fn corpus_to_user_value<'a>(
+        &self,
+        corpus_value: &'a Self::CorpusValue,
+    ) -> anyhow::Result<Self::UserValue<'a>> {
+        VecOf::new(Arbitrary::<T>::default()).corpus_to_user_value(corpus_value)
+    }
+
+    fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+        VecOf::new(Arbitrary::<T>::default()).validate_corpus_value(corpus_value)
+    }
+}
+
+macro_rules! impl_domain_for_arbitrary_tuple {
+    ($( $ty:ident ),+ $(,)?) => {
+        impl<$( $ty ),+> Domain for Arbitrary<( $( $ty, )+ )>
+        where
+            $( Arbitrary<$ty>: Domain, )+
+        {
+            type UserValue<'user> = ( $( <Arbitrary<$ty> as Domain>::UserValue<'user>, )+ );
+            type CorpusValue = ( $( <Arbitrary<$ty> as Domain>::CorpusValue, )+ );
+
+            fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+                ( $( Arbitrary::<$ty>::default(), )+ ).init(rng)
+            }
+
+            fn mutate(
+                &mut self,
+                val: &mut Self::CorpusValue,
+                rng: &mut dyn rand::Rng,
+                only_shrink: bool,
+            ) -> anyhow::Result<()> {
+                ( $( Arbitrary::<$ty>::default(), )+ ).mutate(val, rng, only_shrink)
+            }
+
+            fn corpus_to_user_value<'a>(
+                &self,
+                corpus_value: &'a Self::CorpusValue,
+            ) -> anyhow::Result<Self::UserValue<'a>> {
+                ( $( Arbitrary::<$ty>::default(), )+ ).corpus_to_user_value(corpus_value)
+            }
+
+            fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
+                ( $( Arbitrary::<$ty>::default(), )+ ).validate_corpus_value(corpus_value)
+            }
+        }
+    };
+}
+
+impl_domain_for_arbitrary_tuple!(T0);
+impl_domain_for_arbitrary_tuple!(T0, T1);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3, T4);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3, T4, T5);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3, T4, T5, T6);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3, T4, T5, T6, T7);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+impl_domain_for_arbitrary_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 
 #[cfg(test)]
 mod tests {
@@ -754,5 +836,91 @@ mod tests {
                 MAX_ITERATIONS, value
             );
         }
+    }
+
+    #[test]
+    fn test_arbitrary_vec() {
+        let mut domain = Arbitrary::<Vec<i32>>::default();
+        let mut rng = get_rng();
+
+        for _ in 0..20 {
+            let val = domain.init(&mut rng).unwrap();
+            assert!(val.len() <= 1);
+            assert!(domain.validate_corpus_value(&val).is_ok());
+            assert_eq!(domain.corpus_to_user_value(&val).unwrap(), val);
+        }
+
+        let mut val = vec![10, 20, 30];
+        let mut changed = false;
+        for _ in 0..50 {
+            let prev = val.clone();
+            domain.mutate(&mut val, &mut rng, false).unwrap();
+            if val != prev {
+                changed = true;
+            }
+        }
+        assert!(changed);
+
+        // Shrinking should eventually reach the empty vector and zero elements.
+        let mut shrink_val = vec![100, 200, 300];
+        for _ in 0..500 {
+            if shrink_val.is_empty() {
+                break;
+            }
+            let prev_len = shrink_val.len();
+            domain.mutate(&mut shrink_val, &mut rng, true).unwrap();
+            assert!(shrink_val.len() <= prev_len);
+        }
+        assert!(shrink_val.is_empty());
+
+        let bytes = domain.serialize_corpus(&vec![1, -2, 3]).unwrap();
+        let parsed = domain.parse_corpus(&bytes).unwrap();
+        assert_eq!(parsed, vec![1, -2, 3]);
+    }
+
+    #[test]
+    fn test_arbitrary_tuples() {
+        let mut rng = get_rng();
+
+        // 1-tuple
+        let mut d1 = Arbitrary::<(i32,)>::default();
+        let mut v1 = d1.init(&mut rng).unwrap();
+        let orig_v1 = v1;
+        d1.mutate(&mut v1, &mut rng, false).unwrap();
+        assert_ne!(v1, orig_v1);
+        assert_eq!(d1.corpus_to_user_value(&v1).unwrap(), v1);
+        assert!(d1.validate_corpus_value(&v1).is_ok());
+
+        // 2-tuple shrinking to (0, false)
+        let mut d2 = Arbitrary::<(i32, bool)>::default();
+        let mut v2 = (1000i32, true);
+        for _ in 0..500 {
+            if v2 == (0, false) {
+                break;
+            }
+            d2.mutate(&mut v2, &mut rng, true).unwrap();
+        }
+        assert_eq!(v2, (0, false));
+
+        // 12-tuple
+        type Tuple12 = (u8, i8, u16, i16, u32, i32, u64, i64, usize, isize, bool, char);
+        let mut d12 = Arbitrary::<Tuple12>::default();
+        let mut v12 = d12.init(&mut rng).unwrap();
+        for _ in 0..20 {
+            d12.mutate(&mut v12, &mut rng, false).unwrap();
+            assert!(d12.validate_corpus_value(&v12).is_ok());
+        }
+        assert_eq!(d12.corpus_to_user_value(&v12).unwrap(), v12);
+        let bytes = d12.serialize_corpus(&v12).unwrap();
+        assert_eq!(d12.parse_corpus(&bytes).unwrap(), v12);
+
+        // Nested Arbitrary<Vec<(i32, bool)>>
+        let mut d_nested = Arbitrary::<Vec<(i32, bool)>>::default();
+        let mut v_nested = d_nested.init(&mut rng).unwrap();
+        for _ in 0..20 {
+            d_nested.mutate(&mut v_nested, &mut rng, false).unwrap();
+            assert!(d_nested.validate_corpus_value(&v_nested).is_ok());
+        }
+        assert_eq!(d_nested.corpus_to_user_value(&v_nested).unwrap(), v_nested);
     }
 }

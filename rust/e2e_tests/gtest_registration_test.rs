@@ -37,6 +37,7 @@ fn test_fuzztests_are_registered_as_gtests() {
     // Verify that the expected fuzz tests are listed as regular tests.
     expect_that!(stdout, matchers::contains_substring("bool_fuzz_test: test"));
     expect_that!(stdout, matchers::contains_substring("multi_arg_fuzz_test: test"));
+    expect_that!(stdout, matchers::contains_substring("tuple_and_vec_fuzz_test: test"));
 }
 
 #[gtest]

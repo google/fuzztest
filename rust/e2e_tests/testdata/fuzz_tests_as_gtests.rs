@@ -13,6 +13,8 @@
 // limitations under the License.
 
 use fuzztest::domains::arbitrary::Arbitrary;
+use fuzztest::domains::range::InRange;
+use fuzztest::domains::tuple_of::TupleOf2;
 use fuzztest::fuzztest;
 use std::sync::Once;
 
@@ -30,3 +32,12 @@ fn bool_fuzz_test(_a: bool) {
     _c = Arbitrary::<bool>::default(),
 )]
 fn multi_arg_fuzz_test(_a: i32, _b: f32, _c: bool) {}
+
+#[fuzztest(
+    _a = TupleOf2::from((InRange::new(0i32, 10), Arbitrary::<bool>::default())),
+    _b = Arbitrary::<(i32, Vec<u8>)>::default(),
+    _c = Arbitrary::<Vec<i32>>::default(),
+)]
+fn tuple_and_vec_fuzz_test(_a: (i32, bool), _b: (i32, Vec<u8>), _c: Vec<i32>) {
+    assert!((0..=10).contains(&_a.0));
+}
