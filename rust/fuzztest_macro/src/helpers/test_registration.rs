@@ -152,14 +152,7 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
         let tokens = quote!(
             #[::googletest::prelude::gtest]
             fn #gtest_name() {
-                // Note: In this setup, `module_path!()` returns a path that starts with the crate name
-                // (e.g., `crate_name::module::path`). We want to strip this prefix to make the
-                // test name similar to standard `libtest` paths.
-                let full_test_name = concat!(module_path!(), "::", #test_fn_name);
-                let test_name = full_test_name
-                    .split_once("::")
-                    .expect("Crate name is always the first path segment")
-                    .1;
+                let test_name = concat!(module_path!(), "::", #test_fn_name);
                 let manager = #crate_name::worker::RustFuzzTestAdapterManager {
                     test_name,
                     fuzz_test_factory: #fuzz_test_factory,
@@ -391,11 +384,7 @@ mod tests {
             gtest_tokens.to_string(),
             matchers::contains_substring(
                 quote! {
-                    let full_test_name = concat!(module_path!(), "::", "test_fuzz");
-                    let test_name = full_test_name
-                        .split_once("::")
-                        .expect("Crate name is always the first path segment")
-                        .1;
+                    let test_name = concat!(module_path!(), "::", "test_fuzz");
                 }
                 .to_string()
             )

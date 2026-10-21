@@ -326,9 +326,9 @@ fn test_cargo_fuzztest_e2e_replay_corpus() {
     expect_true!(output.status.success());
     expect_true!(
         stderr_str.contains(
-            "Replaying __fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 2s"
+            "Replaying sample_fuzz_crate.__fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 2s"
         ) || stdout_str.contains(
-            "Replaying __fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 2s"
+            "Replaying sample_fuzz_crate.__fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 2s"
         )
     );
 }
@@ -384,9 +384,9 @@ fn test_cargo_fuzztest_e2e_replay_corpus_total_budget() {
     expect_true!(output.status.success());
     expect_true!(
         stderr_str.contains(
-            "Replaying __fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 1.5s"
+            "Replaying sample_fuzz_crate.__fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 1.5s"
         ) || stdout_str.contains(
-            "Replaying __fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 1.5s"
+            "Replaying sample_fuzz_crate.__fuzztest_mod__sample_fuzztest_target.sample_fuzztest_target for 1.5s"
         )
     );
 }
