@@ -27,6 +27,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/types/span.h"
+#include "./centipede/engine_abi.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
@@ -188,6 +189,11 @@ std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
     FuzzerTestOneInputCallback test_one_input_cb,
     FuzzerCustomMutatorCallback custom_mutator_cb,
     FuzzerCustomCrossOverCallback custom_crossover_cb);
+
+// Creates a `FuzzTestAdapterManager` from `callbacks`, which must outlive the
+// returned manager and any adapters constructed from it.
+FuzzTestAdapterManager CreateFuzzTestAdapterManager(
+    RunnerCallbacks* absl_nonnull callbacks);
 
 // The main Centipede Runner function.
 // It performs actions prescribed by argc/argv and environment variables
