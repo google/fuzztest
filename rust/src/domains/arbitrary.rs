@@ -19,6 +19,7 @@ use super::utility::mutate_integer;
 use super::utility::shrink_towards;
 use super::utility::NUM_VALID_CODEPOINTS;
 use super::Domain;
+use super::ReversibleDomain;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -109,6 +110,18 @@ impl Domain for Arbitrary<bool> {
     }
 }
 
+impl ReversibleDomain<bool> for Arbitrary<bool> {
+    fn to_unvalidated_corpus_value(&self, value: bool) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+}
+
+impl<'a> ReversibleDomain<&'a bool> for Arbitrary<bool> {
+    fn to_unvalidated_corpus_value(&self, value: &'a bool) -> anyhow::Result<Self::CorpusValue> {
+        Ok(*value)
+    }
+}
+
 macro_rules! impl_domain_for_integer {
     // We need an additional "integer type" for this, because
     // rand::distr::Distribution<> is not implemented for StandardUniform for isize and usize.
@@ -156,6 +169,21 @@ macro_rules! impl_domain_for_integer {
                 _corpus_value: &Self::CorpusValue,
             ) -> anyhow::Result<()> {
                 Ok(())
+            }
+        }
+
+        impl ReversibleDomain<$ty> for Arbitrary<$ty> {
+            fn to_unvalidated_corpus_value(&self, value: $ty) -> anyhow::Result<Self::CorpusValue> {
+                Ok(value)
+            }
+        }
+
+        impl<'a> ReversibleDomain<&'a $ty> for Arbitrary<$ty> {
+            fn to_unvalidated_corpus_value(
+                &self,
+                value: &'a $ty,
+            ) -> anyhow::Result<Self::CorpusValue> {
+                Ok(*value)
             }
         }
     };
@@ -236,6 +264,21 @@ macro_rules! impl_domain_for_float {
                 Ok(())
             }
         }
+
+        impl ReversibleDomain<$ty> for Arbitrary<$ty> {
+            fn to_unvalidated_corpus_value(&self, value: $ty) -> anyhow::Result<Self::CorpusValue> {
+                Ok(value)
+            }
+        }
+
+        impl<'a> ReversibleDomain<&'a $ty> for Arbitrary<$ty> {
+            fn to_unvalidated_corpus_value(
+                &self,
+                value: &'a $ty,
+            ) -> anyhow::Result<Self::CorpusValue> {
+                Ok(*value)
+            }
+        }
     };
 }
 
@@ -289,6 +332,18 @@ impl Domain for Arbitrary<char> {
     }
 }
 
+impl ReversibleDomain<char> for Arbitrary<char> {
+    fn to_unvalidated_corpus_value(&self, value: char) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+}
+
+impl<'a> ReversibleDomain<&'a char> for Arbitrary<char> {
+    fn to_unvalidated_corpus_value(&self, value: &'a char) -> anyhow::Result<Self::CorpusValue> {
+        Ok(*value)
+    }
+}
+
 impl Domain for Arbitrary<()> {
     type UserValue<'user> = ();
     type CorpusValue = ();
@@ -319,18 +374,35 @@ impl Domain for Arbitrary<()> {
     }
 }
 
+impl ReversibleDomain<()> for Arbitrary<()> {
+    fn to_unvalidated_corpus_value(&self, value: ()) -> anyhow::Result<Self::CorpusValue> {
+        Ok(value)
+    }
+}
+
+impl<'a> ReversibleDomain<&'a ()> for Arbitrary<()> {
+    fn to_unvalidated_corpus_value(&self, value: &'a ()) -> anyhow::Result<Self::CorpusValue> {
+        Ok(*value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
+    use std::fmt::Debug;
+    use std::hash::Hash;
 
-    use crate::domains::utility::SpecialValues;
+    use googletest::prelude::*;
     use num_traits::{Float, One, Zero};
     use rand::distr::uniform::SampleUniform;
     use rand::distr::{Distribution, StandardUniform};
     use rand::rngs::{SmallRng, SysRng};
     use rand::SeedableRng;
 
+    use crate::domains::utility::SpecialValues;
     use crate::domains::Domain;
+    use crate::domains::ReversibleDomain;
+    use crate::domains::SeedableDomainExt;
 
     use super::*;
 
@@ -753,6 +825,104 @@ mod tests {
                 "Char did not shrink to null within {} iterations. Final value: {}",
                 MAX_ITERATIONS, value
             );
+        }
+    }
+
+    fn test_arbitrary_seeding<T>(eager_seeds: [T; 2], provider_seeds: [T; 2])
+    where
+        T: Copy + Eq + Hash + Debug + Send + 'static,
+        for<'u> Arbitrary<T>: ReversibleDomain<T, UserValue<'u> = T, CorpusValue = T>,
+    {
+        let mut domain = Arbitrary::<T>::default()
+            .with_seeds(eager_seeds)
+            .with_seed_provider(move || provider_seeds);
+        let mut rng = get_rng();
+        let mut observed = HashSet::new();
+        for _ in 0..200 {
+            observed.insert(domain.init(&mut rng).unwrap());
+        }
+        for seed in eager_seeds {
+            expect_that!(observed, contains(eq(&seed)));
+        }
+        for seed in provider_seeds {
+            expect_that!(observed, contains(eq(&seed)));
+        }
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_integers_and_char() {
+        test_arbitrary_seeding::<i8>([-42, 42], [i8::MIN, i8::MAX]);
+        test_arbitrary_seeding::<u8>([7, 42], [u8::MIN, u8::MAX]);
+        test_arbitrary_seeding::<i16>([-1234, 1234], [i16::MIN, i16::MAX]);
+        test_arbitrary_seeding::<u16>([1234, 5678], [u16::MIN, u16::MAX]);
+        test_arbitrary_seeding::<i32>([-123456, 123456], [i32::MIN, i32::MAX]);
+        test_arbitrary_seeding::<u32>([123456, 654321], [u32::MIN, u32::MAX]);
+        test_arbitrary_seeding::<i64>([-123456789, 123456789], [i64::MIN, i64::MAX]);
+        test_arbitrary_seeding::<u64>([123456789, 987654321], [u64::MIN, u64::MAX]);
+        test_arbitrary_seeding::<i128>([-123456789, 123456789], [i128::MIN, i128::MAX]);
+        test_arbitrary_seeding::<u128>([123456789, 987654321], [u128::MIN, u128::MAX]);
+        test_arbitrary_seeding::<isize>([-12345, 12345], [isize::MIN, isize::MAX]);
+        test_arbitrary_seeding::<usize>([12345, 54321], [usize::MIN, usize::MAX]);
+        test_arbitrary_seeding::<char>(['a', 'Z'], ['\0', '\u{10FFFF}']);
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_bool() {
+        let mut domain =
+            Arbitrary::<bool>::default().with_seeds([true]).with_seed_provider(|| [false]);
+        let mut rng = get_rng();
+        let mut observed = HashSet::new();
+        for _ in 0..200 {
+            observed.insert(domain.init(&mut rng).unwrap());
+        }
+        expect_true!(observed.contains(&true));
+        expect_true!(observed.contains(&false));
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_floats() {
+        {
+            let seeds = [42.5f32, f32::INFINITY, f32::NEG_INFINITY];
+            let provider_seeds = [f32::NAN, -0.0f32];
+            let mut domain = Arbitrary::<f32>::default()
+                .with_seeds(seeds)
+                .with_seed_provider(move || provider_seeds);
+            let mut rng = get_rng();
+            let mut observed_bits = HashSet::new();
+            for _ in 0..300 {
+                observed_bits.insert(domain.init(&mut rng).unwrap().to_bits());
+            }
+            for expected in seeds.into_iter().chain(provider_seeds) {
+                expect_that!(observed_bits, contains(eq(&expected.to_bits())));
+            }
+        }
+
+        {
+            let seeds = [42.5f64, f64::INFINITY, f64::NEG_INFINITY];
+            let provider_seeds = [f64::NAN, -0.0f64];
+            let mut domain = Arbitrary::<f64>::default()
+                .with_seeds(seeds)
+                .with_seed_provider(move || provider_seeds);
+            let mut rng = get_rng();
+            let mut observed_bits = HashSet::new();
+            for _ in 0..300 {
+                observed_bits.insert(domain.init(&mut rng).unwrap().to_bits());
+            }
+            for expected in seeds.into_iter().chain(provider_seeds) {
+                expect_that!(observed_bits, contains(eq(&expected.to_bits())));
+            }
+        }
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_unit() {
+        let mut domain = Arbitrary::<()>::default()
+            .with_seeds([()])
+            .with_seeds(&[()])
+            .with_seed_provider(|| [()]);
+        let mut rng = get_rng();
+        for _ in 0..10 {
+            expect_that!(domain.init(&mut rng).unwrap(), eq(()));
         }
     }
 }
