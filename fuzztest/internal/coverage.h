@@ -28,7 +28,6 @@
 #define FUZZTEST_FUZZTEST_INTERNAL_COVERAGE_H_
 
 #include <algorithm>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -87,7 +86,7 @@ class ExecutionCoverage {
   void ResetState() {
     memset(new_cmp_counter_map_, 0, kCmpCovMapSize);
     memset(counter_map_.data(), 0, counter_map_.size());
-    new_coverage_.store(false, std::memory_order_relaxed);
+    SetNewCoverage(false);
 
     max_stack_recorded_ = 0;
     auto& stack = test_thread_stack;
@@ -129,19 +128,23 @@ class ExecutionCoverage {
   void UpdateCmpMap(size_t index, uint8_t hamming_dist, uint8_t absolute_dist);
 
   bool NewCoverageFound() {
-    return new_coverage_.load(std::memory_order_relaxed);
+    return __atomic_load_n(&new_coverage_, __ATOMIC_RELAXED);
+  }
+
+  void SetNewCoverage(bool new_coverage) {
+    __atomic_store_n(&new_coverage_, new_coverage, __ATOMIC_RELAXED);
   }
 
   auto& GetTablesOfRecentCompares() { return tables_of_recent_compares_; }
 
   // Flag marking if the control flow is currently in target codes.
   // We don't want to collect unrelated updates to cmp score and dictionary.
-  bool IsTracing() { return is_tracing_.load(std::memory_order_relaxed); }
+  bool IsTracing() { return __atomic_load_n(&is_tracing_, __ATOMIC_RELAXED); }
 
   // Right before target run, call this method with true; right after
   // target run, call this method with false.
   void SetIsTracing(bool is_tracing) {
-    is_tracing_.store(is_tracing, std::memory_order_relaxed);
+    __atomic_store_n(&is_tracing_, is_tracing, __ATOMIC_RELAXED);
   }
 
   // Update the PC->max stack usage map for `PC`.
@@ -190,10 +193,10 @@ class ExecutionCoverage {
   uint32_t max_stack_map_[kMaxStackMapSize] = {};
 
   // Flag marking new coverage of any kind.
-  std::atomic<bool> new_coverage_{false};
+  bool new_coverage_ = false;
 
   TablesOfRecentCompares tables_of_recent_compares_ = {};
-  std::atomic<bool> is_tracing_{false};
+  bool is_tracing_ = false;
 };
 
 // Set the singleton ExecutionCoverage object.

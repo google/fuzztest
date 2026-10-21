@@ -564,7 +564,7 @@ cc_library(
     name = "table_of_recent_compares",
     hdrs = ["table_of_recent_compares.h"],
     deps = [
-        ":type_support",
+        ":meta",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/random:distributions",

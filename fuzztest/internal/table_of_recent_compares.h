@@ -27,7 +27,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
-#include "./fuzztest/internal/type_support.h"
+#include "./fuzztest/internal/meta.h"
 
 namespace fuzztest::internal {
 
@@ -242,8 +242,8 @@ class TableOfRecentlyComparedBuffers {
     if (n >= kEntrySize) n = kEntrySize - 1;
     ComparedBufferEntry& entry = table_[insert_index_];
     entry.buf_size = n;
-    std::copy(buf1, buf1 + n, entry.buf1.begin());
-    std::copy(buf2, buf2 + n, entry.buf2.begin());
+    __builtin_memcpy(entry.buf1.data(), buf1, n);
+    __builtin_memcpy(entry.buf2.data(), buf2, n);
     if (compact_ && ++insert_index_ == kTableSize) {
       compact_ = false;
     }

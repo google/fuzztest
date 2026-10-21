@@ -33,7 +33,7 @@ permissions:
 jobs:
   run_cargo_tests:
     name: Run Cargo tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
       contents: read

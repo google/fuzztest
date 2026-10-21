@@ -546,7 +546,7 @@ fuzztest_cc_library(
   HDRS
     "table_of_recent_compares.h"
   DEPS
-    fuzztest::type_support
+    fuzztest::meta
     absl::flat_hash_set
     absl::random_bit_gen_ref
     absl::random_distributions
