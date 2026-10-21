@@ -181,11 +181,11 @@ fn standalone_mode_replay_corpus_per_test_budget(fixture: &EnvVars) {
     // Create corpus dirs for tests
     let test1_dir = corpus_db
         .join(identifier_relative)
-        .join("__fuzztest_mod__standalone_validation_test.standalone_validation_test")
+        .join("standalone_fuzz_tests_bin.__fuzztest_mod__standalone_validation_test.standalone_validation_test")
         .join("coverage");
     let test2_dir = corpus_db
         .join(identifier_relative)
-        .join("__fuzztest_mod__second_validation_test.second_validation_test")
+        .join("standalone_fuzz_tests_bin.__fuzztest_mod__second_validation_test.second_validation_test")
         .join("coverage");
 
     std::fs::create_dir_all(&test1_dir).unwrap();
@@ -224,12 +224,12 @@ fn standalone_mode_replay_corpus_per_test_budget(fixture: &EnvVars) {
     // Verify logs for per-test
     expect_that!(
         stderr_per_test,
-        matchers::contains_substring("Replaying __fuzztest_mod__standalone_validation_test.standalone_validation_test for 3s")
+        matchers::contains_substring("Replaying standalone_fuzz_tests_bin.__fuzztest_mod__standalone_validation_test.standalone_validation_test for 3s")
     );
     expect_that!(
         stderr_per_test,
         matchers::contains_substring(
-            "Replaying __fuzztest_mod__second_validation_test.second_validation_test for 3s"
+            "Replaying standalone_fuzz_tests_bin.__fuzztest_mod__second_validation_test.second_validation_test for 3s"
         )
     );
 
@@ -271,11 +271,11 @@ fn standalone_mode_replay_corpus_total_budget(fixture: &EnvVars) {
     // Create corpus dirs for tests
     let test1_dir = corpus_db
         .join(identifier_relative)
-        .join("__fuzztest_mod__standalone_validation_test.standalone_validation_test")
+        .join("standalone_fuzz_tests_bin.__fuzztest_mod__standalone_validation_test.standalone_validation_test")
         .join("coverage");
     let test2_dir = corpus_db
         .join(identifier_relative)
-        .join("__fuzztest_mod__second_validation_test.second_validation_test")
+        .join("standalone_fuzz_tests_bin.__fuzztest_mod__second_validation_test.second_validation_test")
         .join("coverage");
 
     std::fs::create_dir_all(&test1_dir).unwrap();
@@ -315,12 +315,12 @@ fn standalone_mode_replay_corpus_total_budget(fixture: &EnvVars) {
     // Verify logs for total -> should be 1s
     expect_that!(
         stderr_total,
-        matchers::contains_substring("Replaying __fuzztest_mod__standalone_validation_test.standalone_validation_test for 1s")
+        matchers::contains_substring("Replaying standalone_fuzz_tests_bin.__fuzztest_mod__standalone_validation_test.standalone_validation_test for 1s")
     );
     expect_that!(
         stderr_total,
         matchers::contains_substring(
-            "Replaying __fuzztest_mod__second_validation_test.second_validation_test for 1s"
+            "Replaying standalone_fuzz_tests_bin.__fuzztest_mod__second_validation_test.second_validation_test for 1s"
         )
     );
 
