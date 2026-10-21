@@ -51,6 +51,8 @@ class WorkDir {
     // Returns the shard index of `path` if it is a shard parth, `nullopt`
     // otherwise.
     std::optional<size_t> GetShardIndex(std::string_view path) const;
+    // Gets the common prefix of the sharded path.
+    const std::string& prefix() const { return prefix_; }
 
    private:
     friend class WorkDir;
