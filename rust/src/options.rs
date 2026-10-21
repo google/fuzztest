@@ -22,6 +22,7 @@ use std::ffi::OsString;
 use std::iter;
 use std::path::Path;
 use std::sync::OnceLock;
+use std::time::SystemTime;
 use tempfile::{NamedTempFile, TempDir};
 
 pub use fuzztest_options::{
@@ -214,14 +215,17 @@ impl CentipedeArgs {
             ExecutionMode::Fuzz(fuzz_opts) => {
                 match &fuzz_opts.fuzz_for {
                     RunDuration::Indefinitely => {
-                        // not specifying `--stop_after` means to run indefinitely.
+                        // not specifying `--stop_at` means to run indefinitely.
                     }
                     RunDuration::Fixed(duration) => {
-                        let duration_secs = duration.as_secs_f64();
                         if opt_corpusdb.is_some() {
+                            let duration_secs = duration.as_secs_f64();
                             add_arg(format!("--fuzztest_time_limit_per_test={duration_secs}s"))?;
                         } else {
-                            add_arg(format!("--stop_after={duration_secs}s"))?;
+                            let stop_at = SystemTime::now()
+                                .checked_add(*duration.as_ref())
+                                .context("while computing stop_at timestamp")?;
+                            add_arg(format!("--stop_at={}", humantime::format_rfc3339(stop_at)))?;
                         }
                     }
                 }
@@ -229,16 +233,16 @@ impl CentipedeArgs {
                     add_arg(format!("--j={jobs}"))?;
                 }
                 if !fuzz_opts.continue_after_crash {
-                    add_arg("--exit_on_crash".to_string())?;
+                    add_arg("--exit_on_crash=true".to_string())?;
                 }
                 if let Some(execution_id) = &fuzz_opts.execution_id {
                     add_arg(format!("--fuzztest_execution_id={execution_id}"))?;
                 }
             }
             ExecutionMode::ReplayCrash(replay_opts) => {
-                add_arg("--replay_crash".to_string())?;
+                add_arg("--replay_crash=true".to_string())?;
                 add_arg(format!("--crash_id={}", replay_opts.replay_id))?;
-                add_arg("--exit_on_crash".to_string())?;
+                add_arg("--exit_on_crash=true".to_string())?;
             }
             ExecutionMode::ReplayAllCrashes => {
                 let path = list_file_path
@@ -276,7 +280,7 @@ impl CentipedeArgs {
                     add_arg(format!("--j={jobs}"))?;
                 }
                 if !replay_corpus_opts.continue_after_crash {
-                    add_arg("--exit_on_crash".to_string())?;
+                    add_arg("--exit_on_crash=true".to_string())?;
                 }
                 if let Some(execution_id) = &replay_corpus_opts.execution_id {
                     add_arg(format!("--fuzztest_execution_id={execution_id}"))?;
@@ -444,9 +448,9 @@ mod tests {
         let args_str: Vec<&str> =
             args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
 
-        // When running indefinitely, --stop_after must be omitted so Centipede runs until
+        // When running indefinitely, --stop_at must be omitted so Centipede runs until
         // interrupted.
-        expect_false!(args_str.iter().any(|s| s.starts_with("--stop_after=")));
+        expect_false!(args_str.iter().any(|s| s.starts_with("--stop_at=")));
         expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
     }
 
@@ -461,7 +465,9 @@ mod tests {
     fn test_determine_execution_action_standalone() {
         let expected_duration: RunDuration = "10s".parse().unwrap();
         let options = FuzzTestOptions { fuzz_for: Some(expected_duration), ..Default::default() };
+        let before = SystemTime::now();
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let after = SystemTime::now();
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action");
@@ -476,7 +482,14 @@ mod tests {
             .iter()
             .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
 
-        expect_true!(args_str.contains(&"--stop_after=10s"));
+        let stop_at_str = args_str
+            .iter()
+            .find_map(|s| s.strip_prefix("--stop_at="))
+            .expect("missing --stop_at= flag");
+        let parsed_stop_at =
+            humantime::parse_rfc3339(stop_at_str).expect("stop_at should be valid RFC3339");
+        expect_true!(parsed_stop_at >= before + std::time::Duration::from_secs(9));
+        expect_true!(parsed_stop_at <= after + std::time::Duration::from_secs(11));
         expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
         expect_true!(args_str.iter().any(|s| s.starts_with("--env_diff_for_binaries=")));
 
@@ -574,8 +587,9 @@ mod tests {
         let args_str: Vec<&str> =
             args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
 
-        expect_true!(args_str.contains(&"--replay_crash"));
+        expect_true!(args_str.contains(&"--replay_crash=true"));
         expect_true!(args_str.contains(&"--crash_id=my_crash_123"));
+        expect_true!(args_str.contains(&"--exit_on_crash=true"));
         expect_true!(args_str.contains(&"--fuzztest_corpus_database=/tmp/corpus_db"));
         expect_true!(args_str.contains(&"--test_name=my_mod.my_test"));
         expect_true!(args_str.iter().any(|s| s.starts_with("--workdir=")));
@@ -802,12 +816,14 @@ mod tests {
 
     #[gtest]
     fn test_centipede_args_fuzz_for_duration_without_corpus_db() {
-        // When corpus_db is not provided, fuzzing for a fixed duration should pass --stop_after
+        // When corpus_db is not provided, fuzzing for a fixed duration should pass --stop_at
         // to Centipede so it stops fuzzing after the specified duration.
         let duration = "1s".parse().expect("fixed test string should parse as duration");
         let options =
             FuzzTestOptions { fuzz_for: Some(duration), corpus_db: None, ..Default::default() };
+        let before = SystemTime::now();
         let action = determine_execution_action_internal(&options, "my_mod::my_test");
+        let after = SystemTime::now();
 
         let ExecutionAction::Standalone(args) = action else {
             panic!("Expected Standalone action when fuzzing for duration");
@@ -819,14 +835,21 @@ mod tests {
             .map(|s| s.to_str().expect("args strings should be valid UTF-8"))
             .collect();
 
-        expect_true!(args_str.contains(&"--stop_after=1s"));
+        let stop_at_str = args_str
+            .iter()
+            .find_map(|s| s.strip_prefix("--stop_at="))
+            .expect("missing --stop_at= flag");
+        let parsed_stop_at =
+            humantime::parse_rfc3339(stop_at_str).expect("stop_at should be valid RFC3339");
+        expect_true!(parsed_stop_at >= before);
+        expect_true!(parsed_stop_at <= after + std::time::Duration::from_secs(2));
         expect_false!(args_str.iter().any(|s| s.starts_with("--fuzztest_time_limit_per_test=")));
     }
 
     #[gtest]
     fn test_centipede_args_fuzz_for_duration_with_corpus_db() {
         // When corpus_db is set, fuzzing for a duration should pass --fuzztest_time_limit_per_test
-        // instead of --stop_after, because Centipede uses time_limit_per_test when running against
+        // instead of --stop_at, because Centipede uses time_limit_per_test when running against
         // a corpus database.
         let duration = "1s".parse().expect("fixed test string should parse as duration");
         let options = FuzzTestOptions {
@@ -848,7 +871,7 @@ mod tests {
 
         expect_true!(args_str.contains(&"--fuzztest_time_limit_per_test=1s"));
         expect_true!(args_str.contains(&"--fuzztest_corpus_database=/tmp/corpus_db"));
-        expect_false!(args_str.iter().any(|s| s.starts_with("--stop_after=")));
+        expect_false!(args_str.iter().any(|s| s.starts_with("--stop_at=")));
     }
 
     #[gtest]
@@ -887,7 +910,7 @@ mod tests {
             panic!("Expected Standalone action");
         };
         let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
-        expect_true!(args_str.contains(&"--exit_on_crash"));
+        expect_true!(args_str.contains(&"--exit_on_crash=true"));
     }
 
     #[gtest]
@@ -902,7 +925,7 @@ mod tests {
             panic!("Expected Standalone action");
         };
         let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
-        expect_false!(args_str.contains(&"--exit_on_crash"));
+        expect_false!(args_str.iter().any(|s| s.starts_with("--exit_on_crash")));
     }
 
     #[gtest]
@@ -918,7 +941,7 @@ mod tests {
             panic!("Expected Standalone action");
         };
         let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
-        expect_true!(args_str.contains(&"--exit_on_crash"));
+        expect_true!(args_str.contains(&"--exit_on_crash=true"));
     }
 
     #[gtest]
@@ -934,7 +957,7 @@ mod tests {
             panic!("Expected Standalone action");
         };
         let args_str: Vec<&str> = args._c_strings.iter().map(|s| s.to_str().unwrap()).collect();
-        expect_false!(args_str.contains(&"--exit_on_crash"));
+        expect_false!(args_str.iter().any(|s| s.starts_with("--exit_on_crash")));
     }
 
     #[gtest]
