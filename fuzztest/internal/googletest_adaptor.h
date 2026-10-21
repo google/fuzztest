@@ -89,6 +89,9 @@ class GTest_TestAdaptor : public ::testing::Test {
                     Runtime::instance().skipping_requested())
             << "Failure(s) found in the unit-test mode - please see the test "
                "log for more details.";
+        if (Runtime::instance().skipping_requested()) {
+          GTEST_SKIP() << "Requested by the fuzz test";
+        }
       }
     } else {
       // TODO(b/245753736): Consider using `tolerate_failure` when FuzzTest can
@@ -97,6 +100,9 @@ class GTest_TestAdaptor : public ::testing::Test {
                   Runtime::instance().skipping_requested())
           << "Failure(s) found in the fuzzing mode - please see the test log "
              "for more details.";
+      if (Runtime::instance().skipping_requested()) {
+        GTEST_SKIP() << "Requested by the fuzz test";
+      }
     }
   }
 

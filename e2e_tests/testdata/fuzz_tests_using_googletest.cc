@@ -197,6 +197,27 @@ class SkippedTestFixturePerTest
 };
 FUZZ_TEST_F(SkippedTestFixturePerTest, SkippedTest);
 
+class FixturePerTestSkippingFirstTest
+    : public ::fuzztest::PerFuzzTestFixtureAdapter<testing::Test> {
+ public:
+  FixturePerTestSkippingFirstTest() {
+    if (first_) {
+      first_ = false;
+      fuzztest::SkipTestsOrCurrentInput();
+    }
+  }
+
+  void TestA() { ASSERT_FALSE(first_); }
+
+  void TestB() { ASSERT_FALSE(first_); }
+
+ private:
+  static bool first_;
+};
+bool FixturePerTestSkippingFirstTest::first_ = true;
+FUZZ_TEST_F(FixturePerTestSkippingFirstTest, TestA);
+FUZZ_TEST_F(FixturePerTestSkippingFirstTest, TestB);
+
 class SkippedTestFixturePerIteration
     : public ::fuzztest::PerIterationFixtureAdapter<testing::Test> {
  public:
