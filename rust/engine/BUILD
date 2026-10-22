@@ -26,7 +26,7 @@ rust_library(
     visibility = ["@com_google_fuzztest//rust:__subpackages__"],
     deps = [
         "@com_google_fuzztest//centipede:engine_abi",
-        "@com_google_fuzztest//centipede:engine_controller_with_subprocess",
+        "@com_google_fuzztest//centipede:engine_controller",
         "@com_google_fuzztest//centipede:engine_worker",
     ],
 )
