@@ -29,6 +29,7 @@
 #include "absl/log/log_sink.h"
 #include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/time/clock.h"
@@ -45,6 +46,7 @@
 #include "./centipede/util.h"
 #include "./centipede/workdir.h"
 #include "./common/defs.h"
+#include "./common/hash.h"
 #include "./common/temp_dir.h"
 
 namespace fuzztest::internal {
@@ -347,6 +349,48 @@ TEST_F(OrganizeCrashingInputsTest, AddsNewCrashIfCrashSignatureChanges) {
             ContainsRegex("Crash ID   : [a-f0-9]+-csig_new-isig"),
             HasSubstr("Category   : desc"), HasSubstr("Signature  : csig_new"),
             HasSubstr("Description: desc")));
+}
+
+TEST_F(OrganizeCrashingInputsTest,
+       MigratesCrashSignatureWhenMatchingLegacyCrashTypeHash) {
+  LogCapture log_capture;
+  const std::string legacy_sig = Hash("heap-buffer-overflow");
+  SetContentsAndGetPath(crashing_dir(),
+                        absl::StrCat("bug-", legacy_sig, "-isig"), "input");
+  const std::string desc =
+      "heap-buffer-overflow\nCRASH_TYPE=heap-buffer-overflow";
+  FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
+                                       {"input", {"csig_new", desc}},
+                                   });
+  NonOwningCallbacksFactory factory(callbacks);
+
+  absl::flat_hash_map<std::string, CrashDetails> new_crashes_by_signature;
+  const auto new_input_path =
+      SetContentsAndGetPath(new_crashes_dir(), "isig2", "input2");
+  new_crashes_by_signature["csig_new"] = {"isig2", desc, new_input_path};
+
+  ASSERT_TRUE(OrganizeCrashingInputs(regression_dir(), crashing_dir(), env(),
+                                     factory, new_crashes_by_signature,
+                                     crash_summary())
+                  .ok());
+  std::string crash_report;
+  crash_summary().Report(&crash_report);
+
+  EXPECT_THAT(ReadFiles(crashing_dir()),
+              UnorderedElementsAre(FieldsAre("bug-csig_new-isig", "input")));
+  EXPECT_THAT(ReadFiles(regression_dir()), IsEmpty());
+  EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
+  EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 1"),
+                                  HasSubstr("Crash ID   : bug-csig_new-isig"),
+                                  HasSubstr("Category   : " + desc),
+                                  HasSubstr("Signature  : csig_new"),
+                                  HasSubstr("Description: " + desc)));
+  EXPECT_THAT(log_capture.FullLog(),
+              AllOf(HasSubstr("Action: MigrateSignature for existing crash"),
+                    HasSubstr(absl::StrCat(
+                        "Reason: Crash reproduced with fine-grained signature "
+                        "'csig_new', migrating from crash-type signature '",
+                        legacy_sig, "'"))));
 }
 
 TEST_F(OrganizeCrashingInputsTest,
