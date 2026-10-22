@@ -377,6 +377,21 @@ where
     Ok(())
 }
 
+/// Returns the number of iterations needed to hit each of `num_cases` cases, where each case is
+/// hit with probability at least `hit_probability` per iteration, such that the probability of
+/// missing some case is at most 10^-15 (by the union bound).
+#[cfg(test)]
+pub(crate) fn iterations_to_hit_all(num_cases: usize, hit_probability: f64) -> usize {
+    assert!(num_cases > 0, "iterations_to_hit_all: num_cases must be > 0");
+    assert!(
+        0.0 < hit_probability && hit_probability < 1.0,
+        "iterations_to_hit_all: hit_probability must be in (0.0, 1.0), got {hit_probability}"
+    );
+    const CONFIDENCE_LEVEL: f64 = 15.0;
+    let numerator = CONFIDENCE_LEVEL * std::f64::consts::LN_10 + (num_cases as f64).ln();
+    (numerator / -(-hit_probability).ln_1p()).ceil() as usize
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -589,5 +604,13 @@ mod tests {
 
         assert_eq!(map_char_to_int('\u{10FFFF}'), NUM_VALID_CODEPOINTS - 1);
         assert_eq!(map_int_to_char(NUM_VALID_CODEPOINTS - 1), '\u{10FFFF}');
+    }
+
+    #[test]
+    fn test_iterations_to_hit_all() {
+        assert_eq!(iterations_to_hit_all(1, 0.5), 50);
+        assert_eq!(iterations_to_hit_all(2, 0.5), 51);
+        assert_eq!(iterations_to_hit_all(1, 0.01), 3437);
+        assert_eq!(iterations_to_hit_all(2, 0.01), 3506);
     }
 }
