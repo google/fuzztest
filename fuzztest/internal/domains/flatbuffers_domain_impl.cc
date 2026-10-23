@@ -266,6 +266,16 @@ bool FlatbuffersTableUntypedDomainImpl::IsSupportedField(
     auto sub_object = schema_->objects()->Get(field->type()->index());
     return !sub_object->is_struct();
   };
+  if (base_type == reflection::BaseType::Vector ||
+      base_type == reflection::BaseType::Vector64) {
+    auto elem_type = field->type()->element();
+    if (flatbuffers::IsScalar(elem_type)) return true;
+    if (elem_type == reflection::BaseType::String) return true;
+    if (elem_type == reflection::BaseType::Obj) {
+      auto sub_object = schema_->objects()->Get(field->type()->index());
+      return !sub_object->is_struct();
+    }
+  }
   return false;
 }
 
