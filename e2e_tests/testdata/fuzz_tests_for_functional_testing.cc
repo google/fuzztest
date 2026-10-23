@@ -79,8 +79,18 @@ void PassesWithPositiveInput(int x) {
 FUZZ_TEST(MySuite, PassesWithPositiveInput)
     .WithDomains(fuzztest::Positive<int>());
 
-void Aborts(int foo, int bar) {
+__attribute__((noinline)) void AbortsImpl2(int foo, int bar) {
   if (foo > bar) std::abort();
+}
+
+__attribute__((noinline)) void AbortsImpl1(int foo, int bar) {
+  AbortsImpl2(foo, bar);
+  asm volatile("" ::: "memory");
+}
+
+__attribute__((noinline)) void Aborts(int foo, int bar) {
+  AbortsImpl1(foo, bar);
+  asm volatile("" ::: "memory");
 }
 FUZZ_TEST(MySuite, Aborts);
 
@@ -882,7 +892,7 @@ FUZZ_TEST(MySuite, SkipInputs).WithSeeds({1});
 
 class FaultySetupTest {
  public:
-  FaultySetupTest() { std::abort(); }
+  __attribute__((noinline)) FaultySetupTest() { std::abort(); }
   void NoOp(int) {}
 };
 FUZZ_TEST_F(FaultySetupTest, NoOp);
