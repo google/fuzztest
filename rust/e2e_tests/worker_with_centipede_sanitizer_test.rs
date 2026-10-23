@@ -51,6 +51,34 @@ fn standalone_mode_reports_use_after_free_with_asan(fixture: &EnvVars) {
         test_utils::run_target_binary_with_args_and_env_expect_termination(fixture, &args, &envs);
 
     expect_that!(stderr, matchers::contains_regex("Failure[ \t]*: heap-use-after-free"));
+    expect_that!(stderr.matches("CRASH LOG: === BUG FOUND!").count(), eq(1));
+    expect_that!(
+        stderr,
+        matchers::contains_substring(
+            "Counterexample found for __fuzztest_mod__use_after_free_asan_death_test::use_after_free_asan_death_test."
+        )
+    );
+    expect_that!(stderr, matchers::contains_substring("CRASH LOG: argument 0: "));
+}
+
+#[gtest]
+#[cfg(sanitize = "address")]
+fn smoke_test_mode_reports_use_after_free_with_asan(fixture: &EnvVars) {
+    let args = ["__fuzztest_mod__use_after_free_asan_death_test::use_after_free_asan_death_test"];
+    let envs = [];
+
+    let stderr =
+        test_utils::run_target_binary_with_args_and_env_expect_termination(fixture, &args, &envs);
+
+    expect_that!(stderr, matchers::contains_substring("AddressSanitizer: heap-use-after-free"));
+    expect_that!(stderr.matches("=== BUG FOUND!").count(), eq(1));
+    expect_that!(
+        stderr,
+        matchers::contains_substring(
+            "Counterexample found for __fuzztest_mod__use_after_free_asan_death_test::use_after_free_asan_death_test."
+        )
+    );
+    expect_that!(stderr, matchers::contains_substring("The test fails with input:\nargument 0: "));
 }
 
 // TODO(yamilmorales): Enable this test on presubmit with --config=msan.
