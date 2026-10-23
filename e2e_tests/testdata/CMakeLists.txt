@@ -29,6 +29,8 @@ target_link_libraries(
   protobuf::libprotobuf
   fuzztest::test_protobuf_cc_proto
   absl::algorithm_container
+  absl::absl_check
+  absl::absl_log
   absl::check
   absl::flat_hash_map
   absl::flat_hash_set
