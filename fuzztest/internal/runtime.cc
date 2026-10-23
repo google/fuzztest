@@ -241,9 +241,8 @@ Runtime::Runtime() {
           std::getenv("FUZZTEST_CRASH_METADATA_PATH");
       crash_metadata_path != nullptr) {
     RegisterCrashMetadataListener(
-        [=](absl::string_view crash_type,
-            absl::Span<const std::string> /*stack_frames*/) {
-          WriteFile(crash_metadata_path, crash_type);
+        [=](absl::string_view description, absl::string_view /*signature*/) {
+          WriteFile(crash_metadata_path, description);
         });
   }
 }
@@ -304,10 +303,18 @@ void Runtime::PrintReport(RawSink out) const {
   if (crash_handler_hook) crash_handler_hook();
 
   for (CrashMetadataListenerRef listener : crash_metadata_listeners_) {
-    const std::string final_crash_type =
+    const std::string raw_signature =
+        crash_signature_.value_or(crash_type_.value_or("Generic crash"));
+    std::string crash_description =
         absl::StrCat(current_args_ == nullptr ? "SETUP FAILURE: " : "",
                      crash_type_.value_or("Generic crash"));
-    listener(final_crash_type, {});
+    if (crash_type_.has_value()) {
+      absl::StrAppend(&crash_description, "\nCRASH_TYPE=", *crash_type_,
+                      "\nCRASH_SIGNATURE=", raw_signature);
+    }
+    const std::string crash_signature = absl::StrCat(
+        current_args_ == nullptr ? "SETUP FAILURE: " : "", raw_signature);
+    listener(crash_description, crash_signature);
   }
 
   if (run_mode() != RunMode::kUnitTest) {

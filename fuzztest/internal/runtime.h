@@ -122,12 +122,10 @@ bool IsSignalHandlerDisabled(absl::string_view signame);
 void InstallUnexpectedExitHandler();
 
 // A function that is called when crash metadata is available.
-using CrashMetadataListener =
-    absl::AnyInvocable<void(absl::string_view crash_type,
-                            absl::Span<const std::string> stack_frames) const>;
-using CrashMetadataListenerRef =
-    absl::FunctionRef<void(absl::string_view crash_type,
-                           absl::Span<const std::string> stack_frames) const>;
+using CrashMetadataListener = absl::AnyInvocable<void(
+    absl::string_view description, absl::string_view signature) const>;
+using CrashMetadataListenerRef = absl::FunctionRef<void(
+    absl::string_view description, absl::string_view signature) const>;
 
 // This class encapsulates the runtime state that is global by necessity.
 // The state is accessed by calling `Runtime::instance()`, which handles the
@@ -213,12 +211,31 @@ class Runtime {
   void RegisterCrashMetadataListener(CrashMetadataListener listener) {
     crash_metadata_listeners_.push_back(std::move(listener));
   }
+  void RegisterCrashMetadataListener(
+      absl::AnyInvocable<void(absl::string_view, absl::Span<const std::string>)
+                             const>
+          listener) {
+    crash_metadata_listeners_.push_back(
+        [listener = std::move(listener)](absl::string_view description,
+                                         absl::string_view /*signature*/) {
+          listener(description, {});
+        });
+  }
   void SetCrashTypeIfUnset(std::string crash_type) {
     if (!crash_type_.has_value()) {
       crash_type_ = std::move(crash_type);
     }
   }
-  void ResetCrashType() { crash_type_ = std::nullopt; }
+  const std::optional<std::string>& crash_type() const { return crash_type_; }
+  void SetCrashSignatureIfUnset(std::string crash_signature) {
+    if (!crash_signature_.has_value()) {
+      crash_signature_ = std::move(crash_signature);
+    }
+  }
+  void ResetCrashType() {
+    crash_type_ = std::nullopt;
+    crash_signature_ = std::nullopt;
+  }
 
   // If the crash reporter is enabled, sets the crash type to unexpected-exit
   // and aborts the process. Otherwise, does nothing.
@@ -299,6 +316,8 @@ class Runtime {
   std::vector<CrashMetadataListener> crash_metadata_listeners_;
   // In case of a crash, contains the crash type.
   std::optional<std::string> crash_type_;
+  // In case of a crash, contains the crash signature.
+  std::optional<std::string> crash_signature_;
 };
 
 struct ReproducerOutputLocation {
