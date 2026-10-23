@@ -203,6 +203,8 @@ std::string Configuration::Serialize() const {
       absl::FormatDuration(time_limit_per_input);
   std::string time_limit_str = absl::FormatDuration(time_limit);
   std::string time_budget_type_str = AbslUnparseFlag(time_budget_type);
+  std::string minimize_corpus_database_new_crashes_duration_str =
+      absl::FormatDuration(minimize_corpus_database_new_crashes_duration);
   std::string out;
   out.resize(
       SpaceFor(corpus_database) + SpaceFor(stats_root) +
@@ -216,6 +218,7 @@ std::string Configuration::Serialize() const {
       SpaceFor(subprocess_cleanup_timeout_str) + SpaceFor(stack_limit) +
       SpaceFor(rss_limit) + SpaceFor(time_limit_per_input_str) +
       SpaceFor(time_limit_str) + SpaceFor(time_budget_type_str) +
+      SpaceFor(minimize_corpus_database_new_crashes_duration_str) +
       SpaceFor(jobs) + SpaceFor(centipede_command) +
       SpaceFor(crashing_input_to_reproduce) + SpaceFor(replay_crash_attempts) +
       SpaceFor(reproduction_command_template));
@@ -240,6 +243,8 @@ std::string Configuration::Serialize() const {
   offset = WriteString(out, offset, time_limit_per_input_str);
   offset = WriteString(out, offset, time_limit_str);
   offset = WriteString(out, offset, time_budget_type_str);
+  offset = WriteString(out, offset,
+                       minimize_corpus_database_new_crashes_duration_str);
   offset = WriteIntegral(out, offset, jobs);
   offset = WriteOptionalString(out, offset, centipede_command);
   offset = WriteOptionalString(out, offset, crashing_input_to_reproduce);
@@ -274,6 +279,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(time_limit_per_input_str, ConsumeString(serialized));
     ASSIGN_OR_RETURN(time_limit_str, ConsumeString(serialized));
     ASSIGN_OR_RETURN(time_budget_type_str, ConsumeString(serialized));
+    ASSIGN_OR_RETURN(minimize_corpus_database_new_crashes_duration_str,
+                     ConsumeString(serialized));
     ASSIGN_OR_RETURN(jobs, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(centipede_command, ConsumeOptionalString(serialized));
     ASSIGN_OR_RETURN(crashing_input_to_reproduce,
@@ -292,6 +299,9 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(time_limit, ParseDuration(*time_limit_str));
     ASSIGN_OR_RETURN(time_budget_type,
                      ParseTimeBudgetType(*time_budget_type_str));
+    ASSIGN_OR_RETURN(
+        minimize_corpus_database_new_crashes_duration,
+        ParseDuration(*minimize_corpus_database_new_crashes_duration_str));
     return Configuration{*std::move(corpus_database),
                          *std::move(stats_root),
                          *std::move(workdir_root),
@@ -312,6 +322,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *time_limit_per_input,
                          *time_limit,
                          *time_budget_type,
+                         *minimize_corpus_database_new_crashes_duration,
                          *jobs,
                          *std::move(centipede_command),
                          *std::move(crashing_input_to_reproduce),

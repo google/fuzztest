@@ -38,6 +38,7 @@
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/crash_summary.h"
 #include "./centipede/environment.h"
+#include "./centipede/minimize_crash.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
 #include "./centipede/workdir.h"
@@ -308,16 +309,13 @@ absl::Status ReplayCrashes(CentipedeCallbacks& callbacks,
 }
 
 absl::flat_hash_map<std::string, CrashDetails> FindNewCrashes(
+    const Environment& env, CentipedeCallbacksFactory& callbacks_factory,
     const absl::flat_hash_map<std::string, CrashDetails>&
         new_crashes_by_signature,
     absl::Span<const IncubatingCrash> incubating_crashes,
-    absl::Span<const ExistingCrash> existing_crashes) {
+    absl::Span<const ExistingCrash> existing_crashes,
+    StopCondition& stop_condition) {
   absl::flat_hash_map<std::string, CrashDetails> new_crashes;
-
-  // Add new crashes from the current run.
-  for (const auto& [signature, details] : new_crashes_by_signature) {
-    new_crashes[signature] = details;
-  }
 
   // Add reproducing incubating crashes.
   for (const auto& incubating : incubating_crashes) {
@@ -331,6 +329,63 @@ absl::flat_hash_map<std::string, CrashDetails> FindNewCrashes(
     if (!existing.new_signature.empty()) {
       new_crashes[existing.new_signature] = existing.crash_report.details;
     }
+  }
+
+  std::vector<std::string> crash_signatures_to_minimize;
+  // Add new crashes from the current run.
+  for (const auto& [signature, details] : new_crashes_by_signature) {
+    auto [it, inserted] = new_crashes.try_emplace(signature, details);
+    if (!inserted) continue;
+    crash_signatures_to_minimize.push_back(signature);
+  }
+
+  if (env.fuzztest_minimize_new_crashes_duration <= absl::ZeroDuration()) {
+    // Minimization is disabled.
+    return new_crashes;
+  }
+
+  const absl::Time previous_stop_time = stop_condition.GetStopTime();
+  const absl::Time minimization_deadline =
+      std::min(previous_stop_time,
+               absl::Now() + env.fuzztest_minimize_new_crashes_duration);
+  for (size_t i = 0; i < crash_signatures_to_minimize.size(); ++i) {
+    if (stop_condition.ShouldStop()) {
+      break;
+    }
+    const auto& signature = crash_signatures_to_minimize[i];
+    auto& details = new_crashes[signature];
+    ByteArray input_bytes;
+    if (const auto status =
+            RemoteFileGetContents(details.input_path, input_bytes);
+        !status.ok()) {
+      FUZZTEST_LOG(ERROR)
+          << "Failed to read new crash to minimize - skipping minimization";
+      continue;
+    }
+    const auto now = absl::Now();
+    // Let the remaining new crashes evenly split what's remaining for
+    // `minimization_deadline`.
+    stop_condition.SetStopTime(now +
+                               (minimization_deadline - now) /
+                                   (crash_signatures_to_minimize.size() - i));
+    const auto result = MinimizeCrash(input_bytes, env, callbacks_factory,
+                                      signature, stop_condition);
+    stop_condition.SetStopTime(previous_stop_time);
+    if (!result.has_value()) {
+      FUZZTEST_LOG(ERROR) << "Failed to find a smaller crash.";
+      continue;
+    }
+    const auto minimized_input_path = absl::StrCat(details.input_path, ".min");
+    if (const auto status =
+            RemoteFileSetContents(minimized_input_path, result->input);
+        !status.ok()) {
+      FUZZTEST_LOG(ERROR)
+          << "Failed to save the minimized crash - skipping minimization";
+      continue;
+    }
+    details.input_signature = Hash(result->input);
+    details.description = std::move(result->description);
+    details.input_path = minimized_input_path;
   }
 
   return new_crashes;
@@ -742,8 +797,9 @@ absl::Status OrganizeCrashingInputs(
                                  stop_condition,
                                  absl::MakeSpan(incubating_to_replay)));
 
-  absl::flat_hash_map<std::string, CrashDetails> new_crashes = FindNewCrashes(
-      new_crashes_by_signature, incubating_crashes, existing_crashes);
+  absl::flat_hash_map<std::string, CrashDetails> new_crashes =
+      FindNewCrashes(env, callbacks_factory, new_crashes_by_signature,
+                     incubating_crashes, existing_crashes, stop_condition);
 
   std::vector<ExistingCrashAction> actions =
       ComputeExistingCrashActions(existing_crashes, new_crashes);
