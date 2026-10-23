@@ -195,7 +195,7 @@ TEST(UtilTest, CreateLocalDirRemovedAtExit) {
 TEST(UtilTest, ParseAFLDictionary) {
   std::vector<ByteArray> dict;
   EXPECT_TRUE(ParseAFLDictionary("", dict));                      // Empty text.
-  EXPECT_FALSE(ParseAFLDictionary("\xAB", dict));                 // Non-ascii.
+  EXPECT_FALSE(ParseAFLDictionary("\xAB", dict));                 // Missing ".
   EXPECT_FALSE(ParseAFLDictionary(" l1  \n\t\t\tl2  \n", dict));  // Missing "
   EXPECT_FALSE(ParseAFLDictionary(" \"zzz", dict));  // Missing second "
 
@@ -218,6 +218,19 @@ TEST(UtilTest, ParseAFLDictionary) {
   // Improper use of backslash, still parses.
   EXPECT_TRUE(ParseAFLDictionary("\"\\g\\h\"", dict));
   EXPECT_EQ(dict, std::vector<ByteArray>({{'\\', 'g', '\\', 'h'}}));
+
+  // Non-ascii bytes are utf-8 text, not a sign of a binary dictionary. The Lua
+  // dictionary used by OSS-Fuzz has an en dash in its comments.
+  EXPECT_TRUE(ParseAFLDictionary(" \"caf\xc3\xa9\" \n"
+                                 " # Lua 5.1 manual, 2.1 \xe2\x80\x93 Lexical\n"
+                                 " \"ok\"",
+                                 dict));
+  EXPECT_EQ(dict,
+            std::vector<ByteArray>({{'c', 'a', 'f', 0xc3, 0xa9}, {'o', 'k'}}));
+
+  // ASCII control characters still mean we are not looking at a text
+  // dictionary.
+  EXPECT_FALSE(ParseAFLDictionary("\"a\x01\"", dict));
 }
 
 TEST(UtilTest, RandomWeightedSubset) {
