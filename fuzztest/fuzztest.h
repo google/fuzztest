@@ -18,6 +18,7 @@
 // IWYU pragma: begin_exports
 #include "./fuzztest/domain.h"
 #include "./fuzztest/fuzztest_macros.h"
+#include "./fuzztest/init_fuzztest_checker.h"
 // IWYU pragma: end_exports
 
 #endif  // FUZZTEST_FUZZTEST_FUZZTEST_H_

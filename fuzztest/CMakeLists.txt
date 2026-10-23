@@ -86,12 +86,25 @@ fuzztest_cc_test(
 
 fuzztest_cc_library(
   NAME
+    init_fuzztest_checker
+  HDRS
+    "init_fuzztest_checker.h"
+  DEPS
+    GTest::gtest
+    absl::string_view
+    fuzztest::registry
+    fuzztest::runtime
+)
+
+fuzztest_cc_library(
+  NAME
     fuzztest
   HDRS
     "fuzztest.h"
   DEPS
     fuzztest::domain
     fuzztest::fuzztest_macros
+    fuzztest::init_fuzztest_checker
 )
 
 fuzztest_cc_library(
