@@ -83,9 +83,10 @@ class UpdateCorpusDatabaseTest
     FUZZTEST_LOG(FATAL)
         << "The test binary is not built with ASAN. Please run with "
            "--config=asan.";
-#elif !__has_feature(coverage_sanitizer) || !defined(FUZZTEST_USE_CENTIPEDE)
-    FUZZTEST_LOG(FATAL) << "The test binary is not built with coverage "
-                           "instrumentation for Centipede. "
+#elif !__has_feature(coverage_sanitizer) || \
+    !defined(FUZZTEST_USE_CENTIPEDE) || defined(FUZZTEST_REPLAY)
+    GTEST_SKIP() << "The test binary is not built with coverage "
+                    "instrumentation for Centipede. "
     "Please run with --config=fuzztest-experimental.";
 #endif
 #endif

@@ -958,6 +958,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenTimeoutIsSet) {
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        ReproducerIsDumpedWhenReproducersOutDirEnvVarIsSet) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping crash-finding test in replay mode.";
+#endif
   TempDir out_dir;
 
   auto [status, std_out, std_err] =
@@ -981,6 +984,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        ReproducerIsDumpedWhenUndeclaredOutputsEnvVarIsSet) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping crash-finding test in replay mode.";
+#endif
   TempDir out_dir;
 
   auto [status, std_out, std_err] =
@@ -1007,6 +1013,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, SavesCorpusWhenEnvVarIsSet) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping corpus-saving test in replay mode.";
+#endif
   TempDir out_dir;
   // We cannot use a non-crashing test since there is no easy way to limit the
   // run time here.
@@ -1052,6 +1061,9 @@ void ExpectMinimizationOutputMessageInLogs(absl::string_view logs,
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, RestoresCorpusWhenEnvVarIsSet) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping corpus-restoring test in replay mode.";
+#endif
   TempDir corpus_dir;
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
@@ -1070,6 +1082,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RestoresCorpusWhenEnvVarIsSet) {
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping corpus-minimization test in replay mode.";
+#endif
   TempDir corpus_dir;
   TempDir minimized_corpus_dir;
   // Although theoretically possible, it is extreme unlikely that the test would
@@ -1107,6 +1122,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
 }
 
 TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping corpus-minimization test in replay mode.";
+#endif
   TempDir corpus_dir;
   TempDir minimized_corpus_dir;
   // We cannot use a non-crashing test since there is no easy way to limit the
@@ -1193,6 +1211,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 // serialized.
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        ReproducerIsDumpedWhenEnvVarIsSetTypeErased) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping crash-finding test in replay mode.";
+#endif
   TempDir out_dir;
 
   auto [status, std_out, std_err] =
@@ -1377,6 +1398,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 // This tests both the command line interface and the fuzzing logic. It is under
 // FuzzingModeCommandLineInterfaceTest so it can specify the command line.
 TEST_F(FuzzingModeCommandLineInterfaceTest, CorpusDoesNotContainSkippedInputs) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping corpus-saving test in replay mode.";
+#endif
   TempDir corpus_dir;
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
@@ -1659,7 +1683,7 @@ class FuzzingModeCrashFindingTest
                     "skipping tests in fuzzing mode.";
 #endif
 #if defined(__has_feature)
-#if !__has_feature(coverage_sanitizer)
+#if !__has_feature(coverage_sanitizer) || defined(FUZZTEST_REPLAY)
     GTEST_SKIP() << "No coverage instrumentation: skipping the fuzzing mode "
                     "crash finding tests. "
                     "Please run with --config=fuzztest or --config=centipede "

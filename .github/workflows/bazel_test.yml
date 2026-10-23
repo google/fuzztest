@@ -68,7 +68,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        config: ['uninstrumented', 'fuzztest', 'fuzztest-experimental', 'libfuzzer']
+        config: ['uninstrumented', 'fuzztest', 'fuzztest-experimental', 'fuzztest-experimental-replay', 'libfuzzer']
     steps:
       - name: Disable core dumping and piping due to slowness
         run: |
@@ -106,6 +106,14 @@ jobs:
             -c opt \
             --config=fuzztest-experimental --config=asan \
             --platform_suffix=fuzztest-experimental-asan \
+            //e2e_tests:all
+      - name: Run end-to-end tests with --config=fuzztest-experimental-replay
+        if: matrix.config == 'fuzztest-experimental-replay'
+        run: |
+          bazel test --build_tests_only --test_output=errors \
+            -c opt \
+            --config=fuzztest-experimental-replay \
+            --platform_suffix=fuzztest-experimental-replay \
             //e2e_tests:all
       - name: Run end-to-end tests with --config=libfuzzer
         if: matrix.config == 'libfuzzer'
