@@ -101,7 +101,8 @@ bool InsertPart(const ContainerT& from, ContainerT& to,
 
 inline size_t GetOrGuessPositionHint(std::optional<size_t> position_hint,
                                      size_t max, absl::BitGenRef prng) {
-  if (position_hint.has_value()) {
+  if (position_hint.has_value() && *position_hint <= max &&
+      absl::Bernoulli(prng, 0.5)) {
     return *position_hint;
   } else {
     return ChooseOffset(max + 1, prng);
