@@ -384,6 +384,7 @@ cc_library(
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
     ],
