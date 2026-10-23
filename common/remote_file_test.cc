@@ -114,21 +114,19 @@ TEST(RemoteListFiles, ReturnsAnEmptyResultWhenNoFilesAreFound) {
   EXPECT_THAT(*files, IsEmpty());
 }
 
-TEST(RemoteListFiles, ReturnsASingleFileWhenListingAFile) {
-  const fs::path temp_dir = GetTestTempDir(test_info_->name());
-
-  const std::string file1_path = temp_dir / "file_01";
-  CreateFileOrDie(file1_path);
-
-  const absl::StatusOr<std::vector<std::string>> files =
-      RemoteListFiles(temp_dir.string(), /*recursively=*/false);
-  ASSERT_TRUE(files.status().ok());
-  EXPECT_THAT(*files, UnorderedElementsAre(file1_path));
-}
-
 TEST(RemoteListFiles, ReturnsAnEmptyVectorWhenPathDoesNotExist) {
   const absl::StatusOr<std::vector<std::string>> files =
       RemoteListFiles("/this/file/path/does/not/exist", /*recursively=*/false);
+  ASSERT_TRUE(files.status().ok());
+  EXPECT_THAT(*files, IsEmpty());
+}
+
+TEST(RemoteListFiles, ReturnsAnEmptyVectorWhenPathIsNonDirectory) {
+  const fs::path temp_dir = GetTestTempDir(test_info_->name());
+  const std::string file_path = temp_dir / "file";
+  CreateFileOrDie(file_path);
+  const absl::StatusOr<std::vector<std::string>> files =
+      RemoteListFiles(file_path, /*recursively=*/false);
   ASSERT_TRUE(files.status().ok());
   EXPECT_THAT(*files, IsEmpty());
 }

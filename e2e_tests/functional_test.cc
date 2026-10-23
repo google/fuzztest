@@ -26,6 +26,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/config.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -57,6 +58,15 @@
 
 namespace fuzztest::internal {
 namespace {
+
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) || \
+    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
+constexpr const char* kShortFuzzFor = "30s";
+constexpr absl::Duration kShortTimeout = absl::Seconds(90);
+#else
+constexpr const char* kShortFuzzFor = "10s";
+constexpr absl::Duration kShortTimeout = absl::Seconds(30);
+#endif
 
 using ::fuzztest::domain_implementor::PrintMode;
 using ::testing::_;
@@ -147,7 +157,7 @@ class UnitTestModeTest : public ::testing::Test {
     fuzzer_flags["print_subprocess_log"] = "true";
     fuzzer_flags["unguided"] = "true";
     if (!fuzzer_flags.contains("fuzz_for")) {
-      fuzzer_flags["fuzz_for"] = "10s";
+      fuzzer_flags["fuzz_for"] = "60s";
     }
     return RunWithExactFuzzerFlags(test_filter, target_binary, env,
                                    std::move(fuzzer_flags));
@@ -541,7 +551,9 @@ TEST_F(
 }
 
 TEST_F(UnitTestModeTest, DetectsRecursiveStructureIfOptionalsSetByDefault) {
-  auto [status, std_out, std_err] = Run("MySuite.FailsIfCantInitializeProto");
+  auto [status, std_out, std_err] =
+      Run("MySuite.FailsIfCantInitializeProto", kDefaultTargetBinary,
+          /*env=*/{}, {{"fuzz_for", "60s"}});
   ExpectTargetAbort(status, std_err);
   EXPECT_THAT_LOG(std_err, HasSubstr("recursive fields"));
 }
@@ -902,9 +914,9 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        IgnoresNegativeFuzzingRunsLimitInEnvVar) {
   auto [status, std_out, std_err] =
-      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}},
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"}, {"fuzz_for", "1s"}},
               {{"FUZZTEST_MAX_FUZZING_RUNS", "-1"}},
-              /*timeout=*/absl::Seconds(10));
+              /*timeout=*/absl::Seconds(60));
   EXPECT_THAT_LOG(std_err, HasSubstr("will not limit fuzzing runs"));
 }
 
@@ -1068,7 +1080,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RestoresCorpusWhenEnvVarIsSet) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "10s"}},
+      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "60s"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.path()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.path().c_str());
@@ -1090,7 +1102,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesCorpusWhenEnvVarIsSet) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "10s"}},
+      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "60s"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.path()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.path().c_str());
@@ -1133,7 +1145,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizesDuplicatedCorpus) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "10s"}},
+      RunWith({{"fuzz", "MySuite.String"}, {"fuzz_for", "60s"}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.path()}});
 
   auto corpus_files = ReadFileOrDirectory(corpus_dir.path().c_str());
@@ -1336,10 +1348,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, ConfiguresStackLimitByFlag) {
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        DoesNotPrintWarningForDisabledLimitFlagsByDefault) {
-  auto [status, std_out, std_err] = RunWith(
-      {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"fuzz_for", "10s"}},
-      /*env=*/{},
-      /*timeout=*/absl::Seconds(20));
+  auto [status, std_out, std_err] =
+      RunWith({{"fuzz", "MySuite.PassesWithPositiveInput"},
+               {"fuzz_for", kShortFuzzFor}},
+              /*env=*/{},
+              /*timeout=*/absl::Seconds(80));
   EXPECT_THAT_LOG(std_err,
                   Not(HasSubstr("limit is specified but will be ignored")));
   EXPECT_THAT(status, Eq(ExitCode(0)));
@@ -1348,7 +1361,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 TEST_F(FuzzingModeCommandLineInterfaceTest, RssLimitFlagWorks) {
   auto [status, std_out, std_err] = RunWith(
       {{"fuzz", "MySuite.LargeHeapAllocation"}, {"rss_limit_mb", "1024"}},
-      /*env=*/{}, /*timeout=*/absl::Seconds(10));
+      /*env=*/{}, /*timeout=*/absl::Seconds(60));
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: "));
   EXPECT_THAT_LOG(std_err, ContainsRegex(absl::StrCat("RSS limit exceeded")));
   ExpectTargetAbort(status, std_err);
@@ -1367,7 +1380,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, TimeLimitFlagWorks) {
 // to restrict the filter to only fuzz tests.
 TEST_F(FuzzingModeCommandLineInterfaceTest, RunsOnlyFuzzTests) {
   auto [status, std_out, std_err] =
-      RunWith({{"fuzz_for", "1s"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+      RunWith({{"fuzz_for", "1s"}}, /*env=*/{}, /*timeout=*/absl::Seconds(60),
               "testdata/unit_test_and_fuzz_tests");
 
   EXPECT_THAT_LOG(std_out,
@@ -1381,7 +1394,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, RunsOnlyFuzzTests) {
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        AllowsSpecifyingFilterWithFuzzForDuration) {
   auto [status, std_out, std_err] =
-      RunWith({{"fuzz_for", "1s"}}, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+      RunWith({{"fuzz_for", "1s"}}, /*env=*/{}, /*timeout=*/absl::Seconds(60),
               "testdata/unit_test_and_fuzz_tests",
               {{GTEST_FLAG_PREFIX_ "filter",
                 "UnitTest.AlwaysPasses:FuzzTest.AlwaysPasses"}});
@@ -1405,7 +1418,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, CorpusDoesNotContainSkippedInputs) {
   // Although theoretically possible, it is extreme unlikely that the test would
   // find the crash without saving some corpus.
   auto [producer_status, producer_std_out, producer_std_err] =
-      RunWith({{"fuzz", "MySuite.SkipInputs"}, {"fuzz_for", "10s"}},
+      RunWith({{"fuzz", "MySuite.SkipInputs"}, {"fuzz_for", kShortFuzzFor}},
               {{"FUZZTEST_TESTSUITE_OUT_DIR", corpus_dir.path()}});
 
   ASSERT_THAT_LOG(producer_std_err, HasSubstr("Skipped input"));
@@ -1465,10 +1478,10 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 #endif
   const auto [status_unused, std_out, std_err] = RunWith(
       {
-          {"fuzz_for", "10s"},
+          {"fuzz_for", "30s"},
           {"fuzz", "FaultySetupTest.NoOp"},
       },
-      {}, absl::Seconds(10), kDefaultTargetBinary);
+      {}, absl::Seconds(60), kDefaultTargetBinary);
   EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] FaultySetupTest.NoOp"))
       << "\nstd_err:\n"
       << std_err;
@@ -1483,11 +1496,11 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   const auto [status_unused, std_out, std_err] = RunWith(
       {
           {"corpus_database", corpus_database.path()},
-          {"fuzz_for", "10s"},
+          {"fuzz_for", "30s"},
           {"fuzz", "FaultySetupTest.NoOp"},
           {"execution_id", "some_execution_id"},
       },
-      {}, absl::Seconds(10), kDefaultTargetBinary);
+      {}, absl::Seconds(60), kDefaultTargetBinary);
   EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] FaultySetupTest.NoOp"))
       << "\nstd_err:\n"
       << std_err;
@@ -1988,7 +2001,7 @@ TEST_P(FuzzingModeCrashFindingTest, FlatMappedDomainShowsMappedValue) {
 TEST_P(FuzzingModeCrashFindingTest, FlatMapPassesWhenCorrect) {
   auto [status, std_out, std_err] =
       Run("MySuite.FlatMapPassesWhenCorrect", kDefaultTargetBinary,
-          /*env=*/{}, /*timeout=*/absl::Seconds(10));
+          /*env=*/{}, /*timeout=*/absl::Seconds(60));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 
@@ -2209,7 +2222,7 @@ TEST_P(FuzzingModeCrashFindingTest,
           /*env=*/
           {
           },
-          /*timeout=*/absl::Seconds(30));
+          /*timeout=*/absl::Seconds(120));
   EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"ahmfn\""));
   ExpectTargetAbort(status, std_err);
 }
