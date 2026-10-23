@@ -1457,7 +1457,6 @@ class ProtobufDomainUntypedImpl
         if constexpr (std::is_same_v<T, ProtoMessageTag>) {
           // Verify that the type matches.
           absl::BitGen gen;
-          std::string full_name;
           constexpr int kMaxTry = 10;
           auto val = domain.Init(gen);
           auto descriptor = GetDescriptor<is_repeated>(val);
