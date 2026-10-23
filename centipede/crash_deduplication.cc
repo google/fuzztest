@@ -29,8 +29,11 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "absl/time/clock.h"
 #include "absl/time/clock_interface.h"
 #include "absl/time/time.h"
@@ -59,6 +62,17 @@ std::string GetInputFileName(std::string_view bug_id,
   return absl::StrCat(bug_id, "-", crash_signature, "-", input_signature);
 }
 
+std::optional<std::string_view> TryParseCrashType(
+    std::string_view description) {
+  for (std::string_view line : absl::StrSplit(description, '\n')) {
+    line = absl::StripAsciiWhitespace(line);
+    if (absl::ConsumePrefix(&line, "CRASH_TYPE=")) {
+      return line;
+    }
+  }
+  return std::nullopt;
+}
+
 struct CrashReport {
   CrashDetails details;
   std::string signature;
@@ -68,6 +82,8 @@ struct CrashReport {
 enum class ActionType {
   kTouch,
   kKeep,
+  // Update the crash signature in-place while keeping the bug and input.
+  kMigrateSignature,
   // Replace the input but keep the bug and signature.
   kReplaceInput,
   // Incubate the input and then replace it.
@@ -81,6 +97,8 @@ std::string_view ActionTypeToString(ActionType action_type) {
       return "Touch";
     case ActionType::kKeep:
       return "Keep";
+    case ActionType::kMigrateSignature:
+      return "MigrateSignature";
     case ActionType::kReplaceInput:
       return "ReplaceInput";
     case ActionType::kIncubateAndReplaceInput:
@@ -353,6 +371,17 @@ ExistingCrashAction ComputeExistingCrashAction(
             absl::StrCat("Crash reproduced with the same signature: ", sig)};
   }
 
+  if (!sig_new.empty()) {
+    if (std::optional<std::string_view> crash_type =
+            TryParseCrashType(existing.crash_report.details.description);
+        crash_type.has_value() && sig == Hash(*crash_type)) {
+      return {existing, ActionType::kMigrateSignature, std::nullopt,
+              absl::StrCat("Crash reproduced with fine-grained signature '",
+                           sig_new, "', migrating from crash-type signature '",
+                           sig, "'")};
+    }
+  }
+
   // The signature changed, it no longer reproduces, or it was not attempted.
   auto it = new_crashes.find(sig);
   if (!existing.was_attempted) {
@@ -454,11 +483,15 @@ absl::Status WriteCrashToFile(const std::filesystem::path& crashing_dir,
 
 absl::flat_hash_map<std::string, CrashReport> GenerateNewCrashReports(
     const absl::flat_hash_map<std::string, CrashDetails>& new_crashes,
-    absl::Span<const ExistingCrash> existing_crashes) {
+    absl::Span<const ExistingCrashAction> actions) {
   absl::flat_hash_set<std::string> existing_sigs;
-  for (const auto& existing : existing_crashes) {
-    if (!existing.crash_report.signature.empty()) {
-      existing_sigs.insert(existing.crash_report.signature);
+  for (const auto& action : actions) {
+    if (action.action_type == ActionType::kDelete) continue;
+    const std::string& sig = action.action_type == ActionType::kMigrateSignature
+                                 ? action.existing_crash.new_signature
+                                 : action.existing_crash.crash_report.signature;
+    if (!sig.empty()) {
+      existing_sigs.insert(sig);
     }
   }
 
@@ -509,6 +542,12 @@ absl::Status ExecuteExistingCrashPreservationActions(
             TouchCrash(existing, action.new_details, crash_summary));
         break;
 
+      case ActionType::kMigrateSignature:
+        RETURN_IF_NOT_OK(WriteCrashToFile(
+            crashing_dir, existing.crash_report.bug_id, existing.new_signature,
+            existing.crash_report.details, crash_summary));
+        break;
+
       case ActionType::kReplaceInput:
       case ActionType::kIncubateAndReplaceInput:
         RETURN_IF_NOT_OK(WriteCrashToFile(crashing_dir,
@@ -533,6 +572,7 @@ absl::Status ExecuteExistingCrashDestructiveActions(
 
     switch (action.action_type) {
       case ActionType::kDelete:
+      case ActionType::kMigrateSignature:
       case ActionType::kReplaceInput:
         RETURN_IF_NOT_OK(RemotePathDelete(
             existing.crash_report.details.input_path, /*recursively=*/false));
@@ -749,7 +789,7 @@ absl::Status OrganizeCrashingInputs(
       ComputeExistingCrashActions(existing_crashes, new_crashes);
 
   absl::flat_hash_map<std::string, CrashReport> new_crash_reports =
-      GenerateNewCrashReports(new_crashes, existing_crashes);
+      GenerateNewCrashReports(new_crashes, actions);
 
   RETURN_IF_NOT_OK(ExecuteExistingCrashPreservationActions(
       crashing_dir, actions, crash_summary));
