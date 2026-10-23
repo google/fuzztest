@@ -65,11 +65,14 @@ class BlobSequence {
   // Must not be called after Read() w/o first calling Reset().
   bool Write(Blob blob);
 
-  // Writes `tag`/`value` as a blob. `T` should be a POD.
+  // Writes `tag`/`value` as a blob. `T` must be a trivial type with standard
+  // layout.
   // Returns true on success.
   template <typename T>
   bool Write(Blob::SizeAndTagT tag, T value) {
-    static_assert(std::is_pod_v<T>, "T must be a POD");
+    static_assert(
+        std::is_trivial_v<T> && std::is_standard_layout_v<T>,
+        "Write() must be used on a trivial type with standard layout");
     return Write(
         {tag, sizeof(value), reinterpret_cast<const uint8_t *>(&value)});
   }
