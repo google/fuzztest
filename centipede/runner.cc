@@ -916,6 +916,16 @@ void ConstructAdapter(FuzzTestAdapterManagerCtx* ctx,
 
 }  // namespace
 
+FuzzTestAdapterManager CreateFuzzTestAdapterManager(
+    RunnerCallbacks* absl_nonnull callbacks) {
+  return {
+      /*ctx=*/reinterpret_cast<FuzzTestAdapterManagerCtx*>(callbacks),
+      /*GetBinaryId=*/nullptr,
+      /*GetTestName=*/GetTestName,
+      /*ConstructAdapter=*/ConstructAdapter,
+  };
+}
+
 // Constructs a FuzzTestAdapterManager and try to run as an engine worker.
 //
 // If engine worker is not required, calls
@@ -933,12 +943,7 @@ int RunnerMain(int argc, char** argv, RunnerCallbacks& callbacks) {
     return EXIT_SUCCESS;
   }
 
-  FuzzTestAdapterManager manager = {
-      /*ctx=*/reinterpret_cast<FuzzTestAdapterManagerCtx*>(&callbacks),
-      /*GetBinaryId=*/nullptr,
-      /*GetTestName=*/GetTestName,
-      /*ConstructAdapter=*/ConstructAdapter,
-  };
+  FuzzTestAdapterManager manager = CreateFuzzTestAdapterManager(&callbacks);
   const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
   const auto s = FuzzTestWorkerMaybeRun(&manager);
   CentipedeSetCurrentThreadTraced(old_traced);

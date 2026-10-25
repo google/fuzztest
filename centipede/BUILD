@@ -879,6 +879,28 @@ cc_library(
 )
 
 cc_library(
+    name = "in_process_centipede_callbacks",
+    srcs = ["in_process_centipede_callbacks.cc"],
+    hdrs = ["in_process_centipede_callbacks.h"],
+    deps = [
+        ":centipede_callbacks",
+        ":engine_abi",
+        ":environment",
+        ":feature",
+        ":mutation_data",
+        ":runner_result",
+        ":stop",
+        ":util",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+    ],
+)
+
+cc_library(
     name = "fuzztest_mutator",
     srcs = ["fuzztest_mutator.cc"],
     hdrs = ["fuzztest_mutator.h"],
@@ -1097,6 +1119,27 @@ config_setting(
 )
 
 cc_library(
+    name = "engine_controller",
+    srcs = ["engine_controller.cc"],
+    hdrs = ["engine_controller_abi.h"],
+    deps = [
+        ":centipede_callbacks",
+        ":centipede_default_callbacks",
+        ":centipede_flags",
+        ":centipede_interface",
+        ":command",
+        ":engine_abi",
+        ":environment",
+        ":in_process_centipede_callbacks",
+        "@abseil-cpp//absl/flags:marshalling",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
+    ],
+)
+
+cc_library(
     name = "engine_controller_with_subprocess",
     srcs = ["engine_controller_with_subprocess.cc"],
     hdrs = ["engine_controller_abi.h"],
@@ -1163,6 +1206,7 @@ cc_library(
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     deps = [
         ":centipede_runner_no_main",
+        ":engine_abi",
         ":execution_metadata",
         ":mutation_data",
         "@abseil-cpp//absl/base:nullability",
@@ -1353,6 +1397,57 @@ cc_test(
         ":stop",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "in_process_centipede_callbacks_test",
+    srcs = ["in_process_centipede_callbacks_test.cc"],
+    deps = [
+        ":centipede_interface",
+        ":centipede_runner_no_main",
+        ":engine_abi",
+        ":environment",
+        ":execution_metadata",
+        ":feature",
+        ":in_process_centipede_callbacks",
+        ":mutation_data",
+        ":runner_result",
+        ":stop",
+        ":thread_pool",
+        ":util",
+        ":workdir",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:temp_dir",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "engine_controller_test",
+    srcs = ["engine_controller_test.cc"],
+    data = [
+        ":centipede_uninstrumented",
+        "@com_google_fuzztest//centipede/testing:test_binary_for_engine_testing",
+    ],
+    deps = [
+        ":engine_abi",
+        ":engine_controller",
+        ":environment",
+        ":util",
+        ":workdir",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/flags:marshalling",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:test_util",
         "@googletest//:gtest_main",
     ],
 )
@@ -2070,7 +2165,7 @@ cc_library(
 cc_static_library(
     name = "centipede_engine_static",
     deps = [
-        ":engine_controller_with_subprocess",
+        ":engine_controller",
         ":engine_worker",
         ":sancov_runtime",
         ":weak_sancov_stubs",
