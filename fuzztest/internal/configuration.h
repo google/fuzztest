@@ -52,6 +52,10 @@ struct Configuration {
   // The root directory for Centipede workdirs, with a layout similar to
   // `corpus_database`.
   std::string workdir_root;
+  // Read-only corpus databases with the same layout as `corpus_database`. When
+  // fuzzing, the coverage inputs of each fuzz test in these databases are used
+  // as additional seeds. These databases are never updated.
+  std::vector<std::string> seed_corpus_databases;
   // The identifier of the test binary in the corpus database (eg.,
   // relative/path/to/binary).
   std::string binary_identifier;

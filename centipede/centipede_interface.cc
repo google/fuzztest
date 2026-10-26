@@ -330,11 +330,13 @@ TestShard SetUpTestSharding() {
 }
 
 // Seeds the corpus files in `env.workdir` with the inputs in `regression_dir`
-// (always used) and the previously distilled corpus files from `coverage_dir`
-// (used if non-empty).
-SeedCorpusConfig GetSeedCorpusConfig(const Environment& env,
-                                     std::string_view regression_dir,
-                                     std::string_view coverage_dir) {
+// (always used), the previously distilled corpus files from `coverage_dir`
+// (used if non-empty), and the inputs in `seed_coverage_dirs`, which are the
+// coverage directories in read-only seed corpus databases.
+SeedCorpusConfig GetSeedCorpusConfig(
+    const Environment& env, std::string_view regression_dir,
+    std::string_view coverage_dir,
+    const std::vector<std::string>& seed_coverage_dirs) {
   const WorkDir workdir{env};
   SeedCorpusSource regression;
   regression.dir_glob = std::string(regression_dir);
@@ -342,9 +344,9 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment& env,
   regression.individual_input_rel_glob = "*";
   regression.sampled_fraction_or_count = 1.0f;
   std::vector<SeedCorpusSource> sources = {std::move(regression)};
-  if (!coverage_dir.empty()) {
+  const auto make_coverage_source = [&workdir](std::string_view dir) {
     SeedCorpusSource coverage;
-    coverage.dir_glob = std::string(coverage_dir);
+    coverage.dir_glob = std::string(dir);
     coverage.num_recent_dirs = 1;
     // We're using the previously distilled corpus files as seeds.
     coverage.shard_rel_glob =
@@ -353,7 +355,13 @@ SeedCorpusConfig GetSeedCorpusConfig(const Environment& env,
             .filename();
     coverage.individual_input_rel_glob = "*";
     coverage.sampled_fraction_or_count = 1.0f;
-    sources.push_back(std::move(coverage));
+    return coverage;
+  };
+  if (!coverage_dir.empty()) {
+    sources.push_back(make_coverage_source(coverage_dir));
+  }
+  for (const std::string& seed_coverage_dir : seed_coverage_dirs) {
+    sources.push_back(make_coverage_source(seed_coverage_dir));
   }
   SeedCorpusDestination destination;
   destination.dir_path = env.workdir;
@@ -403,10 +411,12 @@ struct DatabasePaths {
   std::filesystem::path incubating_dir;
 };
 
-DatabasePaths GetDatabasePaths(const Environment& env) {
-  const auto fuzztest_db_path =
-      std::filesystem::path(env.fuzztest_corpus_database) /
-      env.fuzztest_binary_identifier / env.test_name;
+// Returns the paths for the fuzz test `env.test_name` in the test binary
+// `env.fuzztest_binary_identifier` in the corpus database `corpus_database`.
+DatabasePaths GetDatabasePaths(std::string_view corpus_database,
+                               const Environment& env) {
+  const auto fuzztest_db_path = std::filesystem::path(corpus_database) /
+                                env.fuzztest_binary_identifier / env.test_name;
   return {
       fuzztest_db_path,
       fuzztest_db_path / "regression",
@@ -414,6 +424,34 @@ DatabasePaths GetDatabasePaths(const Environment& env) {
       fuzztest_db_path / "crashing",
       fuzztest_db_path / "incubating",
   };
+}
+
+DatabasePaths GetDatabasePaths(const Environment& env) {
+  return GetDatabasePaths(env.fuzztest_corpus_database, env);
+}
+
+// Returns the coverage directories of the fuzz test in the seed corpus
+// databases. Only used when fuzzing. Directories that don't exist or are
+// inaccessible are skipped, so that the seed corpus databases never break
+// fuzzing.
+std::vector<std::string> GetSeedCoverageDirs(const Environment& env) {
+  std::vector<std::string> seed_coverage_dirs;
+  if (env.fuzztest_only_replay) return seed_coverage_dirs;
+  for (const std::string& seed_corpus_database :
+       env.fuzztest_seed_corpus_databases) {
+    if (seed_corpus_database.empty()) continue;
+    const std::string coverage_dir =
+        GetDatabasePaths(seed_corpus_database, env).coverage_dir;
+    if (!RemotePathIsDirectory(coverage_dir)) {
+      FUZZTEST_VLOG(1) << "Skipping seed corpus database coverage dir "
+                       << coverage_dir << ": not found or inaccessible";
+      continue;
+    }
+    FUZZTEST_LOG(INFO) << "Using seed corpus database coverage dir "
+                       << coverage_dir;
+    seed_coverage_dirs.push_back(coverage_dir);
+  }
+  return seed_coverage_dirs;
 }
 
 void RecordFuzzingResults(const Environment& env, const DatabasePaths& db_paths,
@@ -612,7 +650,8 @@ void UpdateCorpusDatabase(Environment env,
         GetSeedCorpusConfig(env, db_paths.regression_dir.c_str(),
                             env.fuzztest_replay_coverage_inputs
                                 ? db_paths.coverage_dir.c_str()
-                                : ""),
+                                : "",
+                            GetSeedCoverageDirs(env)),
         env.binary_name, env.binary_hash))
         << "while generating the seed corpus";
   }
