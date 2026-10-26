@@ -37,7 +37,7 @@ fn run_centipede_test<'a>(
             rust_test_name
         ),
         format!("--workdir={}", work_dir.display()),
-        format!("--test_name={}", test_name),
+        format!("--test_name=fuzztest_main.{}", test_name),
     ];
     args.extend(extra_args.into_iter().map(|s| s.to_string()));
 
