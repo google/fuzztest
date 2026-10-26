@@ -48,11 +48,23 @@ jobs:
           sudo apt-get update && sudo apt-get install -yq \
             clang llvm libssl-dev
       - name: Restore latest cache
+        # Skip restoring on scheduled nightly runs so the cache is rebuilt from
+        # scratch and stale artifacts from older commits/dependencies are
+        # evicted.
+        if: github.event_name != 'schedule'
+        id: cache-restore
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          # Cache only the Bazel repository and disk caches (configured via
+          # --config=ci in .bazelrc) instead of ~/.cache/bazel
+          # (output_user_root), which contains the full execroot and linked
+          # test binaries.
+          path: "~/.cache/bazel-cache"
           key: bazel-centipede-cache-${{ matrix.config }}
           restore-keys: bazel-centipede-cache-${{ matrix.config }}-
+      - name: Configure Bazel CI cache
+        run: |
+          echo "common --config=ci" >> ~/.bazelrc
       - name: Run unit tests
         if: matrix.config == 'default'
         run: |
@@ -86,10 +98,16 @@ jobs:
         run: |
           bazel test --no//fuzztest:use_riegeli --test_output=errors --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
       - name: Save new cache based on main
-        if: github.ref == 'refs/heads/main'
+        # Save a new cache on nightly scheduled runs (or manual dispatch on
+        # main), or on a push to main when no previous cache exists for this
+        # key prefix. This avoids uploading duplicate immutable cache archives
+        # on every commit pushed to main.
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name != 'push' || steps.cache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          path: "~/.cache/bazel-cache"
           key: bazel-centipede-cache-${{ matrix.config }}-${{ github.run_id }}
   run_tests_mac:
     name: Run Centipede tests (MacOS)
@@ -101,11 +119,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       - name: Restore latest cache
+        # Skip restoring on scheduled nightly runs so the cache is rebuilt from
+        # scratch and stale artifacts from older commits/dependencies are
+        # evicted.
+        if: github.event_name != 'schedule'
+        id: cache-restore
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          path: "~/.cache/bazel-cache"
           key: bazel-centipede-cache-mac
           restore-keys: bazel-centipede-cache-mac-
+      - name: Configure Bazel CI cache
+        run: |
+          echo "common --config=ci" >> ~/.bazelrc
       - name: Add LLVM symbolizer to path
         run: |
           ln -s $(brew --prefix llvm@18)/bin/llvm-symbolizer /usr/local/bin
@@ -114,25 +140,31 @@ jobs:
         run: |
           # Timed wait and rusage is inaccurate for unknown reasons in MacOS for a few testing
           # environments, thus disabling a few related non-critical tests.
-          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all \
+          bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all \
                 -centipede:periodic_action_test -centipede:rusage_profiler_test -centipede:rusage_stats_test && \
-          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test && \
-          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-RUsageMemoryTest.Accuracy' -- centipede:rusage_stats_test
+          bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test && \
+          bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-RUsageMemoryTest.Accuracy' -- centipede:rusage_stats_test
       - name: Run e2e tests without Riegeli
         if: ${{ !cancelled() }}
         run: |
-          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test centipede/testing:multi_dso_test
+          bazel test --test_output=errors --no//fuzztest:use_riegeli centipede/testing:instrumentation_test centipede/testing:runner_test centipede/testing:multi_dso_test
       - name: Run puzzles without Riegeli
         if: ${{ !cancelled() }}
         run: |
-          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --test_timeout=600 centipede/puzzles:all
+          bazel test --test_output=errors --no//fuzztest:use_riegeli --test_timeout=600 centipede/puzzles:all
       - name: Run puzzles without Riegeli with ASAN
         if: ${{ !cancelled() }}
         run: |
-          bazel --output_user_root="${HOME}/.cache/bazel" test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
+          bazel test --test_output=errors --no//fuzztest:use_riegeli --linkopt=-fsanitize=address --copt=-fsanitize=address --test_env=ASAN_OPTIONS=detect_leaks=0 --platform_suffix=asan --test_timeout=600 centipede/puzzles:all
       - name: Save new cache based on main
-        if: github.ref == 'refs/heads/main'
+        # Save a new cache on nightly scheduled runs (or manual dispatch on
+        # main), or on a push to main when no previous cache exists for this
+        # key prefix. This avoids uploading duplicate immutable cache archives
+        # on every commit pushed to main.
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name != 'push' || steps.cache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          path: "~/.cache/bazel-cache"
           key: bazel-centipede-cache-mac-${{ github.run_id }}

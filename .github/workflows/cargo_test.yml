@@ -56,11 +56,24 @@ jobs:
           toolchain: nightly
 
       - name: Restore Bazel cache
+        # Skip restoring on scheduled nightly runs so the cache is rebuilt from
+        # scratch and stale artifacts from older commits/dependencies are
+        # evicted.
+        if: github.event_name != 'schedule'
+        id: cache-restore
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          # Cache only the Bazel repository and disk caches (configured via
+          # --config=ci in .bazelrc) instead of ~/.cache/bazel
+          # (output_user_root), which contains the full execroot and linked
+          # binaries.
+          path: "~/.cache/bazel-cache"
           key: bazel-centipede-cache-cargo-test
           restore-keys: bazel-centipede-cache-cargo-test-
+
+      - name: Configure Bazel CI cache
+        run: |
+          echo "common --config=ci" >> ~/.bazelrc
 
       - name: Build Centipede static library and binary with Bazel
         run: |
@@ -74,8 +87,14 @@ jobs:
           cargo test --locked --workspace --no-fail-fast -- --test-threads=1
 
       - name: Save Bazel cache based on main
-        if: github.ref == 'refs/heads/main'
+        # Save a new cache on nightly scheduled runs (or manual dispatch on
+        # main), or on a push to main when no previous cache exists for this
+        # key prefix. This avoids uploading duplicate immutable cache archives
+        # on every commit pushed to main.
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name != 'push' || steps.cache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          path: "~/.cache/bazel-cache"
           key: bazel-centipede-cache-cargo-test-${{ github.run_id }}

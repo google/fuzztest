@@ -45,20 +45,38 @@ jobs:
           sudo apt-get update && sudo apt-get install -yq \
             clang
       - name: Restore latest cache
+        # Skip restoring on scheduled nightly runs so the cache is rebuilt from
+        # scratch and stale artifacts from older commits/dependencies are
+        # evicted.
+        if: github.event_name != 'schedule'
+        id: cache-restore
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          # Cache only the Bazel repository and disk caches (configured via
+          # --config=ci in .bazelrc) instead of ~/.cache/bazel
+          # (output_user_root), which contains the full execroot and linked
+          # test binaries.
+          path: "~/.cache/bazel-cache"
           key: bazel-cache-unit-${{ matrix.compilation_mode }}
           restore-keys: bazel-cache-unit-${{ matrix.compilation_mode }}-
+      - name: Configure Bazel CI cache
+        run: |
+          echo "common --config=ci" >> ~/.bazelrc
       - name: Run all tests with default --config
         run: |
           bazel test --build_tests_only --test_output=errors \
             -c ${{ matrix.compilation_mode }} -- //... -//e2e_tests/... -//centipede/...
       - name: Save new cache based on main
-        if: github.ref == 'refs/heads/main'
+        # Save a new cache on nightly scheduled runs (or manual dispatch on
+        # main), or on a push to main when no previous cache exists for this
+        # key prefix. This avoids uploading duplicate immutable cache archives
+        # on every commit pushed to main.
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name != 'push' || steps.cache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          path: "~/.cache/bazel-cache"
           key: bazel-cache-unit-${{ matrix.compilation_mode }}-${{ github.run_id }}
   run_e2e_tests:
     name: Run e2e tests
@@ -79,15 +97,23 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -yq \
             clang
+      - name: Restore latest cache
+        # Skip restoring on scheduled nightly runs so the cache is rebuilt from
+        # scratch and stale artifacts from older commits/dependencies are
+        # evicted.
+        if: github.event_name != 'schedule'
+        id: cache-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: "~/.cache/bazel-cache"
+          key: bazel-cache-e2e-${{ matrix.config }}
+          restore-keys: bazel-cache-e2e-${{ matrix.config }}-
+      - name: Configure Bazel CI cache
+        run: |
+          echo "common --config=ci" >> ~/.bazelrc
       - name: Setup build configs for Bazel
         run: |
           EXTRA_CONFIGS=libfuzzer bazel run //bazel:setup_configs > fuzztest.bazelrc
-      - name: Restore latest cache
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
-        with:
-          path: "~/.cache/bazel"
-          key: bazel-cache-e2e-${{ matrix.config }}
-          restore-keys: bazel-cache-e2e-${{ matrix.config }}-
       - name: Run end-to-end tests without instrumentation
         if: matrix.config == 'uninstrumented'
         # Exclude corpus_database_test because it needs instrumentation.
@@ -123,8 +149,14 @@ jobs:
             --platform_suffix=fuzztest-libfuzzer \
             //e2e_tests:compatibility_mode_test
       - name: Save new cache based on main
-        if: github.ref == 'refs/heads/main'
+        # Save a new cache on nightly scheduled runs (or manual dispatch on
+        # main), or on a push to main when no previous cache exists for this
+        # key prefix. This avoids uploading duplicate immutable cache archives
+        # on every commit pushed to main.
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name != 'push' || steps.cache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
-          path: "~/.cache/bazel"
+          path: "~/.cache/bazel-cache"
           key: bazel-cache-e2e-${{ matrix.config }}-${{ github.run_id }}

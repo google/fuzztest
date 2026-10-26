@@ -47,3 +47,21 @@ try-import %workspace%/fuzztest.bazelrc
 
 # Configure rules_rust to use the nightly channel toolchain by default.
 build --@rules_rust//rust/toolchain/channel:channel=nightly
+
+# CI cache configuration used by GitHub Actions workflows (--config=ci).
+# Store only external repository archives and compilation action outputs in
+# ~/.cache/bazel-cache rather than caching ~/.cache/bazel (Bazel's
+# output_user_root), which also contains the full execroot, bazel-out working
+# trees, .runfiles symlink forests, and test logs.
+common:ci --repository_cache=~/.cache/bazel-cache/repo
+build:ci --disk_cache=~/.cache/bazel-cache/disk
+# Exclude linked binaries (CppLink) from the disk cache: statically linked
+# debug/ASan/FuzzTest test binaries are tens to hundreds of MBs each and change
+# frequently, whereas caching compilation, archive (.o / .a), and test result
+# (TestRunner) actions keeps the cache compact while skipping unaffected tests.
+build:ci --modify_execution_info=CppLink=+no-cache
+# Automatically garbage-collect disk cache entries older than 7 days or
+# exceeding 2 GB immediately when the Bazel server becomes idle after a command.
+build:ci --experimental_disk_cache_gc_max_size=2G
+build:ci --experimental_disk_cache_gc_max_age=7d
+build:ci --experimental_disk_cache_gc_idle_delay=0

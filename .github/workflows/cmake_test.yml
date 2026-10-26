@@ -37,6 +37,9 @@ jobs:
     env:
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_DIR: ${{ github.workspace }}/.ccache
+      # Cap ccache size so cached objects across clang and gcc builds do not
+      # grow unboundedly.
+      CCACHE_MAXSIZE: 2G
     strategy:
       matrix:
         mode: ['default', 'fuzzing', 'codelab']
@@ -51,6 +54,10 @@ jobs:
           sudo apt-get update && sudo apt-get install -yq \
             ccache clang gcc g++ cmake ninja-build libprotobuf-dev protobuf-compiler
       - name: Restore latest cache
+        # Skip restoring on scheduled nightly runs so the cache is rebuilt from
+        # scratch and stale objects from older commits/dependencies are evicted.
+        if: github.event_name != 'schedule'
+        id: cache-restore
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -116,7 +123,13 @@ jobs:
           && cmake --build build -j $(nproc) \
           && ctest --test-dir build -j $(nproc) --output-on-failure -R "functional_test"
       - name: Save new cache based on main
-        if: github.ref == 'refs/heads/main'
+        # Save a new cache on nightly scheduled runs (or manual dispatch on
+        # main), or on a push to main when no previous cache exists for this
+        # key prefix. This avoids uploading duplicate immutable cache archives
+        # on every commit pushed to main.
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name != 'push' || steps.cache-restore.outputs.cache-matched-key == '')
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
         with:
           path: ${{ env.CCACHE_DIR }}
