@@ -11,7 +11,7 @@ fn another_sample_fuzztest_target(data: i32) {
     let _ = data;
 }
 
-#[fuzztest(data = Arbitrary::<i32>::default())]
+#[fuzztest(_data = Arbitrary::<i32>::default())]
 fn jobs_fuzztest_target(_data: i32) {
     println!("JOBS_TEST_PID: {}", std::process::id());
 }

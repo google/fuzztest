@@ -20,25 +20,13 @@ mod helpers;
 use proc_macro::TokenStream;
 
 use quote::quote;
-use syn::parse::{Parse, ParseStream, Parser};
+use syn::parse::Parser;
 use syn::{parse_macro_input, Item};
 
+use helpers::test_registration::FuzzTestArg;
 use helpers::test_registration::FuzzTestObjectDefinitionAndFactory;
 use helpers::test_registration::FuzzTestRegistrationCtx;
 use helpers::test_registration::GTestDefinition;
-
-#[derive(Debug)]
-struct FuzzTestArg {
-    _ident: syn::Ident,
-    _eq_token: syn::Token![=],
-    domain_ty: syn::Expr,
-}
-
-impl Parse for FuzzTestArg {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(Self { _ident: input.parse()?, _eq_token: input.parse()?, domain_ty: input.parse()? })
-    }
-}
 
 /// The `fuzztest` macro is used to generate and register a fuzz test object to be used by a fuzz
 /// testing engine.
@@ -81,10 +69,8 @@ pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
         Err(e) => return e.into_compile_error().into(),
     };
 
-    let domain_ctors = args.iter().map(|arg| &arg.domain_ty);
-
     let fuzztest_registration_context =
-        match FuzzTestRegistrationCtx::new(&test_fn.sig, domain_ctors) {
+        match FuzzTestRegistrationCtx::new(&test_fn.sig, &args) {
             Ok(fuzztest_registration_context) => fuzztest_registration_context,
             Err(e) => return e.into_compile_error().into(),
         };

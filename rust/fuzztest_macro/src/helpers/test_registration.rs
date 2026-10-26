@@ -17,6 +17,8 @@ use convert_case::Casing;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::parse::Parse;
+use syn::parse::ParseStream;
 use syn::parse_quote;
 use syn::Expr;
 use syn::Generics;
@@ -31,6 +33,19 @@ use super::import_fuzztest_crate;
 use super::TestFnArgument;
 
 const USER_VALUE_LIFETIME_GENERIC_NAME: &str = "'user";
+
+#[derive(Clone, Debug)]
+pub struct FuzzTestArg {
+    pub ident: Ident,
+    pub _eq_token: syn::Token![=],
+    pub domain_ty: Expr,
+}
+
+impl Parse for FuzzTestArg {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(Self { ident: input.parse()?, _eq_token: input.parse()?, domain_ty: input.parse()? })
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct FuzzTestObjectDefinitionAndFactory {
@@ -68,7 +83,7 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
     /// pre-computes the tokenstream for the fuzz test struct instance.
     pub fn new(
         test_fn_signature: &'a Signature,
-        domain_ctors: impl IntoIterator<Item = &'a Expr>,
+        fuzztest_args: impl IntoIterator<Item = &'a FuzzTestArg>,
     ) -> syn::Result<Self> {
         let user_value_lifetime_generic =
             Lifetime::new(USER_VALUE_LIFETIME_GENERIC_NAME, Span::call_site());
@@ -91,9 +106,33 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
             ));
         }
 
+        let fuzztest_args = fuzztest_args.into_iter().collect::<Vec<_>>();
+        if fuzztest_args.len() != test_fn_args.len() {
+            return Err(syn::Error::new_spanned(
+                test_fn_signature,
+                format!(
+                    "number of domain arguments in #[fuzztest] ({}) does not match number of property function parameters ({})",
+                    fuzztest_args.len(),
+                    test_fn_args.len()
+                ),
+            ));
+        }
+
+        for (fuzztest_arg, test_fn_arg) in fuzztest_args.iter().zip(&test_fn_args) {
+            if fuzztest_arg.ident != *test_fn_arg.name {
+                return Err(syn::Error::new_spanned(
+                    &fuzztest_arg.ident,
+                    format!(
+                        "domain argument name `{}` does not match property function parameter name `{}`",
+                        fuzztest_arg.ident, test_fn_arg.name
+                    ),
+                ));
+            }
+        }
+
         let test_fn_ident = &test_fn_signature.ident;
         let prop_fn_ident = quote::format_ident!("__property_fn__{}", test_fn_ident);
-        let domain_ctors = domain_ctors.into_iter().collect::<Vec<_>>();
+        let domain_ctors = fuzztest_args.iter().map(|arg| &arg.domain_ty).collect::<Vec<_>>();
         let fuzz_test_struct_name =
             quote::format_ident!("__FuzzTest{}", test_fn_ident.to_string().to_case(Case::Pascal));
         let crate_name = import_fuzztest_crate();
@@ -283,11 +322,11 @@ mod tests {
     #[googletest::test]
     fn test_generate_test_registration() {
         let sig: Signature = parse_quote! { fn test_fuzz(a: i32, b: std::string::String) };
-        let expr1: Expr =
-            parse_quote! { ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default() };
-        let expr2: Expr =
-            parse_quote! { ::fuzztest::domains::arbitrary::Arbitrary::<String>::default() };
-        let context = FuzzTestRegistrationCtx::new(&sig, [&expr1, &expr2]).unwrap();
+        let arg1: FuzzTestArg =
+            parse_quote! { a = ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default() };
+        let arg2: FuzzTestArg =
+            parse_quote! { b = ::fuzztest::domains::arbitrary::Arbitrary::<String>::default() };
+        let context = FuzzTestRegistrationCtx::new(&sig, [&arg1, &arg2]).unwrap();
         let FuzzTestObjectDefinitionAndFactory {
             fuzztest_object_factory_name,
             fuzztest_object_tokenstream,
@@ -360,11 +399,11 @@ mod tests {
     #[googletest::test]
     fn test_generate_gtest() {
         let sig: Signature = parse_quote! { fn test_fuzz(a: i32, b: std::string::String) };
-        let expr1: Expr =
-            parse_quote! { ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default() };
-        let expr2: Expr =
-            parse_quote! { ::fuzztest::domains::arbitrary::Arbitrary::<String>::default() };
-        let context = FuzzTestRegistrationCtx::new(&sig, [&expr1, &expr2]).unwrap();
+        let arg1: FuzzTestArg =
+            parse_quote! { a = ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default() };
+        let arg2: FuzzTestArg =
+            parse_quote! { b = ::fuzztest::domains::arbitrary::Arbitrary::<String>::default() };
+        let context = FuzzTestRegistrationCtx::new(&sig, [&arg1, &arg2]).unwrap();
         let GTestDefinition { gtest_tokens } = context.generate_gtest().unwrap();
 
         // test that the gtest was generated
@@ -389,5 +428,37 @@ mod tests {
                 .to_string()
             )
         )
+    }
+
+    #[googletest::test]
+    fn test_mismatched_argument_count_fails() {
+        let sig: Signature = parse_quote! { fn test_fuzz(a: i32, b: std::string::String) };
+        let arg1: FuzzTestArg =
+            parse_quote! { a = ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default() };
+
+        let err = FuzzTestRegistrationCtx::new(&sig, [&arg1]).err().unwrap();
+        expect_that!(
+            err.to_string(),
+            matchers::contains_substring(
+                "number of domain arguments in #[fuzztest] (1) does not match number of property function parameters (2)"
+            )
+        );
+    }
+
+    #[googletest::test]
+    fn test_mismatched_argument_name_fails() {
+        let sig: Signature = parse_quote! { fn test_fuzz(a: i32, b: std::string::String) };
+        let arg1: FuzzTestArg =
+            parse_quote! { a = ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default() };
+        let arg2: FuzzTestArg =
+            parse_quote! { wrong_name = ::fuzztest::domains::arbitrary::Arbitrary::<String>::default() };
+
+        let err = FuzzTestRegistrationCtx::new(&sig, [&arg1, &arg2]).err().unwrap();
+        expect_that!(
+            err.to_string(),
+            matchers::contains_substring(
+                "domain argument name `wrong_name` does not match property function parameter name `b`"
+            )
+        );
     }
 }

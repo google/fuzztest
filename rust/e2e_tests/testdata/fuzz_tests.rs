@@ -181,5 +181,5 @@ impl Domain for FallibleDomain {
     }
 }
 
-#[fuzztest(a = FallibleDomain::new())]
+#[fuzztest(_a = FallibleDomain::new())]
 fn fallible_fuzz_test(_a: u32) {}
