@@ -1,4 +1,5 @@
 use super::Domain;
+use super::ReversibleDomain;
 use rand::RngExt;
 use std::fmt;
 
@@ -253,13 +254,26 @@ impl<T: Domain> ContainerDomain for VecOf<T> {
     }
 }
 
+impl<D, I> ReversibleDomain<I> for VecOf<D>
+where
+    I: IntoIterator,
+    D: ReversibleDomain<I::Item>,
+{
+    fn to_unvalidated_corpus_value(&self, value: I) -> anyhow::Result<Self::CorpusValue> {
+        value.into_iter().map(|item| self.inner.to_unvalidated_corpus_value(item)).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::domains::arbitrary::Arbitrary;
+    use crate::domains::range::InRange;
+    use crate::domains::SeedableDomainExt;
     use googletest::prelude::*;
     use rand::rngs::{SmallRng, SysRng};
     use rand::SeedableRng;
+    use std::collections::HashSet;
 
     fn get_rng() -> SmallRng {
         SmallRng::try_from_rng(&mut SysRng).expect("Failed to create RNG")
@@ -454,5 +468,93 @@ mod tests {
         let corpus_val = vec![1u32, 2u32, 3u32];
         let user_val = domain.corpus_to_user_value(&corpus_val).unwrap();
         expect_that!(user_val, container_eq(vec![1u32, 2u32, 3u32]));
+    }
+
+    #[gtest]
+    fn test_vec_of_seeding_samples_seeds() {
+        let mut domain = VecOf::new(Arbitrary::<i32>::default())
+            .with_seeds([vec![10, 20], vec![30]])
+            .with_seed_provider(|| vec![vec![40, 50, 60]]);
+        let mut rng = get_rng();
+        let mut observed = HashSet::new();
+        for _ in 0..200 {
+            observed.insert(domain.init(&mut rng).unwrap());
+        }
+        expect_that!(observed, contains(eq(&vec![10, 20])));
+        expect_that!(observed, contains(eq(&vec![30])));
+        expect_that!(observed, contains(eq(&vec![40, 50, 60])));
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_vec_of_seed_shorter_than_min_len_panics() {
+        let _ = VecOf::new(Arbitrary::<i32>::default()).with_min_len(3).with_seeds([vec![1, 2]]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_vec_of_seed_longer_than_max_len_panics() {
+        let _ = VecOf::new(Arbitrary::<i32>::default()).with_max_len(2).with_seeds([vec![1, 2, 3]]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_vec_of_seed_shorter_than_min_len_with_soft_max_len_panics() {
+        let _ = VecOf::new(Arbitrary::<i32>::default())
+            .with_min_len(2)
+            .with_soft_max_len(4)
+            .with_seeds([vec![1]]);
+    }
+
+    #[gtest]
+    fn test_vec_of_seed_longer_than_soft_max_len_succeeds() {
+        let mut domain = VecOf::new(Arbitrary::<i32>::default())
+            .with_soft_max_len(2)
+            .with_seeds([vec![1, 2, 3, 4]]);
+        let mut rng = get_rng();
+        let mut observed = HashSet::new();
+        for _ in 0..100 {
+            observed.insert(domain.init(&mut rng).unwrap());
+        }
+        expect_that!(observed, contains(eq(&vec![1, 2, 3, 4])));
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to add seeds")]
+    fn test_vec_of_seed_with_invalid_inner_element_panics() {
+        let _ = VecOf::new(InRange::new(0i32, 10)).with_seeds([vec![5, 20]]);
+    }
+
+    #[gtest]
+    #[should_panic(expected = "Failed to retrieve seeds from seed provider")]
+    fn test_vec_of_seed_provider_with_invalid_inner_element_panics_on_init() {
+        let mut domain =
+            VecOf::new(InRange::new(0i32, 10)).with_seed_provider(|| vec![vec![5, 20]]);
+        let _ = domain.init(&mut get_rng());
+    }
+
+    #[gtest]
+    fn test_vec_of_nested_seeding() {
+        let mut domain = VecOf::new(VecOf::new(InRange::new(1i32, 5)).with_max_len(2))
+            .with_seeds([vec![vec![1, 5], vec![3]]]);
+        let mut rng = get_rng();
+        let mut observed = HashSet::new();
+        for _ in 0..100 {
+            observed.insert(domain.init(&mut rng).unwrap());
+        }
+        expect_that!(observed, contains(eq(&vec![vec![1, 5], vec![3]])));
+    }
+
+    #[gtest]
+    fn test_vec_of_with_seeded_inner_domain() {
+        let mut domain =
+            VecOf::new(InRange::new(1i32, 5).with_seeds([3])).with_len(1).with_seeds([vec![5]]);
+        let mut rng = get_rng();
+        let mut observed = HashSet::new();
+        for _ in 0..200 {
+            observed.insert(domain.init(&mut rng).unwrap());
+        }
+        expect_that!(observed, contains(eq(&vec![5])));
+        expect_that!(observed, contains(eq(&vec![3])));
     }
 }
