@@ -15,7 +15,9 @@
 #include "./centipede/environment.h"
 
 #include <cstddef>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/time/time.h"
@@ -193,6 +195,7 @@ TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
   config.binary_identifier = "bin";
   config.stats_root = "stats";
   config.workdir_root = "workdir";
+  config.seed_corpus_databases = {"seed_db1", "seed_db2"};
   config.only_replay = true;
   config.execution_id = "exec";
   config.replay_coverage_inputs = true;
@@ -205,6 +208,8 @@ TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
   EXPECT_EQ(env.fuzztest_binary_identifier, "bin");
   EXPECT_EQ(env.fuzztest_stats_root, "stats");
   EXPECT_EQ(env.fuzztest_workdir_root, "workdir");
+  EXPECT_EQ(env.fuzztest_seed_corpus_databases,
+            (std::vector<std::string>{"seed_db1", "seed_db2"}));
   EXPECT_TRUE(env.fuzztest_only_replay);
   EXPECT_EQ(env.fuzztest_execution_id, "exec");
   EXPECT_TRUE(env.fuzztest_replay_coverage_inputs);

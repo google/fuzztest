@@ -507,6 +507,11 @@ CENTIPEDE_FLAG(
 CENTIPEDE_FLAG(std::string, fuzztest_workdir_root, "",
                "The root directory for Centipede workdirs for working on the "
                "corpus database.")
+CENTIPEDE_FLAG(
+    std::vector<std::string>, fuzztest_seed_corpus_databases, {},
+    "A comma-separated list of read-only corpus databases. When fuzzing with "
+    "the corpus database, the coverage inputs of the test in these databases "
+    "are used as additional seeds.")
 CENTIPEDE_FLAG(bool, fuzztest_only_replay, false,
                "If set, further steps are skipped after replaying with the "
                "corpus database.")

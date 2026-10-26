@@ -405,6 +405,7 @@ internal::Configuration CreateConfigurationsFromFlags(
       corpus_database,
       /*stats_root=*/"",
       /*workdir_root=*/"",
+      /*seed_corpus_databases=*/{},
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
       /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),

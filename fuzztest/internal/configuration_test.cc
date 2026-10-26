@@ -16,6 +16,7 @@ MATCHER_P(IsOkAndEquals, config, "") {
   return other.ok() && config.corpus_database == other->corpus_database &&
          config.stats_root == other->stats_root &&
          config.workdir_root == other->workdir_root &&
+         config.seed_corpus_databases == other->seed_corpus_databases &&
          config.binary_identifier == other->binary_identifier &&
          config.fuzz_tests == other->fuzz_tests &&
          config.fuzz_tests_in_current_shard ==
@@ -50,6 +51,7 @@ TEST(ConfigurationTest,
   Configuration configuration{"corpus_database",
                               "stats_root",
                               "workdir_root",
+                              /*seed_corpus_databases=*/{},
                               "binary_identifier",
                               /*fuzz_tests=*/{},
                               /*fuzz_tests_in_current_shard=*/{},
@@ -82,6 +84,7 @@ TEST(ConfigurationTest,
   Configuration configuration{"corpus_database",
                               "stats_root",
                               "workdir_root",
+                              {"seed_db1", "seed_db2"},
                               "binary_identifier",
                               {"FuzzTest1", "FuzzTest2"},
                               {"FuzzTest1"},
