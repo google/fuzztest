@@ -21,6 +21,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/function_ref.h"
 #include "absl/strings/string_view.h"
+#include "./common/logging.h"
 #include "./fuzztest/internal/registration.h"
 #include "./fuzztest/internal/runtime.h"
 
@@ -57,8 +58,10 @@ void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func) {
   for (auto& t : Regs()) func(t);
 }
 
-void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
-  Regs().emplace_back(std::move(test_info), std::move(factory));
+FuzzTest& RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
+  FUZZTEST_CHECK(!Runtime::instance().init_fuzztest_called())
+      << "RegisterFuzzTest() must be called before InitFuzzTest().";
+  return Regs().emplace_back(std::move(test_info), std::move(factory));
 }
 
 void RegisterSetUpTearDownTestSuiteFunctions(
