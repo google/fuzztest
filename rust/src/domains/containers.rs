@@ -215,6 +215,22 @@ where
         }
         Ok(())
     }
+
+    fn print_corpus_value(
+        &self,
+        corpus_value: &Self::CorpusValue,
+        out: &mut dyn fmt::Write,
+    ) -> anyhow::Result<()> {
+        write!(out, "[")?;
+        for (i, item) in corpus_value.iter().enumerate() {
+            if i > 0 {
+                write!(out, ", ")?;
+            }
+            self.inner.print_corpus_value(item, out)?;
+        }
+        write!(out, "]")?;
+        Ok(())
+    }
 }
 
 impl<T: Domain> ContainerDomain for VecOf<T> {
@@ -454,5 +470,49 @@ mod tests {
         let corpus_val = vec![1u32, 2u32, 3u32];
         let user_val = domain.corpus_to_user_value(&corpus_val).unwrap();
         expect_that!(user_val, container_eq(vec![1u32, 2u32, 3u32]));
+    }
+
+    struct HexU8Domain;
+
+    impl Domain for HexU8Domain {
+        type UserValue<'user> = u8;
+        type CorpusValue = u8;
+
+        fn init(&mut self, _rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+            Ok(0)
+        }
+
+        fn mutate(
+            &mut self,
+            _val: &mut Self::CorpusValue,
+            _rng: &mut dyn rand::Rng,
+            _only_shrink: bool,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        fn corpus_to_user_value<'a>(
+            &self,
+            corpus_value: &'a Self::CorpusValue,
+        ) -> anyhow::Result<Self::UserValue<'a>> {
+            Ok(*corpus_value)
+        }
+
+        fn print_user_value(
+            &self,
+            user_value: &Self::UserValue<'_>,
+            out: &mut dyn fmt::Write,
+        ) -> anyhow::Result<()> {
+            write!(out, "0x{user_value:02x}")?;
+            Ok(())
+        }
+    }
+
+    #[gtest]
+    fn test_vec_of_print_corpus_value_delegates_to_inner_domain() {
+        let domain = VecOf::new(HexU8Domain);
+        let mut out = String::new();
+        domain.print_corpus_value(&vec![0u8, 10u8, 255u8], &mut out).unwrap();
+        expect_that!(out, eq("[0x00, 0x0a, 0xff]"));
     }
 }
