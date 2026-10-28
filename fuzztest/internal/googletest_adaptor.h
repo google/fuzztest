@@ -170,6 +170,23 @@ void SetFuzzTestListingModeValidatorForGoogleTest(bool listing_mode);
 // Returns the list of registered tests.
 std::vector<const testing::TestInfo*> GetRegisteredTests();
 
+// Makes FuzzTest register each fuzz test as a GoogleTest test. Installs the
+// registry's registration callback (see `SetRegistrationCallback()`), so fuzz
+// tests that are already registered are added to GoogleTest right away, and
+// fuzz tests registered later are added as they are registered. Calling it
+// more than once has no further effect.
+void RegisterGoogleTestAdaptor();
+
+// Calls `RegisterGoogleTestAdaptor()` during static initialization in any
+// binary that includes this header (directly or through `fuzztest.h`).
+// Because the variable is `inline`, it is initialized once per program, not
+// once per translation unit. The registry itself does not depend on
+// GoogleTest; the GoogleTest integration is enabled by including this header
+// or by linking `:googletest_adaptor` (which is `alwayslink` so that linking
+// it alone is enough).
+inline const bool kGoogleTestAdaptorRegistered =
+    (RegisterGoogleTestAdaptor(), true);
+
 }  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_FUZZTEST_GOOGLETEST_ADAPTOR_H_

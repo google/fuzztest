@@ -235,6 +235,21 @@ cc_library(
 )
 
 cc_library(
+    name = "fuzztest_macro_impl",
+    hdrs = ["fuzztest_macro_impl.h"],
+    deps = [
+        ":compatibility_mode",
+        ":fixture_driver",
+        ":registration",
+        ":registry",
+        ":runtime",
+    ] + select({
+        "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
     name = "googletest_adaptor",
     testonly = True,
     srcs = ["googletest_adaptor.cc"],
@@ -255,6 +270,17 @@ cc_library(
         "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
         "//conditions:default": [],
     }),
+    # `alwayslink` is necessary because linking this library must be enough to
+    # register fuzz tests with GoogleTest. `:registry` no longer depends on
+    # this library, so in a binary where no file includes
+    # `googletest_adaptor.h`, nothing refers to this library's symbols. Without
+    # `alwayslink`, the linker would drop `googletest_adaptor.o` together with
+    # its static initializer (`kGoogleTestAdaptorRegistered`). No registration
+    # callback would be installed, and the binary's `FUZZ_TEST`s would silently
+    # never be registered with GoogleTest, so none of them would run. (Before
+    # the decoupling, `:registry` called into this library, so a missing
+    # dependency was a link error rather than a silent no-op.)
+    alwayslink = True,
 )
 
 cc_library(
@@ -376,18 +402,13 @@ cc_library(
     srcs = ["registry.cc"],
     hdrs = ["registry.h"],
     deps = [
-        ":compatibility_mode",
-        ":fixture_driver",
         ":registration",
         ":runtime",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//common:logging",
-    ] + select({
-        "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(

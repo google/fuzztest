@@ -20,12 +20,14 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"
 // IWYU pragma: begin_exports
+#include "./fuzztest/internal/fixture_driver.h"
+#include "./fuzztest/internal/fuzztest_macro_impl.h"
 #include "./fuzztest/internal/registration.h"
-#include "./fuzztest/internal/registry.h"
 // IWYU pragma: end_exports
 
 namespace fuzztest {
@@ -112,6 +114,16 @@ namespace fuzztest {
 //
 #define FUZZ_TEST_F(fixture, func) \
   INTERNAL_FUZZ_TEST_F(fixture, func, fixture, func)
+
+// Registers a fuzz test defined by the registration `reg`. You can obtain a
+// fuzz test registration by calling functions `GetRegistration()` and
+// `GetRegistrationWithFixture()`.
+//
+// Make sure to only call this function before calling `InitFuzzTest()`.
+template <typename Registration>
+void RegisterFuzzTest(Registration&& reg) {
+  ::fuzztest::internal::RegistrationToken{} = std::forward<Registration>(reg);
+}
 
 // Optional runner interfaces for native FuzzTest fixtures. For more details,
 // see

@@ -162,8 +162,9 @@ fuzztest_cc_library(
     absl::strings
     absl::string_view
     fuzztest::common_logging
+    fuzztest::fixture_driver
+    fuzztest::fuzztest_macro_impl
     fuzztest::registration
-    fuzztest::registry
     fuzztest::runtime
 )
 

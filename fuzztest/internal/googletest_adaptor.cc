@@ -91,14 +91,18 @@ void RegisterRegressionTestsForTest(FuzzTest& test,
   }
 }
 
-}  // namespace
-
 void RegisterFuzzTestAsGoogleTest(FuzzTest& test) {
   if (test.uses_fixture()) {
     RegisterFuzzTestAsGTest<::fuzztest::internal::GTest_TestAdaptor>(test);
   } else {
     RegisterFuzzTestAsGTest<::testing::Test>(test);
   }
+}
+
+}  // namespace
+
+void RegisterGoogleTestAdaptor() {
+  SetRegistrationCallback(&RegisterFuzzTestAsGoogleTest);
 }
 
 void RegisterSeparateRegressionTestsForEachCrashingInput(

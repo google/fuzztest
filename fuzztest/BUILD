@@ -60,7 +60,6 @@ cc_library(
     deps = [
         ":domain",
         ":fuzztest_macros",
-        # TODO(b/570019271): Remove dependency once bug is fixed.
         "@com_google_fuzztest//fuzztest/internal:googletest_adaptor",
     ],
 )
@@ -86,8 +85,9 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//fuzztest/internal:fixture_driver",
+        "@com_google_fuzztest//fuzztest/internal:fuzztest_macro_impl",
         "@com_google_fuzztest//fuzztest/internal:registration",
-        "@com_google_fuzztest//fuzztest/internal:registry",
         "@com_google_fuzztest//fuzztest/internal:runtime",
     ],
 )

@@ -18,6 +18,21 @@
 // IWYU pragma: begin_exports
 #include "./fuzztest/domain.h"
 #include "./fuzztest/fuzztest_macros.h"
+// `fuzztest.h` is the GoogleTest-integrated entry point. (`fuzztest_macros.h`
+// and the registry do not depend on GoogleTest; use them directly to avoid
+// GoogleTest.) This include is necessary for two reasons:
+//
+// 1. It is what links the GoogleTest adaptor into the binary. The registry no
+//    longer refers to the adaptor, and CMake has no equivalent of Bazel's
+//    `alwayslink`. Without this include, the adaptor would be dropped at link
+//    time and `FUZZ_TEST`s would silently never be registered with GoogleTest,
+//    e.g., in binaries that don't call `InitFuzzTest()`, which must fail
+//    loudly instead.
+// 2. It keeps fuzz tests in source order. `kGoogleTestAdaptorRegistered` is an
+//    `inline` variable defined before any `FUZZ_TEST` in the including file,
+//    so it is initialized first, and each `FUZZ_TEST` is added to GoogleTest
+//    as soon as it is registered, interleaved with the file's `TEST`s.
+#include "./fuzztest/internal/googletest_adaptor.h"
 // IWYU pragma: end_exports
 
 #endif  // FUZZTEST_FUZZTEST_FUZZTEST_H_

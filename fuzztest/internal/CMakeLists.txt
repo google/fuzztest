@@ -196,6 +196,19 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
+    fuzztest_macro_impl
+  HDRS
+    "fuzztest_macro_impl.h"
+  DEPS
+    fuzztest::compatibility_mode
+    fuzztest::fixture_driver
+    fuzztest::registration
+    fuzztest::registry
+    fuzztest::runtime
+)
+
+fuzztest_cc_library(
+  NAME
     googletest_adaptor
   HDRS
     "googletest_adaptor.h"
@@ -353,8 +366,6 @@ fuzztest_cc_library(
     "registry.cc"
   DEPS
     fuzztest::common_logging
-    fuzztest::compatibility_mode
-    fuzztest::fixture_driver
     fuzztest::registration
     fuzztest::runtime
     absl::flat_hash_map

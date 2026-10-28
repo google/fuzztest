@@ -52,16 +52,37 @@ SetUpTearDownTestSuiteFunctionPair GetSetUpTearDownTestSuiteFunctions(
   return {nullptr, nullptr};
 }
 
+RegistrationCallback& GetRegistrationCallback() {
+  static RegistrationCallback callback = nullptr;
+  return callback;
+}
+
 }  // namespace
 
 void ForEachTest(absl::FunctionRef<void(FuzzTest&)> func) {
   for (auto& t : Regs()) func(t);
 }
 
-FuzzTest& RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
+void SetRegistrationCallback(RegistrationCallback callback) {
+  FUZZTEST_CHECK(callback != nullptr)
+      << "The registration callback must not be null.";
+  RegistrationCallback& current_callback = GetRegistrationCallback();
+  if (current_callback == callback) return;
+  FUZZTEST_CHECK(current_callback == nullptr)
+      << "A different registration callback is already set.";
+  current_callback = callback;
+  ForEachTest(current_callback);
+}
+
+void RegisterImpl(BasicTestInfo test_info, FuzzTestFuzzerFactory factory) {
   FUZZTEST_CHECK(!Runtime::instance().init_fuzztest_called())
       << "RegisterFuzzTest() must be called before InitFuzzTest().";
-  return Regs().emplace_back(std::move(test_info), std::move(factory));
+  FuzzTest& test =
+      Regs().emplace_back(std::move(test_info), std::move(factory));
+  if (RegistrationCallback callback = GetRegistrationCallback();
+      callback != nullptr) {
+    callback(test);
+  }
 }
 
 void RegisterSetUpTearDownTestSuiteFunctions(
