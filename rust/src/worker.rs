@@ -343,7 +343,7 @@ pub unsafe extern "C" fn get_test_name_callback(
 /// The caller must ensure that:
 /// * `ctx` is a valid pointer to the `RustFuzzTestAdapterManager` passed during initialization.
 /// * `diagnostic_sink` is a valid pointer to a `FuzzTestDiagnosticSink` whose lifetime extends
-///   until `FreeCtx` is called on the adapter.
+///   until the `FreeCtx` call on the adapter has returned.
 /// * `adapter_out` is a valid pointer to write the output `FuzzTestAdapter`.
 pub unsafe extern "C" fn construct_adapter_callback(
     ctx: *mut engine_ffi::FuzzTestAdapterManagerCtx,
@@ -355,7 +355,8 @@ pub unsafe extern "C" fn construct_adapter_callback(
     let manager = unsafe { &*(ctx as *const RustFuzzTestAdapterManager) };
 
     // SAFETY: The engine guarantees `diagnostic_sink` is a valid pointer to a
-    // `FuzzTestDiagnosticSink` whose lifetime extends until `FreeCtx` is called on the adapter.
+    // `FuzzTestDiagnosticSink` whose lifetime extends until the `FreeCtx` call on the adapter has
+    // returned.
     let safe_sink = unsafe { DiagnosticSink::from_raw(diagnostic_sink) };
 
     set_diagnostic_sink(safe_sink);
