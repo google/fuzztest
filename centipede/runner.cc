@@ -1070,14 +1070,22 @@ extern "C" void CentipedeSetExecutionResult(const uint8_t* data, size_t size) {
       "Failed to set execution result from CentipedeSetExecutionResult");
 }
 
-extern "C" void CentipedeSetFailureDescription(const char* description) {
+extern "C" void CentipedeSetFailure(const char* description,
+                                    size_t description_size,
+                                    const char* signature,
+                                    size_t signature_size) {
   if (description == nullptr) {
     static constexpr std::string_view kMsg =
-        "CentipedeSetFailureDescription called with null description\n";
+        "CentipedeSetFailure called with null description\n";
     write(STDERR_FILENO, kMsg.data(), kMsg.size());
     std::_Exit(EXIT_FAILURE);
   }
-  std::string_view desc_sv = description;
+  if (signature == nullptr) {
+    signature = description;
+    signature_size = description_size;
+  }
+  const std::string_view desc_sv(description, description_size);
+  const std::string_view sig_sv(signature, signature_size);
   static constexpr std::string_view kSetupFailurePrefix = "SETUP FAILURE:";
   using ::fuzztest::internal::SpinlockGuard;
   using ::fuzztest::internal::state;
@@ -1086,7 +1094,7 @@ extern "C" void CentipedeSetFailureDescription(const char* description) {
     static constexpr std::string_view kMsg =
         "Diagnostic sink is busy while setting failure:\n";
     write(STDERR_FILENO, kMsg.data(), kMsg.size());
-    write(STDERR_FILENO, description, std::strlen(description));
+    write(STDERR_FILENO, desc_sv.data(), desc_sv.size());
     std::_Exit(EXIT_FAILURE);
   }
   const auto* diagnostic_sink = state->diagnostic_sink;
@@ -1094,7 +1102,7 @@ extern "C" void CentipedeSetFailureDescription(const char* description) {
     static constexpr std::string_view kMsg =
         "Diagnostic sink is missing while setting failure:\n";
     write(STDERR_FILENO, kMsg.data(), kMsg.size());
-    write(STDERR_FILENO, description, std::strlen(description));
+    write(STDERR_FILENO, desc_sv.data(), desc_sv.size());
     std::_Exit(EXIT_FAILURE);
   }
 
@@ -1115,7 +1123,15 @@ extern "C" void CentipedeSetFailureDescription(const char* description) {
       reinterpret_cast<const uint8_t*>(desc_sv.data()),
       desc_sv.size(),
   };
+  const FuzzTestBytesView signature_view = {
+      reinterpret_cast<const uint8_t*>(sig_sv.data()),
+      sig_sv.size(),
+  };
   diagnostic_sink->EmitFinding(diagnostic_sink->ctx, &description_view,
-                               // For now, use the description as the signature.
-                               &description_view);
+                               &signature_view);
+}
+
+extern "C" void CentipedeSetFailureDescription(const char* description) {
+  const size_t size = description != nullptr ? std::strlen(description) : 0;
+  CentipedeSetFailure(description, size, description, size);
 }

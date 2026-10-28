@@ -194,7 +194,6 @@ cc_library(
     hdrs = ["domain.h"],
     deps = [
         ":domain_core",
-        "@com_google_fuzztest//fuzztest/internal/domains:domains_impl",
         "@com_google_fuzztest//fuzztest/internal/domains:in_regexp_impl",
         "@com_google_fuzztest//fuzztest/internal/domains:protobuf_domain_impl",
     ],
