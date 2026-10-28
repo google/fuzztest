@@ -58,17 +58,25 @@ void Iters10000(std::true_type) {
 FUZZ_TEST(Control, Iters10000);
 
 // We use this test to make sure we catch buffer overflows.
-void BufferOverread(std::string_view s) {
+__attribute__((noinline)) void BufferOverreadImpl(std::string_view s) {
   if (s.empty()) return;
   size_t out_of_bounds_index = s.size();
   googlefuzz_force_write = s.data()[out_of_bounds_index];
+}
+
+__attribute__((noinline)) void BufferOverread(std::string_view s) {
+  BufferOverreadImpl(s);
+  asm volatile("" ::: "memory");
 }
 
 void BufferOverreadWithStringView(std::string_view s) { BufferOverread(s); }
 FUZZ_TEST(MySuite, BufferOverreadWithStringView)
     .WithDomains(fuzztest::Arbitrary<std::string_view>());
 
-void BufferOverreadWithString(std::string_view s) { BufferOverread(s); }
+__attribute__((noinline)) void BufferOverreadWithString(std::string_view s) {
+  BufferOverread(s);
+  asm volatile("" ::: "memory");
+}
 FUZZ_TEST(MySuite, BufferOverreadWithString)
     .WithDomains(fuzztest::Arbitrary<std::string>());
 

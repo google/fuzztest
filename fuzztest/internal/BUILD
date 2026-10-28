@@ -435,6 +435,7 @@ cc_test(
         ":configuration",
         ":runtime",
         ":test_protobuf_cc_proto",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
@@ -453,10 +454,14 @@ cc_library(
     # executable).
     linkstatic = True,
     deps = [
+        ":type_support",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/debugging:stacktrace",
+        "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:logging",
     ] + select({
         "//conditions:default": [],
@@ -469,9 +474,11 @@ cc_test(
     srcs = ["sanitizer_interface_test.cc"],
     deps = [
         ":sanitizer_interface",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
