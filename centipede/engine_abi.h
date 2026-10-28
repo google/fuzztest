@@ -205,9 +205,16 @@ typedef struct FuzzTestAdapter {
                               FuzzTestInputHandle input);
 
   // Callback to run when the engine is done with `input`.
+  //
+  // The engine calls this at most once on each input emitted to the engine,
+  // even if any error has been emitted.
   void (*FreeInput)(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle input);
 
   // Callback to run when the engine is done with `ctx` (and the adapter).
+  //
+  // The engine calls this at most once on each adapter after
+  // `ConstructAdapter`, even if any error has been emitted (including during
+  // `ConstructAdapter`).
   void (*FreeCtx)(FuzzTestAdapterCtx* ctx);
 } FuzzTestAdapter;
 
@@ -225,8 +232,11 @@ typedef struct {
 
   // Constructs an adapter of the test into `adapter_out`. Any diagnostics
   // happening during the construction or running the adapter should be emitted
-  // to `diagnostic_sink`. `diagnostic_sink` is guaranteed to live until
-  // `FreeCtx` is called on the adapter.
+  // to `diagnostic_sink`.
+  //
+  // When this returns, `adapter_out->FreeCtx` must be set, even if any error
+  // has been emitted to `diagnostic_sink`. `diagnostic_sink` is guaranteed to
+  // stay alive until the `FreeCtx` call on the adapter has returned.
   void (*ConstructAdapter)(FuzzTestAdapterManagerCtx* ctx,
                            const FuzzTestDiagnosticSink* diagnostic_sink,
                            FuzzTestAdapter* adapter_out);

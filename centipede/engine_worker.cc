@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <fcntl.h>
+#include <sched.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -91,7 +92,7 @@ void WorkerLog(const T& first, const Rest&... rest) {
   WorkerLog(rest...);
 }
 
-void WorkerEmitError(std::string_view message);
+void WorkerEmitError(std::string_view message, bool force = false);
 
 inline void WorkerCheck(bool condition, std::string_view error) {
   if (!condition) {
@@ -201,17 +202,23 @@ constexpr std::string_view kWorkerCrossOverLevel = "crossover_level=";
 constexpr std::string_view kWorkerMinSeeds = "min_seeds=";
 constexpr std::string_view kWorkerShmemSizeMbFlagHeader = "shmem_size_mb=";
 
+enum class FailureType {
+  kError,
+  kFinding,
+};
+
 struct WorkerState {
-  std::atomic<bool> has_failure_output = false;
-  std::atomic<bool> has_error = false;
   std::atomic<bool> in_adapter_execute = false;
-  std::atomic<bool> has_finding = false;
+  std::atomic<bool> has_failure = false;
+  // Written only by the emitter that sets `has_failure`.
+  FailureType failure_type = FailureType::kError;
+  // Set to true when `failure_type` and the failure output files are fully
+  // written.
+  std::atomic<bool> failure_data_ready = false;
   std::atomic<bool> saved_binary_id = false;
 
-  void ResetForPersistentMode() {
-    has_failure_output.store(false, std::memory_order_relaxed);
-    has_finding.store(false, std::memory_order_relaxed);
-  }
+  // Needs lock-freedom to guarantee the signal-safety.
+  static_assert(std::atomic<bool>::is_always_lock_free);
 };
 
 WorkerState& GetWorkerState() {
@@ -223,39 +230,93 @@ WorkerState& GetWorkerState() {
   return *worker_state;
 }
 
-#define WORKER_STRINGIFY_EXPANDED(o) #o
-#define WORKER_STRINGIFY(o) WORKER_STRINGIFY_EXPANDED(o)
-#define WORKER_CHECK_FOR_ERROR()                                             \
-  do {                                                                       \
-    WorkerCheck(!GetWorkerState().has_error.load(std::memory_order_relaxed), \
-                "Worker must not have error on " __FILE__                    \
-                ":" WORKER_STRINGIFY(__LINE__));                             \
-  } while (0)
-
-bool WorkerEmitFailureOutput(std::string_view prefix,
-                             std::string_view message) {
-  bool ignored = GetWorkerState().has_failure_output.exchange(true);
-  if (!ignored) {
-    if (const char* failure_description_path = GetWorkerFlags().GetStringFlag(
-            kWorkerFailureDescriptionPathFlagHeader);
-        failure_description_path != nullptr) {
-      TrySetFileContents(failure_description_path,
-                         /*append=*/false, prefix, message);
-    } else {
-      ignored = true;
-    }
+// Returns the type of the recorded failure, or std::nullopt if there is none.
+// Waits for the failure data to be fully written if a failure is being
+// recorded. Must not be called in failure emitters (including signal handlers).
+std::optional<FailureType> WorkerGetFailure() {
+  WorkerState& state = GetWorkerState();
+  if (!state.has_failure.load(std::memory_order_acquire)) return std::nullopt;
+  while (!state.failure_data_ready.load(std::memory_order_acquire)) {
+    sched_yield();
   }
-  if (ignored) {
-    WorkerLog("Ignored emitting failure output: ", message, LogLnSync{});
-  } else {
-    WorkerLog("Emitted failure output: ", message, LogLnSync{});
-  }
-  return !ignored;
+  return state.failure_type;
 }
 
-void WorkerEmitError(std::string_view message) {
-  GetWorkerState().has_error = true;
-  WorkerEmitFailureOutput("SETUP FAILURE: ", message);
+bool WorkerHasFinding() { return WorkerGetFailure() == FailureType::kFinding; }
+
+// Makes local writes before this call visible to failure emitters that
+// record a failure after this call.
+void WorkerSyncWithLaterFailureEmitters() {
+  // Use an RMW (instead of a plain load) so that it is in the modification
+  // order of `has_failure`. If it observes no failure, a later
+  // `has_failure.exchange()` in a failure emitter reads from it (or a later
+  // RMW in its release sequence) and synchronizes with it.
+  bool expected_no_failure = false;
+  GetWorkerState().has_failure.compare_exchange_strong(
+      expected_no_failure, false, std::memory_order_acq_rel,
+      std::memory_order_acquire);
+}
+
+#define WORKER_STRINGIFY_EXPANDED(o) #o
+#define WORKER_STRINGIFY(o) WORKER_STRINGIFY_EXPANDED(o)
+#define WORKER_CHECK_FOR_ERROR()                           \
+  do {                                                     \
+    WorkerCheck(WorkerGetFailure() != FailureType::kError, \
+                "Worker must not have error on " __FILE__  \
+                ":" WORKER_STRINGIFY(__LINE__));           \
+  } while (0)
+
+// Clears the recorded finding (if any) for the next persistent mode batch.
+// Errors are fatal and must not be cleared.
+void WorkerClearFindingForPersistentMode() {
+  WORKER_CHECK_FOR_ERROR();
+  if (!WorkerGetFailure().has_value()) return;
+  // No emitter can record a failure until `has_failure` is cleared below, so
+  // it is safe to reset `failure_data_ready` first.
+  WorkerState& state = GetWorkerState();
+  state.failure_data_ready.store(false, std::memory_order_relaxed);
+  state.has_failure.store(false, std::memory_order_release);
+}
+
+// Records the failure if no failure has been recorded yet, or if `force` is
+// true (only when the caller has already set `has_failure`). Returns true iff
+// the failure is recorded.
+bool WorkerEmitFailure(FailureType type, std::string_view prefix,
+                       std::string_view message, std::string_view signature,
+                       bool force = false) {
+  WorkerState& state = GetWorkerState();
+  const bool ignored =
+      !force && state.has_failure.exchange(true, std::memory_order_acq_rel);
+  if (ignored) {
+    WorkerLog("Ignored emitting failure output: ", message, LogLnSync{});
+    return false;
+  }
+  state.failure_type = type;
+  if (const char* failure_description_path = GetWorkerFlags().GetStringFlag(
+          kWorkerFailureDescriptionPathFlagHeader);
+      failure_description_path != nullptr) {
+    TrySetFileContents(failure_description_path,
+                       /*append=*/false, prefix, message);
+  } else {
+    WorkerLog("Failure description path is not set; not writing: ", prefix,
+              message, LogLnSync{});
+  }
+  if (type == FailureType::kFinding) {
+    if (const char* failure_signature_path = GetWorkerFlags().GetStringFlag(
+            kWorkerFailureSignaturePathFlagHeader);
+        failure_signature_path != nullptr) {
+      TrySetFileContents(failure_signature_path,
+                         /*append=*/false, signature);
+    }
+  }
+  state.failure_data_ready.store(true, std::memory_order_release);
+  WorkerLog("Emitted failure output: ", message, LogLnSync{});
+  return true;
+}
+
+void WorkerEmitError(std::string_view message, bool force) {
+  WorkerEmitFailure(FailureType::kError, "SETUP FAILURE: ", message,
+                    /*signature=*/"", force);
 }
 
 // TODO(xinhaoyuan): Some of them are planned to be removed.
@@ -267,9 +328,6 @@ static constexpr std::array<std::string_view, 3> kNonFindingPrefixes = {
 
 void WorkerEmitFinding(std::string_view description,
                        std::string_view signature) {
-  WorkerCheck(
-      GetWorkerState().in_adapter_execute.load(std::memory_order_relaxed),
-      "Must emit finding in adapter execute");
   for (auto bad_prefix : kNonFindingPrefixes) {
     if (description.substr(0, bad_prefix.size()) == bad_prefix) {
       WorkerLog("Got bad prefix in the finding description: ", description);
@@ -277,22 +335,24 @@ void WorkerEmitFinding(std::string_view description,
       return;
     }
   }
-  const bool ignored = GetWorkerState().has_finding.exchange(true);
-  if (!ignored) {
-    WorkerCheck(WorkerEmitFailureOutput(/*prefix=*/"", description),
-                "Failed to emit failure output for the finding");
-    if (const char* finding_signature_path = GetWorkerFlags().GetStringFlag(
-            kWorkerFailureSignaturePathFlagHeader);
-        finding_signature_path != nullptr) {
-      TrySetFileContents(finding_signature_path,
-                         /*append=*/false, signature);
-    }
-  }
-
-  if (ignored) {
+  WorkerState& state = GetWorkerState();
+  if (state.has_failure.exchange(true, std::memory_order_acq_rel)) {
     WorkerLog("Ignored emitting finding ", description, LogLnSync{});
-  } else {
+    return;
+  }
+  // Relaxed is sufficient: the acq_rel exchange above synchronizes with
+  // WorkerSyncWithLaterFailureEmitters() in WorkerDoExecute() after clearing
+  // `in_adapter_execute`.
+  if (!state.in_adapter_execute.load(std::memory_order_relaxed)) {
+    WorkerEmitError("Must emit finding in adapter execute", /*force=*/true);
+    std::_Exit(1);
+  }
+  if (WorkerEmitFailure(FailureType::kFinding, /*prefix=*/"", description,
+                        signature, /*force=*/true)) {
     WorkerLog("Emitted finding ", description, LogLnSync{});
+  } else {
+    WorkerLog("Ignored emitted finding UNEXPECTEDLY (FuzzTest bug!): ",
+              description, LogLnSync{});
   }
 }
 
@@ -686,11 +746,14 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
                          features->data + features->size);
         }};
 
-    GetWorkerState().in_adapter_execute = true;
+    GetWorkerState().in_adapter_execute.store(true, std::memory_order_relaxed);
     stats.prep_time_usec = timer.UsecSinceLast();
     adapter.Execute(adapter.ctx, input, &feedback_sink);
     stats.exec_time_usec = timer.UsecSinceLast();
-    GetWorkerState().in_adapter_execute = false;
+    GetWorkerState().in_adapter_execute.store(false, std::memory_order_relaxed);
+    // Ensures that WorkerEmitFinding() observes `in_adapter_execute == false`
+    // if it races with the failure checks below and loses.
+    WorkerSyncWithLaterFailureEmitters();
     WORKER_CHECK_FOR_ERROR();
 
     serialized_metadata.clear();
@@ -701,7 +764,7 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
     adapter.FreeInput(adapter.ctx, input);
     WORKER_CHECK_FOR_ERROR();
 
-    if (GetWorkerState().has_finding.load(std::memory_order_relaxed)) return;
+    if (WorkerHasFinding()) return;
 
     // Convert to the Centipede feature layout with possible loss.
     for (auto& feature : features) {
@@ -795,7 +858,7 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
     inputs_blobseq->Reset();
     outputs_blobseq->Reset();
 
-    GetWorkerState().ResetForPersistentMode();
+    WorkerClearFindingForPersistentMode();
 
     // Read the first blob. It indicates what further actions to take.
     auto request_type_blob = inputs_blobseq->Read();
@@ -809,10 +872,7 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
       WorkerCheck(false, "Unknown shmem request");
     }
 
-    const int result =
-        GetWorkerState().has_finding.load(std::memory_order_relaxed)
-            ? EXIT_FAILURE
-            : EXIT_SUCCESS;
+    const int result = WorkerHasFinding() ? EXIT_FAILURE : EXIT_SUCCESS;
     if (!WriteAll(persistent_mode_socket,
                   reinterpret_cast<const char*>(&result), sizeof(result))) {
       WorkerLog("Failed to write response to the persistent mode socket: ",
@@ -911,9 +971,7 @@ FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
   adapter.FreeCtx(adapter.ctx);  // NOLINT
   WORKER_CHECK_FOR_ERROR();
 
-  return GetWorkerState().has_finding.load(std::memory_order_relaxed)
-             ? kFuzzTestWorkerFailure
-             : kFuzzTestWorkerSuccess;
+  return WorkerHasFinding() ? kFuzzTestWorkerFailure : kFuzzTestWorkerSuccess;
 }
 
 }  // namespace
@@ -927,6 +985,7 @@ __attribute__((constructor(200))) void WorkerInitEarly() {
   inited = true;
 
   ForkServerCallMeVeryEarly();
+  (void)GetWorkerState();
 
   const char* persistent_mode_socket_path =
       GetWorkerFlags().GetStringFlag(kWorkerPersistentModeSocketPathFlagHeader);
