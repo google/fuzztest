@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <fcntl.h>
+#include <sched.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -92,13 +93,12 @@ void WorkerLog(const T& first, const Rest&... rest) {
   WorkerLog(rest...);
 }
 
-void WorkerEmitError(std::string_view message);
+[[noreturn]] void WorkerFail(std::string_view error);
 
+// Must not be called in failure emitters (including signal handlers), since
+// it may wait for them on failure.
 inline void WorkerCheck(bool condition, std::string_view error) {
-  if (!condition) {
-    WorkerEmitError(error);
-    std::_Exit(1);
-  }
+  if (!condition) WorkerFail(error);
 }
 const char* absl_nullable GetWorkerFlagsEnv() {
   static const char* flags = []() -> const char* {
@@ -203,16 +203,32 @@ constexpr std::string_view kWorkerMinSeeds = "min_seeds=";
 constexpr std::string_view kWorkerShmemSizeMbFlagHeader = "shmem_size_mb=";
 
 struct WorkerState {
-  std::atomic<bool> has_failure_output = false;
-  std::atomic<bool> has_error = false;
   std::atomic<bool> in_adapter_execute = false;
+
+  // Error state. Once recorded, an error is never cleared.
+  std::atomic<bool> has_error = false;
+  // Set to true when the emitter that sets `has_error` is done.
+  std::atomic<bool> error_data_ready = false;
+
+  // Finding state. Cleared only by the thread running the worker, in
+  // `WorkerClearFindingForPersistentMode()`. The emitter that sets
+  // `has_finding` owns the failure output; no other emitter writes it.
   std::atomic<bool> has_finding = false;
+  // Whether the finding is cancelled, either for being emitted outside of
+  // adapter execute or for being blocked by an error emitter. In both cases an
+  // error is recorded and no finding is written to the failure output. A
+  // cancelled finding is never cleared, so all later findings are ignored,
+  // until the next batch if there is no errors. Written only by the emitter
+  // that sets `has_finding`.
+  bool finding_cancelled = false;
+  // Set to true when the emitter that sets `has_finding` is done with the
+  // failure output, or the finding is cancelled.
+  std::atomic<bool> finding_data_ready = false;
+
   std::atomic<bool> saved_binary_id = false;
 
-  void ResetForPersistentMode() {
-    has_failure_output.store(false, std::memory_order_relaxed);
-    has_finding.store(false, std::memory_order_relaxed);
-  }
+  // Needs lock-freedom to guarantee the signal-safety.
+  static_assert(std::atomic<bool>::is_always_lock_free);
 };
 
 WorkerState& GetWorkerState() {
@@ -224,39 +240,144 @@ WorkerState& GetWorkerState() {
   return *worker_state;
 }
 
+// If there is a recorded finding, waits until its emitter is done with the
+// failure output. Returns true iff there is a recorded finding that is not
+// cancelled. A cancelled finding always comes with a recorded error, so call
+// this before checking the error to observe that error. Must not be called in
+// failure emitters (including signal handlers).
+bool WorkerWaitForFinding() {
+  WorkerState& state = GetWorkerState();
+  // `has_finding` is cleared only by the calling thread, so there is no need
+  // to re-check it while waiting.
+  if (!state.has_finding.load(std::memory_order_acquire)) return false;
+  while (!state.finding_data_ready.load(std::memory_order_acquire)) {
+    sched_yield();
+  }
+  return !state.finding_cancelled;
+}
+
+// Tries to block findings by recording a cancelled one. Returns true iff
+// succeeded, in which case no finding emitter has written or will write the
+// failure output. Returns false if there is a recorded finding already. Must
+// be called only after recording an error, so that anyone observing the
+// cancellation also observes the error. Needs to be signal-safe.
+bool WorkerTryBlockFinding() {
+  WorkerState& state = GetWorkerState();
+  if (state.has_finding.exchange(true, std::memory_order_acq_rel)) return false;
+  state.finding_cancelled = true;
+  state.finding_data_ready.store(true, std::memory_order_release);
+  return true;
+}
+
+// Makes local writes (and writes observed locally) before this call visible to
+// finding emitters that record a finding after this call.
+void WorkerSyncWithLaterFindingEmitters() {
+  // Use an RMW (instead of a plain load) so that it is in the modification
+  // order of `has_finding`. If it observes no finding, a later
+  // `has_finding.exchange()` in a finding emitter reads from it (or a later
+  // RMW in its release sequence) and synchronizes with it.
+  bool expected_no_finding = false;
+  GetWorkerState().has_finding.compare_exchange_strong(
+      expected_no_finding, false, std::memory_order_acq_rel,
+      std::memory_order_acquire);
+}
+
 #define WORKER_STRINGIFY_EXPANDED(o) #o
 #define WORKER_STRINGIFY(o) WORKER_STRINGIFY_EXPANDED(o)
 #define WORKER_CHECK_FOR_ERROR()                                             \
   do {                                                                       \
-    WorkerCheck(!GetWorkerState().has_error.load(std::memory_order_relaxed), \
+    WorkerCheck(!GetWorkerState().has_error.load(std::memory_order_acquire), \
                 "Worker must not have error on " __FILE__                    \
                 ":" WORKER_STRINGIFY(__LINE__));                             \
   } while (0)
 
-bool WorkerEmitFailureOutput(std::string_view prefix,
-                             std::string_view message) {
-  bool ignored = GetWorkerState().has_failure_output.exchange(true);
-  if (!ignored) {
-    if (const char* failure_description_path = GetWorkerFlags().GetStringFlag(
-            kWorkerFailureDescriptionPathFlagHeader);
-        failure_description_path != nullptr) {
-      TrySetFileContents(failure_description_path,
-                         /*append=*/false, prefix, message);
-    } else {
-      ignored = true;
-    }
-  }
-  if (ignored) {
-    WorkerLog("Ignored emitting failure output: ", message, LogLnSync{});
-  } else {
-    WorkerLog("Emitted failure output: ", message, LogLnSync{});
-  }
-  return !ignored;
+// Clears the recorded finding (if any) for the next persistent mode batch.
+// Errors are fatal and are never cleared.
+void WorkerClearFindingForPersistentMode() {
+  const bool has_finding = WorkerWaitForFinding();
+  WORKER_CHECK_FOR_ERROR();
+  if (!has_finding) return;
+  // No emitter can record a finding until `has_finding` is cleared below, so
+  // it is safe to reset `finding_data_ready` first.
+  WorkerState& state = GetWorkerState();
+  state.finding_data_ready.store(false, std::memory_order_relaxed);
+  state.has_finding.store(false, std::memory_order_release);
 }
 
-void WorkerEmitError(std::string_view message) {
-  GetWorkerState().has_error = true;
-  WorkerEmitFailureOutput("SETUP FAILURE: ", message);
+// Writes the failure description, and writes the failure signature if it is
+// not std::nullopt, or removes it otherwise so that a stale signature is not
+// used with the description. Needs to be signal-safe.
+void WorkerWriteFailureOutput(std::string_view prefix, std::string_view message,
+                              std::optional<std::string_view> signature) {
+  if (const char* failure_description_path = GetWorkerFlags().GetStringFlag(
+          kWorkerFailureDescriptionPathFlagHeader);
+      failure_description_path != nullptr) {
+    TrySetFileContents(failure_description_path,
+                       /*append=*/false, prefix, message);
+  } else {
+    WorkerLog("Failure description path is not set; not writing: ", prefix,
+              message, LogLnSync{});
+  }
+  if (const char* failure_signature_path =
+          GetWorkerFlags().GetStringFlag(kWorkerFailureSignaturePathFlagHeader);
+      failure_signature_path != nullptr) {
+    if (signature.has_value()) {
+      TrySetFileContents(failure_signature_path,
+                         /*append=*/false, *signature);
+    } else if (unlink(failure_signature_path) != 0 && errno != ENOENT) {
+      WorkerLog("unlink() failed on ", failure_signature_path, ": ", LogErrNo{},
+                LogLnSync{});
+    }
+  }
+}
+
+// Records the error if there is none yet, and writes it to the failure output
+// unless a finding is recorded already, in which case the failure output is
+// left to the finding. `inside_finding` must be true iff the caller has set
+// `has_finding` without setting `finding_data_ready` yet, in which case it
+// owns the failure output and writes the error even if there is a recorded
+// error, since the emitter of that error has left the failure output to it.
+// Needs to be signal-safe.
+void WorkerEmitError(std::string_view message, bool inside_finding = false) {
+  WorkerState& state = GetWorkerState();
+  const bool has_previous_error =
+      state.has_error.exchange(true, std::memory_order_acq_rel);
+  if (has_previous_error && !inside_finding) {
+    WorkerLog("Ignored emitting error (due to previous error): ", message,
+              LogLnSync{});
+    return;
+  }
+  // The failure output is written only by the owner of `has_finding`: the
+  // caller if `inside_finding` is set, or this emitter if
+  // WorkerTryBlockFinding() succeeds. Findings are blocked only after
+  // `has_error` is owned, so that anyone observing the cancelled finding also
+  // observes the error.
+  if (inside_finding || WorkerTryBlockFinding()) {
+    constexpr std::string_view kPrefix = "SETUP FAILURE: ";
+    WorkerWriteFailureOutput(kPrefix, message, /*signature=*/std::nullopt);
+    WorkerLog("Emitted failure output: ", message, LogLnSync{});
+  } else {
+    WorkerLog(
+        "Recorded error without failure output (due to previous finding): ",
+        message, LogLnSync{});
+  }
+  if (!has_previous_error) {
+    state.error_data_ready.store(true, std::memory_order_release);
+  }
+}
+
+// Emits `error` (ignored if there is a recorded error already), waits for the
+// failure emitters to be done with the failure output, and exits. Must not be
+// called in failure emitters (including signal handlers).
+void WorkerFail(std::string_view error) {
+  WorkerEmitError(error);
+  while (!GetWorkerState().error_data_ready.load(std::memory_order_acquire)) {
+    sched_yield();
+  }
+  // `has_finding` is set at this point, so this waits for the owner of the
+  // failure output to be done with it (although maybe not for `error`).
+  (void)WorkerWaitForFinding();
+  std::_Exit(1);
 }
 
 // TODO(xinhaoyuan): Some of them are planned to be removed.
@@ -268,9 +389,6 @@ static constexpr std::array<std::string_view, 3> kNonFindingPrefixes = {
 
 void WorkerEmitFinding(std::string_view description,
                        std::string_view signature) {
-  WorkerCheck(
-      GetWorkerState().in_adapter_execute.load(std::memory_order_relaxed),
-      "Must emit finding in adapter execute");
   for (auto bad_prefix : kNonFindingPrefixes) {
     if (description.substr(0, bad_prefix.size()) == bad_prefix) {
       WorkerLog("Got bad prefix in the finding description: ", description);
@@ -278,23 +396,30 @@ void WorkerEmitFinding(std::string_view description,
       return;
     }
   }
-  const bool ignored = GetWorkerState().has_finding.exchange(true);
-  if (!ignored) {
-    WorkerCheck(WorkerEmitFailureOutput(/*prefix=*/"", description),
-                "Failed to emit failure output for the finding");
-    if (const char* finding_signature_path = GetWorkerFlags().GetStringFlag(
-            kWorkerFailureSignaturePathFlagHeader);
-        finding_signature_path != nullptr) {
-      TrySetFileContents(finding_signature_path,
-                         /*append=*/false, signature);
-    }
-  }
-
-  if (ignored) {
+  WorkerState& state = GetWorkerState();
+  if (state.has_finding.exchange(true, std::memory_order_acq_rel)) {
     WorkerLog("Ignored emitting finding ", description, LogLnSync{});
-  } else {
-    WorkerLog("Emitted finding ", description, LogLnSync{});
+    return;
   }
+  // Relaxed is sufficient: the acq_rel exchange above synchronizes with the
+  // thread running the worker, either in WorkerSyncWithLaterFindingEmitters()
+  // or when clearing `has_finding`, both after clearing `in_adapter_execute`.
+  if (!state.in_adapter_execute.load(std::memory_order_relaxed)) {
+    WorkerEmitError("Must emit finding in adapter execute",
+                    /*inside_finding=*/true);
+    // Cancel the finding instead of clearing `has_finding`, so that later
+    // finding emitters cannot synchronize with this thread instead of the one
+    // running the worker. Publish the cancellation only after the error is
+    // recorded, so that anyone observing the cancellation also observes the
+    // error. The thread running the worker exits on its next error check.
+    state.finding_cancelled = true;
+    state.finding_data_ready.store(true, std::memory_order_release);
+    return;
+  }
+  // No other emitter writes the failure output.
+  WorkerWriteFailureOutput(/*prefix=*/"", description, signature);
+  WorkerLog("Emitted finding ", description, LogLnSync{});
+  state.finding_data_ready.store(true, std::memory_order_release);
 }
 
 inline std::string_view ToStringView(
@@ -425,7 +550,7 @@ void WorkerDoListCurrentTest(std::string_view test_name) {
   const char* test_listing_output_path =
       GetWorkerFlags().GetStringFlag(kWorkerTestListingOutputFlagHeader);
   WorkerCheck(test_listing_output_path != nullptr,
-              "binary ID output path is not set");
+              "test listing output path is not set");
   TrySetFileContents(test_listing_output_path,
                      /*append=*/true, test_name, "\n");
 }
@@ -602,9 +727,13 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
         /*ctx=*/nullptr,
         /*Register=*/[](FuzzTestCoverageDomainRegistryCtx* ctx,
                         const FuzzTestCoverageDomain* domain) {
-          WorkerCheck(
-              domain->domain_id < (1 << kFuzzTestCoverageDomainIdBitSize),
-              "domain ID is too large");
+          // Checking against `kNumDomains` is sufficient for the ABI domain ID
+          // range and indexing `coverage_domains`.
+          static_assert(feature_domains::kNumDomains <=
+                        (1 << kFuzzTestCoverageDomainIdBitSize));
+          WorkerCheck(domain->domain_id < feature_domains::kNumDomains,
+                      "domain ID exceeds the number of Centipede feature "
+                      "domains");
           WorkerCheck(
               domain->feature_id_bit_size <= kFuzzTestCoverageFeatureIdBitSize,
               "domain feature id bit size is too large");
@@ -697,12 +826,20 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
                          features->data + features->size);
         }};
 
-    GetWorkerState().in_adapter_execute = true;
+    GetWorkerState().in_adapter_execute.store(true, std::memory_order_relaxed);
     stats.prep_time_usec = timer.UsecSinceLast();
     adapter.Execute(adapter.ctx, input, &feedback_sink);
     stats.exec_time_usec = timer.UsecSinceLast();
-    GetWorkerState().in_adapter_execute = false;
+    GetWorkerState().in_adapter_execute.store(false, std::memory_order_relaxed);
+    // Ensures that WorkerEmitFinding() observes `in_adapter_execute == false`
+    // if it races with the finding check below and loses.
+    WorkerSyncWithLaterFindingEmitters();
+    // Wait for the finding before checking the error, so that the error
+    // recorded by a cancelled finding is observed.
+    const bool has_finding = WorkerWaitForFinding();
     WORKER_CHECK_FOR_ERROR();
+    // From here until the next Execute(), any newly emitted finding is either
+    // ignored (if one is recorded already) or cancelled into an error.
 
     serialized_metadata.clear();
     if (adapter.SerializeInputMetadata != nullptr) {
@@ -712,7 +849,7 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
     adapter.FreeInput(adapter.ctx, input);
     WORKER_CHECK_FOR_ERROR();
 
-    if (GetWorkerState().has_finding.load(std::memory_order_relaxed)) return;
+    if (has_finding) return;
 
     // Convert to the Centipede feature layout with possible loss.
     for (auto& feature : features) {
@@ -806,7 +943,7 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
     inputs_blobseq->Reset();
     outputs_blobseq->Reset();
 
-    GetWorkerState().ResetForPersistentMode();
+    WorkerClearFindingForPersistentMode();
 
     // Read the first blob. It indicates what further actions to take.
     auto request_type_blob = inputs_blobseq->Read();
@@ -820,10 +957,11 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
       WorkerCheck(false, "Unknown shmem request");
     }
 
-    const int result =
-        GetWorkerState().has_finding.load(std::memory_order_relaxed)
-            ? EXIT_FAILURE
-            : EXIT_SUCCESS;
+    // The error (including the one from a cancelled finding) takes precedence
+    // over the finding.
+    const bool has_finding = WorkerWaitForFinding();
+    WORKER_CHECK_FOR_ERROR();
+    const int result = has_finding ? EXIT_FAILURE : EXIT_SUCCESS;
     if (!WriteAll(persistent_mode_socket,
                   reinterpret_cast<const char*>(&result), sizeof(result))) {
       WorkerLog("Failed to write response to the persistent mode socket: ",
@@ -921,11 +1059,10 @@ WorkerRun(const FuzzTestAdapterManager& manager) {
   }
 
   adapter.FreeCtx(adapter.ctx);  // NOLINT
+  const bool has_finding = WorkerWaitForFinding();
   WORKER_CHECK_FOR_ERROR();
 
-  return GetWorkerState().has_finding.load(std::memory_order_relaxed)
-             ? kFuzzTestWorkerFailure
-             : kFuzzTestWorkerSuccess;
+  return has_finding ? kFuzzTestWorkerFailure : kFuzzTestWorkerSuccess;
 }
 
 }  // namespace
@@ -939,6 +1076,7 @@ __attribute__((constructor(200))) void WorkerInitEarly() {
   inited = true;
 
   ForkServerCallMeVeryEarly();
+  (void)GetWorkerState();
 
   const char* persistent_mode_socket_path =
       GetWorkerFlags().GetStringFlag(kWorkerPersistentModeSocketPathFlagHeader);
