@@ -18,6 +18,10 @@ common --enable_platform_specific_config
 build --action_env=CC=clang
 build --action_env=CXX=clang++
 
+# Preserve frame pointers so `absl::GetStackTrace` can unwind call stacks in
+# optimized (`-c opt`) builds.
+build --copt=-fno-omit-frame-pointer
+
 # Use the C++17 standard.
 build --cxxopt=-std=c++17
 # Warn about the extensions that are not supported in C++17.

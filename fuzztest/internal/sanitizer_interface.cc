@@ -14,24 +14,103 @@
 
 #include "./fuzztest/internal/sanitizer_interface.h"
 
+#if (defined(__linux__) || defined(__APPLE__)) && defined(__has_include)
+#if __has_include(<unwind.h>)
+#include <unwind.h>
+#define FUZZTEST_HAS_UNWIND_H 1
+#endif
+#endif
+
+#if defined(THREAD_SANITIZER)
+#include <sanitizer/tsan_interface.h>
+#endif
+
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <optional>
 
+#include "absl/base/attributes.h"
+#include "absl/debugging/stacktrace.h"
+#include "absl/debugging/symbolize.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "absl/types/span.h"
 #include "./common/logging.h"
+#include "./fuzztest/internal/type_support.h"
 
 namespace fuzztest::internal {
 
 std::atomic<FuzzTestSanitizerErrorSummaryCallback>
     sanitizer_error_summary_callback{nullptr};
+std::atomic<FuzzTestTsanOnReportCallback> tsan_on_report_callback{nullptr};
 
 namespace {
+
+constexpr int kMaxStackFrames = 64;
+
+constexpr absl::string_view kInternalPrefixes[] = {
+    "__",
+    "sanitizer_",
+    "asan_",
+    "msan_",
+    "tsan_",
+    "ubsan_",
+    "lsan_",
+    "hwasan_",
+    "fuzztest::",
+    "centipede::",
+    "FuzzTestWorker",
+    "Centipede",
+    "LLVMFuzzer",
+    "testing::",
+    "absl::",
+    "std::",
+    "tcmalloc::",
+    "FuzzTestSetSanitizerErrorSummaryCallback",
+    "FuzzTestSetTsanOnReportCallback",
+    "_start",
+};
+
+constexpr absl::string_view kInternalFunctions[] = {
+    "abort",
+    "raise",
+    "gsignal",
+    "ssignal",
+    "killpg",
+    "SignalAction",
+    "SignalHandler",
+    "pthread_kill",
+    "__pthread_kill",
+    "start_thread",
+    "clone",
+    "__clone",
+    "_start",
+    "__libc_start_main",
+    "main",
+    "RUN_ALL_TESTS",
+    "syscall",
+    "malloc",
+    "calloc",
+    "realloc",
+    "free",
+    "cfree",
+    "aligned_alloc",
+    "posix_memalign",
+    "valloc",
+    "pvalloc",
+    "operator new",
+    "operator new[]",
+    "operator delete",
+    "operator delete[]",
+};
 
 std::optional<absl::string_view> MaybeExtractTsanCrashType(
     absl::string_view sanitizer_name, absl::string_view error_summary) {
@@ -78,6 +157,126 @@ std::optional<absl::string_view> MaybeExtractTsanCrashType(
   return std::nullopt;
 }
 
+absl::string_view NormalizeSymbol(absl::string_view symbol) {
+  symbol = absl::StripAsciiWhitespace(symbol);
+  ConsumeFileAndLineNumber(symbol);
+  absl::ConsumeSuffix(&symbol, "()");
+  while (absl::EndsWith(symbol, "]")) {
+    const size_t abi_pos = symbol.rfind("[abi:");
+    if (abi_pos == absl::string_view::npos) break;
+    symbol.remove_suffix(symbol.size() - abi_pos);
+  }
+  return absl::StripAsciiWhitespace(symbol);
+}
+
+bool IsInternalFrame(absl::string_view func) {
+  if (func.empty() || func == "<unknown>" || func == "(unknown)") {
+    return true;
+  }
+  if (absl::StrContains(func, "fuzztest::internal") ||
+      absl::StrContains(func, "testing::internal")) {
+    return true;
+  }
+
+  for (const absl::string_view prefix : kInternalPrefixes) {
+    if (absl::StartsWith(func, prefix)) {
+      return true;
+    }
+  }
+
+  for (const absl::string_view internal_func : kInternalFunctions) {
+    if (func == internal_func) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+std::optional<absl::string_view> SymbolizeAppFunction(void* pc,
+                                                      char* symbol_buf,
+                                                      size_t symbol_buf_size) {
+  if (symbol_buf_size == 0 ||
+      !absl::Symbolize(pc, symbol_buf, symbol_buf_size)) {
+    return std::nullopt;
+  }
+  const absl::string_view func_name = NormalizeSymbol(symbol_buf);
+  if (IsInternalFrame(func_name)) {
+    return std::nullopt;
+  }
+  return func_name;
+}
+
+void AppendToBuffer(absl::Span<char> out_buffer, size_t& offset,
+                    absl::string_view piece) {
+  if (offset >= out_buffer.size() || piece.empty()) return;
+  const size_t to_copy = std::min(piece.size(), out_buffer.size() - offset);
+  std::memcpy(out_buffer.data() + offset, piece.data(), to_copy);
+  offset += to_copy;
+}
+
+#if defined(FUZZTEST_HAS_UNWIND_H)
+struct UnwindState {
+  void** stack;
+  int count;
+  int max_frames;
+  int skip_count;
+};
+
+ABSL_ATTRIBUTE_NO_SANITIZE_ADDRESS
+ABSL_ATTRIBUTE_NO_SANITIZE_MEMORY
+ABSL_ATTRIBUTE_NO_SANITIZE_THREAD
+_Unwind_Reason_Code UnwindCallback(_Unwind_Context* context, void* arg) {
+  auto* state = static_cast<UnwindState*>(arg);
+  int ip_before_insn = 0;
+  uintptr_t ip = _Unwind_GetIPInfo(context, &ip_before_insn);
+  if (ip == 0) {
+    return _URC_END_OF_STACK;
+  }
+  if (!ip_before_insn) {
+    --ip;
+  }
+  if (state->skip_count > 0) {
+    --state->skip_count;
+    return _URC_NO_REASON;
+  }
+  if (state->count >= state->max_frames) {
+    return _URC_END_OF_STACK;
+  }
+  state->stack[state->count++] = reinterpret_cast<void*>(ip);
+  return _URC_NO_REASON;
+}
+#endif  // defined(FUZZTEST_HAS_UNWIND_H)
+
+#if defined(THREAD_SANITIZER)
+constexpr size_t kSleepTraceSize = 16;
+
+absl::string_view ExtractAppFunctionFromTsanMop(void* report, size_t mop_idx,
+                                                absl::Span<char> symbol_buf) {
+  int tid = 0;
+  void* addr = nullptr;
+  int size = 0;
+  int write = 0;
+  int atomic = 0;
+  void* trace[kMaxStackFrames] = {nullptr};
+  if (!__tsan_get_report_mop(report, mop_idx, &tid, &addr, &size, &write,
+                             &atomic, trace, kMaxStackFrames)) {
+    return "";
+  }
+  for (void* pc : trace) {
+    if (pc == nullptr) {
+      break;
+    }
+    if (std::optional<absl::string_view> func_name =
+            SymbolizeAppFunction(pc, symbol_buf.data(), symbol_buf.size());
+        func_name.has_value()) {
+      return *func_name;
+    }
+  }
+  return "";
+}
+#endif  // defined(THREAD_SANITIZER)
+
 }  // namespace
 
 absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
@@ -108,6 +307,88 @@ absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
   return error_summary.substr(0, space_pos);
 }
 
+absl::Span<const absl::string_view> GetTopAppFunctions(
+    absl::Span<absl::string_view> out_frames, absl::Span<char> symbol_storage) {
+  if (out_frames.empty() || symbol_storage.empty()) {
+    return {};
+  }
+
+  void* stack[kMaxStackFrames] = {nullptr};
+  int depth = 0;
+#if defined(FUZZTEST_HAS_UNWIND_H)
+  UnwindState state = {stack, /*count=*/0, kMaxStackFrames, /*skip_count=*/1};
+  _Unwind_Backtrace(&UnwindCallback, &state);
+  depth = state.count;
+#endif
+  if (depth == 0) {
+    depth = absl::GetStackTrace(stack, kMaxStackFrames, /*skip_count=*/1);
+    for (int i = 0; i < depth; ++i) {
+      const uintptr_t ip = reinterpret_cast<uintptr_t>(stack[i]);
+      if (ip > 0) {
+        stack[i] = reinterpret_cast<void*>(ip - 1);
+      }
+    }
+  }
+
+  size_t num_frames = 0;
+  size_t storage_offset = 0;
+  for (int i = 0; i < depth && num_frames < out_frames.size() &&
+                  storage_offset < symbol_storage.size();
+       ++i) {
+    char* current_buf = symbol_storage.data() + storage_offset;
+    const size_t remaining_storage = symbol_storage.size() - storage_offset;
+    if (std::optional<absl::string_view> func_name =
+            SymbolizeAppFunction(stack[i], current_buf, remaining_storage);
+        func_name.has_value()) {
+      // Compact `func_name` to the start of `current_buf` so `symbol_storage`
+      // only advances by `func_name->size()`.
+      if (func_name->data() != current_buf) {
+        std::memmove(current_buf, func_name->data(), func_name->size());
+      }
+      out_frames[num_frames++] =
+          absl::string_view(current_buf, func_name->size());
+      storage_offset += func_name->size();
+    }
+  }
+  return out_frames.first(num_frames);
+}
+
+absl::string_view FormatStackCrashSignature(
+    absl::string_view crash_type, absl::Span<const absl::string_view> frames,
+    absl::Span<char> out_buffer) {
+  if (frames.empty()) {
+    return crash_type;
+  }
+  size_t offset = 0;
+  AppendToBuffer(out_buffer, offset, crash_type);
+  AppendToBuffer(out_buffer, offset, ":");
+  for (size_t i = 0; i < frames.size(); ++i) {
+    if (i > 0) {
+      AppendToBuffer(out_buffer, offset, "/");
+    }
+    AppendToBuffer(out_buffer, offset, frames[i]);
+  }
+  return absl::string_view(out_buffer.data(), offset);
+}
+
+absl::string_view FormatTwoThreadCrashSignature(absl::string_view crash_type,
+                                                absl::string_view f0,
+                                                absl::string_view f1,
+                                                absl::Span<char> out_buffer) {
+  if (f0.empty() && f1.empty()) {
+    return crash_type;
+  }
+  const absl::string_view resolved_f0 = f0.empty() ? "<unknown>" : f0;
+  const absl::string_view resolved_f1 = f1.empty() ? "<unknown>" : f1;
+  size_t offset = 0;
+  AppendToBuffer(out_buffer, offset, crash_type);
+  AppendToBuffer(out_buffer, offset, ":");
+  AppendToBuffer(out_buffer, offset, std::min(resolved_f0, resolved_f1));
+  AppendToBuffer(out_buffer, offset, " <-> ");
+  AppendToBuffer(out_buffer, offset, std::max(resolved_f0, resolved_f1));
+  return absl::string_view(out_buffer.data(), offset);
+}
+
 }  // namespace fuzztest::internal
 
 // clang-format off
@@ -136,4 +417,51 @@ extern "C" void FuzzTestSetSanitizerErrorSummaryCallback(
   (void)hook;
   fuzztest::internal::sanitizer_error_summary_callback.store(
       callback, std::memory_order_relaxed);
+}
+
+#if defined(THREAD_SANITIZER)
+extern "C" void __attribute__((visibility("default"),
+                               used)) __tsan_on_report(void* report) {
+  const FuzzTestTsanOnReportCallback callback =
+      fuzztest::internal::tsan_on_report_callback.load(
+          std::memory_order_relaxed);
+  if (callback == nullptr || report == nullptr) return;
+
+  const char* description = nullptr;
+  int count = 0;
+  int stack_count = 0;
+  int mop_count = 0;
+  int loc_count = 0;
+  int mutex_count = 0;
+  int thread_count = 0;
+  int unique_tid_count = 0;
+  void* sleep_trace[fuzztest::internal::kSleepTraceSize] = {nullptr};
+  if (!__tsan_get_report_data(report, &description, &count, &stack_count,
+                              &mop_count, &loc_count, &mutex_count,
+                              &thread_count, &unique_tid_count, sleep_trace,
+                              fuzztest::internal::kSleepTraceSize)) {
+    return;
+  }
+  if (mop_count < 2) return;
+
+  char f0_buf[1024];
+  char f1_buf[1024];
+  const absl::string_view f0 =
+      fuzztest::internal::ExtractAppFunctionFromTsanMop(report, 0, f0_buf);
+  const absl::string_view f1 =
+      fuzztest::internal::ExtractAppFunctionFromTsanMop(report, 1, f1_buf);
+  callback(f0.data(), f0.size(), f1.data(), f1.size());
+}
+#endif  // defined(THREAD_SANITIZER)
+
+extern "C" void FuzzTestSetTsanOnReportCallback(
+    FuzzTestTsanOnReportCallback callback) {
+#if defined(THREAD_SANITIZER)
+  // Ensure the TSan report hook is retained by the linker (e.g., under
+  // -Wl,--gc-sections) whenever a callback is registered.
+  void (*volatile hook)(void*) = &__tsan_on_report;
+  (void)hook;
+#endif
+  fuzztest::internal::tsan_on_report_callback.store(callback,
+                                                    std::memory_order_relaxed);
 }
