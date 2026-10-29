@@ -1133,6 +1133,8 @@ cc_library(
     copts = RUNNER_COPTS,
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
+    # NOTE: This target is public for now, but its visibility will be
+    # restricted soon.
     visibility = ["//visibility:public"],
     deps = RUNNER_DEPS,
     alwayslink = 1,  # Avoid runner from getting dropped by the linker due to no reference from the
