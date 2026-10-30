@@ -160,7 +160,8 @@ impl CentipedeArgs {
         let argv0 = env::args().next().context("while attempting to get argv[0]")?;
 
         let stripped_test_name = strip_crate_name(current_test_name);
-        add_arg(format!("--binary={argv0} {stripped_test_name} --exact --nocapture"))?;
+        // Under libtest harness, will parse everything until the first `--`.
+        add_arg(format!("--binary={argv0} {stripped_test_name} --exact --nocapture --"))?;
         let normalized_test_name = current_test_name.replace("::", ".");
         add_arg(format!("--test_name={normalized_test_name}"))?;
 
@@ -205,7 +206,7 @@ impl CentipedeArgs {
         // ==============================================================================
         // 3. Common Environment Variables Differential
         // ==============================================================================
-        let env_diff = Self::default_env_diff();
+        let env_diff = Self::default_env_diff(current_test_name);
         add_arg(format!("--env_diff_for_binaries={}", env_diff.join(",")))?;
 
         // ==============================================================================
@@ -303,7 +304,7 @@ impl CentipedeArgs {
     /// could cause the subprocess to think it's running in a sharded environment, try to
     /// write to restricted output files, or trigger other harness-specific behavior that
     /// interferes with fuzzing.
-    fn default_env_diff() -> Vec<String> {
+    fn default_env_diff(current_test_name: &str) -> Vec<String> {
             let env_diff = vec![
             "-TEST_DIAGNOSTICS_OUTPUT_DIR".to_string(),
             "-TEST_INFRASTRUCTURE_FAILURE_FILE".to_string(),
@@ -319,6 +320,7 @@ impl CentipedeArgs {
             "-TEST_WARNINGS_OUTPUT_FILE".to_string(),
             "-GTEST_OUTPUT".to_string(),
             "-XML_OUTPUT_FILE".to_string(),
+            format!("TESTBRIDGE_TEST_ONLY={current_test_name}"),
         ];
 
         env_diff
@@ -482,7 +484,8 @@ mod tests {
 
         expect_true!(args_str
             .iter()
-            .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
+            .any(|s| s.starts_with("--binary=")
+                && s.contains("my_mod::my_test --exact --nocapture --")));
 
         expect_true!(args_str.contains(&"--stop_after=10s"));
         expect_true!(args_str.contains(&"--test_name=my_crate.my_mod.my_test"));
@@ -563,6 +566,7 @@ mod tests {
 
         expect_true!(env_diff_arg.contains("-TEST_SHARD_INDEX"));
         expect_true!(env_diff_arg.contains("-XML_OUTPUT_FILE"));
+        expect_true!(env_diff_arg.contains("TESTBRIDGE_TEST_ONLY=my_crate::my_mod::my_test"));
         expect_true!(env_diff_arg.contains("-GTEST_OUTPUT"));
     }
 
@@ -594,8 +598,15 @@ mod tests {
             args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
 
         expect_true!(args_str.iter().any(|s| s.starts_with("--binary=")
-            && s.contains("outer::inner::__fuzztest_mod__foo::foo --exact")));
+            && s.contains("outer::inner::__fuzztest_mod__foo::foo --exact --nocapture --")));
         expect_true!(args_str.contains(&"--test_name=my_crate.outer.inner.__fuzztest_mod__foo.foo"));
+
+        let env_diff_arg = args_str
+            .iter()
+            .find(|s| s.starts_with("--env_diff_for_binaries="))
+            .expect("missing --env_diff_for_binaries arg");
+        expect_true!(env_diff_arg
+            .contains("TESTBRIDGE_TEST_ONLY=my_crate::outer::inner::__fuzztest_mod__foo::foo"));
     }
 
     #[gtest]
@@ -662,9 +673,10 @@ mod tests {
         let args_str: Vec<&str> =
             args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
 
-        assert!(args_str
+        expect_true!(args_str
             .iter()
-            .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
+            .any(|s| s.starts_with("--binary=")
+                && s.contains("my_mod::my_test --exact --nocapture --")));
         assert!(args_str.contains(&"--fuzztest_only_replay=true"));
         assert!(args_str.contains(&"--fuzztest_time_limit_per_test=10s"));
         assert!(!args_str.iter().any(|s| s.starts_with("--j=")));
@@ -709,9 +721,10 @@ mod tests {
         let args_str: Vec<&str> =
             args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();
 
-        assert!(args_str
+        expect_true!(args_str
             .iter()
-            .any(|s| s.starts_with("--binary=") && s.contains("my_mod::my_test --exact")));
+            .any(|s| s.starts_with("--binary=")
+                && s.contains("my_mod::my_test --exact --nocapture --")));
         assert!(args_str.contains(&"--fuzztest_only_replay=true"));
         assert!(args_str.contains(&"--fuzztest_replay_coverage_inputs=true"));
         assert!(args_str.contains(&"--load_shards_only=true"));

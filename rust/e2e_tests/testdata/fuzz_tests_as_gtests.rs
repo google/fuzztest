@@ -30,3 +30,20 @@ fn bool_fuzz_test(_a: bool) {
     _c = Arbitrary::<bool>::default(),
 )]
 fn multi_arg_fuzz_test(_a: i32, _b: f32, _c: bool) {}
+
+mod sub {
+    use super::*;
+
+    #[fuzztest(_a = Arbitrary::<bool>::default())]
+    fn bool_fuzz_test(_a: bool) {
+        static ONCE: Once = Once::new();
+        ONCE.call_once(|| {
+            println!("sub::bool_fuzz_test property function ran...");
+        });
+    }
+}
+
+#[googletest::prelude::gtest]
+fn regular_gtest() {
+    println!("regular_gtest ran...");
+}
