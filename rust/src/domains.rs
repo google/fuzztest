@@ -198,9 +198,7 @@ pub trait Domain {
     /// user provided value.
     /// For example, when the domain is seeded, this method is used to check that seeds specified by
     /// the users are valid given the domain's constraints.
-    fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
-        Ok(())
-    }
+    fn validate_corpus_value(&self, corpus_value: &Self::CorpusValue) -> anyhow::Result<()>;
 }
 
 /// A type-erased interface for Domain types.
