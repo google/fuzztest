@@ -15,9 +15,9 @@
 #ifndef THIRD_PARTY_CENTIPEDE_SHARED_MEMORY_BLOB_SEQUENCE_H_
 #define THIRD_PARTY_CENTIPEDE_SHARED_MEMORY_BLOB_SEQUENCE_H_
 
-#include <climits>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <type_traits>
 
 #include "absl/base/nullability.h"
@@ -57,6 +57,7 @@ class BlobSequence {
   // must be >= 8. Aborts on any failure. The amount of actual data that can be
   // written is slightly less.
   explicit BlobSequence(uint8_t *data, size_t size);
+  virtual ~BlobSequence() = default;
 
   // Writes the contents of `blob` to the blob sequence.
   // Returns true on success.
@@ -93,6 +94,9 @@ class BlobSequence {
   // constructors of child classes.
   explicit BlobSequence() = default;
 
+  // Commits the memory for `size` bytes starting from `data_`.
+  virtual bool CommitMemory(size_t size) { return true; }
+
   // data_ contains a sequence of {size, payload} pairs,
   // where size is 8 bytes and payload is size bytes.
   // After writing a blob, we also write 0 in place of the next blob's size,
@@ -122,11 +126,12 @@ class BlobSequence {
 // Usage example:
 //  void ParentProcess() {
 //    // Create a new blob sequence.
-//    SharedMemoryBlobSequence parent("/foo", 1000);
+//    auto parent = CreateSharedMemoryBlobSequence(
+//        "/foo", 1000, /*use_posix_shmem=*/true);
 //
 //    // Parent process writes some data to the shared blob:
-//    parent.Write({some_data, some_data_size});
-//    parent.Write({some_other_data, some_other_data_size});
+//    parent->Write({some_data, some_data_size});
+//    parent->Write({some_other_data, some_other_data_size});
 //
 //    // Run the child process.
 //    ExecuteChildProcessAndWaitUntilItIsDone();
@@ -134,11 +139,11 @@ class BlobSequence {
 //
 //  void Child() {
 //    // Open an existing blob sequence.
-//    SharedMemoryBlobSequence child("/foo", 1000);
+//    auto child = OpenSharedMemoryBlobSequence("/foo", 1000);
 //
 //    // Read the data written by parent.
 //    while (true) {
-//      auto blob = parent.Read();
+//      auto blob = child->Read();
 //      if (!blob.size) break;
 //      Use({blob.data, blob.size});
 //    }
@@ -146,46 +151,40 @@ class BlobSequence {
 //
 class SharedMemoryBlobSequence : public BlobSequence {
  public:
-  // Creates a new shared blob sequence with `name` (for debugging only, not an
-  // actual path). Aborts on any failure. `size` is the size of the shared
-  // memory region in bytes, must be >= 8. The amount of actual data that can be
-  // written is slightly less.
-  // The `use_posix_shmem` argument specifies which API to use to allocate the
-  // shared memory. When true, shm_open(2) will be used, otherwise
-  // memfd_create(2).
-  SharedMemoryBlobSequence(const char *name, size_t size, bool use_posix_shmem);
-
-  // Opens an existing shared blob sequence with the file `path` and `size`.
-  // Aborts on any failure.
-  SharedMemoryBlobSequence(const char* path, size_t size);
-
   // Releases all resources.
-  ~SharedMemoryBlobSequence();
+  ~SharedMemoryBlobSequence() override = default;
 
   // Releases shared memory used by `this`.
-  void ReleaseSharedMemory();
+  virtual void ReleaseSharedMemory() = 0;
 
   // Returns the number of bytes used by the shared mapping.
   // It will be zero just after creation and after the call to
   // ReleaseSharedMemory().
-  size_t NumBytesUsed() const;
+  virtual size_t NumBytesUsed() const = 0;
 
   // Gets the file path that can be used to create new instances.
   // TODO(ussuri): Refactor `char *` into a `string_view`.
-  const char *absl_nonnull path() const { return path_; }
+  virtual const char* absl_nonnull path() const = 0;
 
- private:
-  // mmaps `size_` bytes from `fd_`, assigns to `data_`. Crashes if mmap failed.
-  void MmapData();
-
-  // Will be initialized as a generated internal path or a copy of `path`
-  // passed in.
-  char path_[PATH_MAX] = {0};
-  int fd_ = -1;  // file descriptor used to mmap the shared memory region.
-  // Whether the file pointed to by path_ is owned by this and needs to be
-  // deallocated on destruction.
-  bool path_is_owned_ = false;
+ protected:
+  SharedMemoryBlobSequence() = default;
 };
+
+// Creates a new shared blob sequence with `name` (for debugging only, not an
+// actual path). Aborts on any failure. `size` is the size of the shared
+// memory region in bytes, must be >= 8. The amount of actual data that can be
+// written is slightly less.
+// The `use_posix_shmem` argument specifies which API to use to allocate the
+// shared memory. When true, shm_open(2) will be used, otherwise
+// memfd_create(2).
+std::unique_ptr<SharedMemoryBlobSequence> absl_nonnull
+CreateSharedMemoryBlobSequence(const char* absl_nonnull name, size_t size,
+                               bool use_posix_shmem);
+
+// Opens an existing shared blob sequence with the file `path` and `size`.
+// Aborts on any failure.
+std::unique_ptr<SharedMemoryBlobSequence> absl_nonnull
+OpenSharedMemoryBlobSequence(const char* absl_nonnull path, size_t size);
 
 }  // namespace fuzztest::internal
 

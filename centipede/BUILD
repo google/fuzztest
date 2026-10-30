@@ -229,6 +229,7 @@ cc_library(
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:windows_includes",
     ],
 )
 
@@ -417,12 +418,16 @@ cc_library(
     copts = DISABLE_SANCOV_COPTS,
     linkopts = select({
         "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
         "//conditions:default": [
             "-lrt",  # for shm_open
         ],
     }),
-    deps = ["@abseil-cpp//absl/base:nullability"],
-    # don't add any dependencies.
+    deps = [
+        "@abseil-cpp//absl/base:nullability",
+        "@com_google_fuzztest//common:windows_includes",
+    ],
+    # Don't add any dependencies.
 )
 
 cc_library(
@@ -598,6 +603,8 @@ cc_library(
         ":stop",
         ":util",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -605,6 +612,8 @@ cc_library(
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:windows_includes",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
     ],
 )
 
@@ -1423,7 +1432,12 @@ cc_test(
 cc_test(
     name = "util_test",
     srcs = ["util_test.cc"],
-    copts = ["-fno-signed-char"],
+    copts = select({
+        "@platforms//os:windows": [
+            "/J",  # Make unsigned char the default
+        ],
+        "//conditions:default": ["-fno-signed-char"],
+    }),
     deps = [
         ":feature",
         ":thread_pool",
@@ -1591,6 +1605,7 @@ cc_test(
     srcs = ["shared_memory_blob_sequence_test.cc"],
     deps = [
         ":shared_memory_blob_sequence",
+        "@com_google_fuzztest//common:windows_includes",
         "@googletest//:gtest_main",
     ],
 )
@@ -1773,10 +1788,14 @@ cc_binary(
     name = "command_test_helper",
     srcs = ["command_test_helper.cc"],
     deps = [
-        ":runner_fork_server",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
-    ],
+        "@com_google_fuzztest//common:windows_includes",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [":runner_fork_server"],
+    }),
 )
 
 cc_test(
