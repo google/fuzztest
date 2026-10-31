@@ -14,11 +14,10 @@
 
 #include "./centipede/seed_corpus_maker_lib.h"
 
-#include <unistd.h>
-
 #include <cmath>
 #include <cstddef>
 #include <filesystem>  // NOLINT
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -40,6 +39,7 @@ namespace fs = std::filesystem;
 
 using ::testing::IsSubsetOf;
 using ::testing::IsSupersetOf;
+using ::testing::UnitTest;
 
 inline constexpr auto kIdxDigits = WorkDir::kDigitsInShardIndex;
 
@@ -93,9 +93,17 @@ void VerifyDumpedConfig(           //
       << VV(workdir);
 }
 
-TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
-  const fs::path test_dir = GetTestTempDir(test_info_->name());
-  chdir(test_dir.c_str());
+struct SeedCorpusMakerLibTestParam {
+  bool use_globs;
+};
+
+class SeedCorpusMakerLibTest
+    : public testing::TestWithParam<SeedCorpusMakerLibTestParam> {};
+
+TEST_P(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
+  const fs::path test_dir =
+      GetTestTempDir(UnitTest::GetInstance()->current_test_info()->name());
+  fs::current_path(test_dir);
 
   const InputAndFeaturesVec kElements = {
       {{0}, {}},
@@ -117,13 +125,18 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
     constexpr size_t kNumShards = 2;
     const SeedCorpusDestination destination = {
         /*dir_path=*/std::string(kRelDir1),
-        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_rel_glob=*/GetParam().use_globs
+            ? absl::StrCat("distilled-", kCovBin, ".*")
+            : "",
+        /*shard_rel_prefix=*/GetParam().use_globs
+            ? std::nullopt
+            : std::make_optional(absl::StrCat("distilled-", kCovBin, ".")),
         /*shard_index_digits=*/kIdxDigits,
         /*num_shards=*/kNumShards,
     };
     ASSERT_OK(WriteSeedCorpusElementsToDestination(  //
         kElements, kCovBin, kCovHash, destination));
-    const std::string workdir = (test_dir / kRelDir1).c_str();
+    const std::string workdir = (test_dir / kRelDir1).string();
     ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
         workdir, kCovBin, kCovHash, kNumShards, ShardType::kDistilled));
   }
@@ -133,9 +146,14 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
   {
     for (const float fraction : {1.0, 0.5, 0.2}) {
       SeedCorpusSource source;
-      source.dir_glob = std::string(kRelDir1);
       source.num_recent_dirs = 2;
-      source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+      if (GetParam().use_globs) {
+        source.dir_glob = std::string(kRelDir1);
+        source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+      } else {
+        source.src_dirs = {std::string(kRelDir1)};
+        source.shard_rel_prefix = absl::StrCat("distilled-", kCovBin, ".");
+      }
       source.sampled_fraction_or_count = fraction;
 
       InputAndFeaturesVec elements;
@@ -154,16 +172,24 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
     constexpr size_t kNumShards = 3;
 
     SeedCorpusSource source;
-    source.dir_glob = std::string(kRelDir1);
     source.num_recent_dirs = 1;
-    source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+    if (GetParam().use_globs) {
+      source.dir_glob = std::string(kRelDir1);
+      source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+    } else {
+      source.src_dirs = {std::string(kRelDir1)};
+      source.shard_rel_prefix = absl::StrCat("distilled-", kCovBin, ".");
+    }
     source.sampled_fraction_or_count = 1.0f;
     const SeedCorpusConfig config = {
         /*sources=*/{{source}},
         /*destination=*/
         {
             /*dir_path=*/std::string(kRelDir2),
-            /*shard_rel_glob=*/"corpus.*",
+            /*shard_rel_glob=*/GetParam().use_globs ? "corpus.*" : "",
+            /*shard_rel_prefix=*/GetParam().use_globs
+                ? std::nullopt
+                : std::optional<std::string>("corpus."),
             /*shard_index_digits=*/kIdxDigits,
             /*num_shards=*/kNumShards,
         },
@@ -172,16 +198,17 @@ TEST(SeedCorpusMakerLibTest, RoundTripWriteReadWrite) {
     {
       ASSERT_OK(GenerateSeedCorpusFromConfig(  //
           config, kCovBin, kCovHash));
-      const std::string workdir = (test_dir / kRelDir2).c_str();
+      const std::string workdir = (test_dir / kRelDir2).string();
       ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
           workdir, kCovBin, kCovHash, kNumShards, ShardType::kNormal));
     }
   }
 }
 
-TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
-  const fs::path test_dir = GetTestTempDir(test_info_->name());
-  chdir(test_dir.c_str());
+TEST_P(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
+  const fs::path test_dir =
+      GetTestTempDir(UnitTest::GetInstance()->current_test_info()->name());
+  fs::current_path(test_dir);
 
   const InputAndFeaturesVec kShardedInputs = {
       {{0}, {}},
@@ -202,13 +229,18 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
     constexpr size_t kNumShards = 2;
     const SeedCorpusDestination destination = {
         /*dir_path=*/std::string(kRelDir),
-        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_rel_glob=*/GetParam().use_globs
+            ? absl::StrCat("distilled-", kCovBin, ".*")
+            : "",
+        /*shard_rel_prefix=*/GetParam().use_globs
+            ? std::nullopt
+            : std::make_optional(absl::StrCat("distilled-", kCovBin, ".")),
         /*shard_index_digits=*/kIdxDigits,
         /*num_shards=*/kNumShards,
     };
     FUZZTEST_CHECK_OK(WriteSeedCorpusElementsToDestination(  //
         kShardedInputs, kCovBin, kCovHash, destination));
-    const std::string workdir = (test_dir / kRelDir).c_str();
+    const std::string workdir = (test_dir / kRelDir).string();
     ASSERT_NO_FATAL_FAILURE(VerifyShardsExist(  //
         workdir, kCovBin, kCovHash, kNumShards, ShardType::kDistilled));
   }
@@ -226,12 +258,23 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
     InputAndFeaturesVec elements;
     ASSERT_OK(SampleSeedCorpusElementsFromSource(  //
         SeedCorpusSource{
-            /*dir_glob=*/std::string(kRelDir),
+            /*dir_glob=*/GetParam().use_globs ? std::string(kRelDir) : "",
+            /*src_dirs=*/GetParam().use_globs
+                ? std::vector<std::string>{}
+                : std::vector<std::string>{std::string{kRelDir}},
             /*num_recent_dirs=*/1,
-            /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+            /*shard_rel_glob=*/GetParam().use_globs
+                ? absl::StrCat("distilled-", kCovBin, ".*")
+                : "",
+            /*shard_rel_prefix=*/GetParam().use_globs
+                ? std::nullopt
+                : std::make_optional(absl::StrCat("distilled-", kCovBin, ".")),
             // Intentionally try to match the shard files and test if they will
             // be read as individual inputs.
-            /*individual_input_rel_glob=*/"*",
+            /*individual_input_rel_glob=*/GetParam().use_globs ? "*" : "",
+            /*individual_input_rel_prefix=*/GetParam().use_globs
+                ? std::nullopt
+                : std::optional<std::string>{""},
             /*sampled_fraction_or_count=*/1.0f,
         },
         kCovBin, kCovHash, elements));
@@ -244,9 +287,10 @@ TEST(SeedCorpusMakerLibTest, LoadsBothIndividualInputsAndShardsFromSource) {
   }
 }
 
-TEST(SeedCorpusMakerLibTest, FeaturesStartPointCanDropFeatures) {
-  const fs::path test_dir = GetTestTempDir(test_info_->name());
-  chdir(test_dir.c_str());
+TEST_P(SeedCorpusMakerLibTest, FeaturesStartPointCanDropFeatures) {
+  const fs::path test_dir =
+      GetTestTempDir(UnitTest::GetInstance()->current_test_info()->name());
+  fs::current_path(test_dir);
 
   const InputAndFeaturesVec kElementsSrc1 = {
       {{0}, {}},
@@ -269,7 +313,12 @@ TEST(SeedCorpusMakerLibTest, FeaturesStartPointCanDropFeatures) {
     constexpr size_t kNumShards = 2;
     const SeedCorpusDestination destination_src1 = {
         /*dir_path=*/std::string(kSrcDir1),
-        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_rel_glob=*/GetParam().use_globs
+            ? absl::StrCat("distilled-", kCovBin, ".*")
+            : "",
+        /*shard_rel_prefix=*/GetParam().use_globs
+            ? std::nullopt
+            : std::make_optional(absl::StrCat("distilled-", kCovBin, ".")),
         /*shard_index_digits=*/kIdxDigits,
         /*num_shards=*/kNumShards,
     };
@@ -278,7 +327,12 @@ TEST(SeedCorpusMakerLibTest, FeaturesStartPointCanDropFeatures) {
 
     const SeedCorpusDestination destination_src2 = {
         /*dir_path=*/std::string(kSrcDir2),
-        /*shard_rel_glob=*/absl::StrCat("distilled-", kCovBin, ".*"),
+        /*shard_rel_glob=*/GetParam().use_globs
+            ? absl::StrCat("distilled-", kCovBin, ".*")
+            : "",
+        /*shard_rel_prefix=*/GetParam().use_globs
+            ? std::nullopt
+            : std::make_optional(absl::StrCat("distilled-", kCovBin, ".")),
         /*shard_index_digits=*/kIdxDigits,
         /*num_shards=*/kNumShards,
     };
@@ -287,9 +341,17 @@ TEST(SeedCorpusMakerLibTest, FeaturesStartPointCanDropFeatures) {
   }
 
   SeedCorpusSource source;
-  source.dir_glob = std::string("dir/src/*");
+  if (GetParam().use_globs) {
+    source.dir_glob = std::string("dir/src/*");
+  } else {
+    source.src_dirs = {std::string{kSrcDir1}, std::string{kSrcDir2}};
+  }
   source.num_recent_dirs = 2;
-  source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+  if (GetParam().use_globs) {
+    source.shard_rel_glob = absl::StrCat("distilled-", kCovBin, ".*");
+  } else {
+    source.shard_rel_prefix = absl::StrCat("distilled-", kCovBin, ".");
+  }
   source.sampled_fraction_or_count = 1.0f;
 
   InputAndFeaturesVec elements;
@@ -315,6 +377,11 @@ TEST(SeedCorpusMakerLibTest, FeaturesStartPointCanDropFeatures) {
   // Verify that only the features from Src2 are kept
   ASSERT_EQ(get_num_features(elements), get_num_features(kElementsSrc2));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    SeedCorpusMakerLibTestWithConfigurations, SeedCorpusMakerLibTest,
+    testing::Values(SeedCorpusMakerLibTestParam{/*use_globs=*/false},
+                    SeedCorpusMakerLibTestParam{/*use_globs=*/true}));
 
 }  // namespace
 }  // namespace fuzztest::internal

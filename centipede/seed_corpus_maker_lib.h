@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -37,12 +38,18 @@ namespace fuzztest::internal {
 // difference is commented below.
 struct SeedCorpusSource {
   std::string dir_glob;
+  // Source directory in addition to scanning `dir_glob`.
+  std::vector<std::string> src_dirs;
   uint32_t num_recent_dirs;
   std::string shard_rel_glob;
+  // A path prefix relative to the source dirs used to find corpus shards.
+  std::optional<std::string> shard_rel_prefix;
   // If non-empty, will be used to glob the individual input files (with one
   // input in each file) in the source dirs. Any files matching `shard_rel_glob`
   // will be skipped.
   std::string individual_input_rel_glob;
+  // A path prefix relative to the source dirs to find individual inputs.
+  std::optional<std::string> individual_input_rel_prefix;
   std::variant<float, uint32_t> sampled_fraction_or_count;
 
   std::string features_start_point;
@@ -56,6 +63,8 @@ struct SeedCorpusSource {
 struct SeedCorpusDestination {
   std::string dir_path;
   std::string shard_rel_glob;
+  // A path prefix relative to `dir_path` to generate output shards.
+  std::optional<std::string> shard_rel_prefix;
   uint32_t shard_index_digits;
   uint32_t num_shards;
 };

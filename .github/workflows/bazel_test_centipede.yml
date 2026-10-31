@@ -112,6 +112,8 @@ jobs:
   run_tests_mac:
     name: Run Centipede tests (MacOS)
     runs-on: macos-15
+    permissions:
+      contents: read
     timeout-minutes: 60
     permissions:
       contents: read
@@ -168,3 +170,45 @@ jobs:
         with:
           path: "~/.cache/bazel-cache"
           key: bazel-centipede-cache-mac-${{ github.run_id }}
+  run_tests_win:
+    name: Run Centipede tests (Windows)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Restore latest cache
+        # Skip restoring on scheduled nightly runs so the cache is rebuilt from
+        # scratch and stale artifacts from older commits/dependencies are
+        # evicted.
+        if: github.event_name != 'schedule'
+        id: cache-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: "~/.cache/bazel-cache"
+          key: bazel-centipede-cache-win
+          restore-keys: bazel-centipede-cache-win-
+      - name: Set environment variable
+        run: echo "USE_BAZEL_VERSION=8.7.0" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Run unit tests
+        if: ${{ !cancelled() }}
+        run: |
+          <# Only supported libraries are tested here. #> `
+          bazelisk test --disk_cache=~/.cache/bazel --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli `
+          --extra_toolchains=@local_config_cc//:cc-toolchain-x64_windows-clang-cl `
+          --extra_execution_platforms=//:x64_windows-clang-cl --enable_runfiles `
+          -- centipede:util_test centipede:command_test centipede:shared_memory_blob_sequence_test
+      - name: Save new cache based on main
+        # Save a new cache on nightly scheduled runs (or manual dispatch on
+        # main), or on a push to main when no previous cache exists for this
+        # key prefix. This avoids uploading duplicate immutable cache archives
+        # on every commit pushed to main.
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          (github.event_name != 'push' || steps.cache-restore.outputs.cache-matched-key == '')
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: "~/.cache/bazel-cache"
+          key: bazel-centipede-cache-win-${{ github.run_id }}
