@@ -296,7 +296,7 @@ bool ParseAFLDictionary(std::string_view dictionary_text,
     size_t stop = line.size() - 1;
     // Find the last "
     while (stop > start && line[stop] != '"') --stop;
-    if (stop == start) return false;  // no closing "
+    if (stop <= start) return false;  // no closing "
     // Replace special characters and hex values.
     std::string replaced = absl::StrReplaceAll(
         std::string_view(line.data() + start, stop - start), replacements);

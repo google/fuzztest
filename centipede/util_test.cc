@@ -198,6 +198,8 @@ TEST(UtilTest, ParseAFLDictionary) {
   EXPECT_FALSE(ParseAFLDictionary("\xAB", dict));                 // Non-ascii.
   EXPECT_FALSE(ParseAFLDictionary(" l1  \n\t\t\tl2  \n", dict));  // Missing "
   EXPECT_FALSE(ParseAFLDictionary(" \"zzz", dict));  // Missing second "
+  EXPECT_FALSE(ParseAFLDictionary("zzz\"", dict));  // Only " is last char
+  EXPECT_FALSE(ParseAFLDictionary("\"", dict));     // Lone "
 
   // Two entries and a comment.
   EXPECT_TRUE(
