@@ -264,6 +264,13 @@ CENTIPEDE_FLAG(bool, require_pc_table, true,
                "If true, Centipede will exit if the --pc_table is not found.")
 CENTIPEDE_FLAG(bool, require_seeds, false,
                "If true, Centipede will exit if no seed inputs are found.")
+CENTIPEDE_FLAG(size_t, max_seed_inputs, 1000,
+               "The maximum number of seed inputs to load from the target. "
+               "The seed inputs are executed in batches of --batch_size.")
+CENTIPEDE_FLAG(size_t, min_seed_inputs, 32,
+               "The minimum number of seed inputs requested from the target. "
+               "If the target provides fewer preset seed inputs, it pads them "
+               "with random inputs up to this number.")
 CENTIPEDE_FLAG(
     int, telemetry_frequency, 0,
     "Dumping frequency for intermediate telemetry files, i.e. coverage "

@@ -657,7 +657,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   std::string centipede_runner_flags =
       absl::StrCat("CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=",
                    EscapeEngineFlag(env_.test_name),
-                   ":arg1=", EscapeEngineFlag(output_dir.string()), ":");
+                   ":arg1=", EscapeEngineFlag(output_dir.string()),
+                   ":min_seeds=", env_.min_seed_inputs, ":");
   if (!env_.runner_dl_path_suffix.empty()) {
     absl::StrAppend(&centipede_runner_flags, "dl_path_suffix=",
                     EscapeEngineFlag(env_.runner_dl_path_suffix), ":");
