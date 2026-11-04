@@ -16,6 +16,7 @@ use fuzztest::domains::arbitrary::Arbitrary;
 use fuzztest::domains::containers::ContainerDomain;
 use fuzztest::domains::containers::VecOf;
 use fuzztest::domains::option_of::OptionOf;
+use fuzztest::domains::range::InRange;
 use fuzztest::fuzztest;
 
 #[fuzztest(_a = Arbitrary::<i32>::default())]
@@ -30,9 +31,13 @@ fn fuzztest_macro_compiles_with_vec(_a: Vec<i32>) {}
 #[fuzztest(_a = OptionOf::new(Arbitrary::<i32>::default()))]
 fn fuzztest_macro_compiles_with_option_of(_a: Option<i32>) {}
 
+#[fuzztest(_a = (InRange::new(0i32, 10), Arbitrary::<bool>::default()))]
+fn fuzztest_macro_compiles_with_tuple_of(_a: (i32, bool)) {}
+
 fn main() {
     // The property function is defined in the scope where the macro is
     // invoked, so it can be called directly, e.g. from a regression test.
     fuzztest_macro_compiles(0);
     fuzztest_macro_compiles_with_option_of(Some(0));
+    fuzztest_macro_compiles_with_tuple_of((5, true));
 }
