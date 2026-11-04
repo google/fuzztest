@@ -19,10 +19,14 @@ pub mod range;
 pub mod tuple_of;
 pub mod utility;
 
+mod filter;
+mod map;
 mod seeds;
 
 use ::serde::de::DeserializeOwned;
 use ::serde::Serialize;
+pub use filter::Filter;
+pub use map::Map;
 
 use anyhow;
 use anyhow::Context;
@@ -107,9 +111,10 @@ pub type GenericUserValue = Box<dyn CloneAny>;
 ///
 /// ### Relationship diagram
 ///
-/// The methods below (along with [`SeedableDomainExt::into_corpus_value`] for [`ReversibleDomain`]s) are
-/// responsible for transforming between `UserValue` (or a convertible seed type `T`),
-/// `CorpusValue`, and the serialized representation of `CorpusValue`. Here's a quick overview:
+/// The methods below (along with [`SeedableDomainExt::into_corpus_value`] for
+/// [`ReversibleDomain`]s) are responsible for transforming between `UserValue` (or a convertible
+/// seed type `T`), `CorpusValue`, and the serialized representation of `CorpusValue`. Here's a
+/// quick overview:
 ///
 /// ```text
 ///        +-- corpus_to_user_value() <---+     +-- parse_corpus() <---+
@@ -200,6 +205,31 @@ pub trait Domain {
     /// the users are valid given the domain's constraints.
     fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
         Ok(())
+    }
+
+    /// Transforms the user values produced by this domain using `mapper`.
+    ///
+    /// Note: Because `U` is independent of `'a`, this method requires `mapper` to return a type
+    /// that does not borrow from `Self::UserValue<'a>` (which enables automatic closure parameter
+    /// type inference). To map a borrowing `UserValue<'user>` to an output that borrows `'user`
+    /// (e.g., `str::trim`), construct [`Map::new`] directly.
+    #[must_use]
+    fn map<F, U>(self, mapper: F) -> Map<Self, F>
+    where
+        Self: Sized,
+        F: for<'a> Fn(Self::UserValue<'a>) -> U,
+    {
+        Map::new(self, mapper)
+    }
+
+    /// Filters the values produced by this domain to only those satisfying `predicate`.
+    #[must_use]
+    fn filter<P>(self, predicate: P) -> Filter<Self, P>
+    where
+        Self: Sized,
+        P: for<'a> Fn(&Self::UserValue<'a>) -> bool,
+    {
+        Filter::new(self, predicate)
     }
 }
 
