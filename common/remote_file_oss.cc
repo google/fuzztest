@@ -223,7 +223,10 @@ bool RemotePathExists(std::string_view path) {
 }
 
 bool RemotePathIsDirectory(std::string_view path) {
-  return std::filesystem::is_directory(path);
+  // Use the non-throwing overload, so that, e.g., a parent directory without
+  // search permission yields `false` instead of aborting.
+  std::error_code ec;
+  return std::filesystem::is_directory(path, ec);
 }
 
 absl::StatusOr<std::vector<std::string>> RemoteListFiles(std::string_view path,

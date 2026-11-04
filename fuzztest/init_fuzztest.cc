@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -347,6 +348,21 @@ bool GetDefaultUpdateCorpusDatabase() {
   return is_fuzzing && !GetReplayCorpusTime().has_value();
 }
 
+// Expands a leading `~/` to $HOME and, when running under a test, makes a
+// relative path relative to $TEST_SRCDIR.
+std::string NormalizeCorpusDatabasePath(std::string path) {
+  if (absl::StartsWith(path, "~/")) {
+    if (const char* home = std::getenv("HOME");
+        home != nullptr && home[0] != '\0') {
+      path.replace(0, 1, home);
+    }
+  }
+  if (!path.empty() && path[0] != '/' && std::getenv("TEST_SRCDIR")) {
+    path = absl::StrCat(std::getenv("TEST_SRCDIR"), "/", path);
+  }
+  return path;
+}
+
 internal::Configuration CreateConfigurationsFromFlags(
     absl::string_view binary_identifier) {
   const bool reproduce_findings_as_separate_tests =
@@ -390,21 +406,12 @@ internal::Configuration CreateConfigurationsFromFlags(
     }
   }
   std::string corpus_database = absl::GetFlag(FUZZTEST_FLAG(corpus_database));
-  if (absl::StartsWith(corpus_database, "~/")) {
-    if (const char* home = std::getenv("HOME");
-        home != nullptr && home[0] != '\0') {
-      corpus_database.replace(0, 1, home);
-    }
-  }
-  if (!corpus_database.empty() && corpus_database[0] != '/' &&
-      std::getenv("TEST_SRCDIR")) {
-    corpus_database =
-        absl::StrCat(std::getenv("TEST_SRCDIR"), "/", corpus_database);
-  }
+  corpus_database = NormalizeCorpusDatabasePath(std::move(corpus_database));
   return internal::Configuration{
       corpus_database,
       /*stats_root=*/"",
       /*workdir_root=*/"",
+      /*seed_corpus_databases=*/{},
       std::string(binary_identifier),
       /*fuzz_tests=*/ListRegisteredTests(),
       /*fuzz_tests_in_current_shard=*/ListRegisteredTests(),

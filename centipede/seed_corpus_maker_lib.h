@@ -46,6 +46,12 @@ struct SeedCorpusSource {
   std::variant<float, uint32_t> sampled_fraction_or_count;
 
   std::string features_start_point;
+
+  // Not in the proto: if true, errors reading this source are logged and the
+  // source is skipped instead of failing the seed corpus generation. Useful for
+  // optional sources that must not break fuzzing, e.g., read-only seed corpus
+  // databases.
+  bool ignore_errors = false;
 };
 
 // Native struct used by the seed corpus library for seed corpus destination.

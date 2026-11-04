@@ -534,8 +534,14 @@ absl::Status GenerateSeedCorpusFromConfig(  //
 
   // Read and sample elements from the sources.
   for (const auto& source : config.sources) {
-    RETURN_IF_NOT_OK(SampleSeedCorpusElementsFromSource(  //
-        source, coverage_binary_name, coverage_binary_hash, elements));
+    // `SampleSeedCorpusElementsFromSource()` modifies `elements` only on
+    // success, so a skipped source doesn't add any elements.
+    const absl::Status status = SampleSeedCorpusElementsFromSource(
+        source, coverage_binary_name, coverage_binary_hash, elements);
+    if (status.ok()) continue;
+    if (!source.ignore_errors) return status;
+    FUZZTEST_LOG(WARNING) << "Skipping seed corpus source " << source.dir_glob
+                          << " due to error: " << status;
   }
   FUZZTEST_LOG(INFO) << "Sampled " << elements.size() << " elements from "
                      << config.sources.size() << " seed corpus source(s)";

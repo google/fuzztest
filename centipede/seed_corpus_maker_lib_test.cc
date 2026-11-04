@@ -21,6 +21,7 @@
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -314,6 +315,57 @@ TEST(SeedCorpusMakerLibTest, FeaturesStartPointCanDropFeatures) {
 
   // Verify that only the features from Src2 are kept
   ASSERT_EQ(get_num_features(elements), get_num_features(kElementsSrc2));
+}
+
+TEST(SeedCorpusMakerLibTest, SkipsFailingSourcesThatIgnoreErrors) {
+  const fs::path test_dir = GetTestTempDir(test_info_->name());
+  chdir(test_dir.c_str());
+
+  constexpr std::string_view kCovBin = "bin";
+  constexpr std::string_view kCovHash = "hash";
+  const ByteArray kBadInput = {1, 2, 3};
+  const ByteArray kGoodInput = {4, 5, 6};
+  ASSERT_OK(RemoteMkdir("dir/bad"));
+  ASSERT_OK(RemoteFileSetContents("dir/bad/input", kBadInput));
+  ASSERT_OK(RemoteMkdir("dir/good"));
+  ASSERT_OK(RemoteFileSetContents("dir/good/input", kGoodInput));
+
+  SeedCorpusSource bad_source;
+  bad_source.dir_glob = "dir/bad";
+  bad_source.num_recent_dirs = 1;
+  bad_source.individual_input_rel_glob = "*";
+  // An invalid fraction makes reading the source fail.
+  bad_source.sampled_fraction_or_count = 2.0f;
+  SeedCorpusSource good_source;
+  good_source.dir_glob = "dir/good";
+  good_source.num_recent_dirs = 1;
+  good_source.individual_input_rel_glob = "*";
+  good_source.sampled_fraction_or_count = 1.0f;
+  SeedCorpusConfig config = {
+      /*sources=*/{bad_source, good_source},
+      /*destination=*/
+      {
+          /*dir_path=*/"dir/out",
+          /*shard_rel_glob=*/"corpus.*",
+          /*shard_index_digits=*/kIdxDigits,
+          /*num_shards=*/1,
+      },
+  };
+
+  EXPECT_FALSE(GenerateSeedCorpusFromConfig(config, kCovBin, kCovHash).ok());
+
+  config.sources[0].ignore_errors = true;
+  ASSERT_OK(GenerateSeedCorpusFromConfig(config, kCovBin, kCovHash));
+  SeedCorpusSource out_source;
+  out_source.dir_glob = "dir/out";
+  out_source.num_recent_dirs = 1;
+  out_source.shard_rel_glob = "corpus.*";
+  out_source.sampled_fraction_or_count = 1.0f;
+  InputAndFeaturesVec elements;
+  ASSERT_OK(SampleSeedCorpusElementsFromSource(out_source, kCovBin, kCovHash,
+                                               elements));
+  ASSERT_EQ(elements.size(), 1);
+  EXPECT_EQ(std::get<0>(elements[0]), kGoodInput);
 }
 
 }  // namespace

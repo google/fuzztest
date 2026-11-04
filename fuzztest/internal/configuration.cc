@@ -206,9 +206,9 @@ std::string Configuration::Serialize() const {
   std::string out;
   out.resize(
       SpaceFor(corpus_database) + SpaceFor(stats_root) +
-      SpaceFor(workdir_root) + SpaceFor(binary_identifier) +
-      SpaceFor(fuzz_tests) + SpaceFor(fuzz_tests_in_current_shard) +
-      SpaceFor(continue_after_crash) +
+      SpaceFor(workdir_root) + SpaceFor(seed_corpus_databases) +
+      SpaceFor(binary_identifier) + SpaceFor(fuzz_tests) +
+      SpaceFor(fuzz_tests_in_current_shard) + SpaceFor(continue_after_crash) +
       SpaceFor(reproduce_findings_as_separate_tests) +
       SpaceFor(replay_coverage_inputs) + SpaceFor(only_replay) +
       SpaceFor(update_corpus_database) + SpaceFor(replay_in_single_process) +
@@ -223,6 +223,7 @@ std::string Configuration::Serialize() const {
   offset = WriteString(out, offset, corpus_database);
   offset = WriteString(out, offset, stats_root);
   offset = WriteString(out, offset, workdir_root);
+  offset = WriteVectorOfStrings(out, offset, seed_corpus_databases);
   offset = WriteString(out, offset, binary_identifier);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests);
   offset = WriteVectorOfStrings(out, offset, fuzz_tests_in_current_shard);
@@ -255,6 +256,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(corpus_database, ConsumeString(serialized));
     ASSIGN_OR_RETURN(stats_root, ConsumeString(serialized));
     ASSIGN_OR_RETURN(workdir_root, ConsumeString(serialized));
+    ASSIGN_OR_RETURN(seed_corpus_databases, ConsumeVectorOfStrings(serialized));
     ASSIGN_OR_RETURN(binary_identifier, ConsumeString(serialized));
     ASSIGN_OR_RETURN(fuzz_tests, ConsumeVectorOfStrings(serialized));
     ASSIGN_OR_RETURN(fuzz_tests_in_current_shard,
@@ -295,6 +297,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     return Configuration{*std::move(corpus_database),
                          *std::move(stats_root),
                          *std::move(workdir_root),
+                         *std::move(seed_corpus_databases),
                          *std::move(binary_identifier),
                          *std::move(fuzz_tests),
                          *std::move(fuzz_tests_in_current_shard),

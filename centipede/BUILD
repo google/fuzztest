@@ -782,7 +782,6 @@ cc_library(
         ":thread_pool",
         ":util",
         ":workdir",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/status",
@@ -1376,7 +1375,6 @@ cc_test(
     deps = [
         ":environment",
         "@abseil-cpp//absl/time",
-        "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest/internal:configuration",
         "@googletest//:gtest_main",
     ],
