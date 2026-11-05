@@ -123,7 +123,7 @@ pub type GenericUserValue = Box<dyn CloneAny>;
 pub trait Domain {
     /// The type of the values that the domain outputs. This should of the same type as the
     /// parameter of the fuzz property function.
-    type UserValue<'user>;
+    type UserValue<'user>: std::fmt::Debug;
     /// The type of the corpus from which the values of type UserValue are drawn.
     /// For example, if the domain should output an `&str` then the UserValue should be `&str` and
     /// the CorpusValue could the owned data structured that the `&str` points to (eg: String).
@@ -201,6 +201,33 @@ pub trait Domain {
     fn validate_corpus_value(&self, _corpus_value: &Self::CorpusValue) -> anyhow::Result<()> {
         Ok(())
     }
+
+    /// Formats a user value into `out`.
+    ///
+    /// By default, uses [`std::fmt::Debug`]. A domain can override this to customize how its
+    /// `UserValue` is printed.
+    fn print_user_value(
+        &self,
+        user_value: &Self::UserValue<'_>,
+        out: &mut dyn std::fmt::Write,
+    ) -> anyhow::Result<()> {
+        write!(out, "{:?}", user_value)?;
+        Ok(())
+    }
+
+    /// Formats a corpus value into `out`.
+    ///
+    /// By default, converts `corpus_value` to `UserValue` via [`Self::corpus_to_user_value`] and
+    /// delegates to [`Self::print_user_value`]. Domains whose formatting depends on the corpus
+    /// representation or inner domains (such as [`containers::VecOf`]) can override this directly.
+    fn print_corpus_value(
+        &self,
+        corpus_value: &Self::CorpusValue,
+        out: &mut dyn std::fmt::Write,
+    ) -> anyhow::Result<()> {
+        let user_value = self.corpus_to_user_value(corpus_value)?;
+        self.print_user_value(&user_value, out)
+    }
 }
 
 /// A type-erased interface for Domain types.
@@ -234,6 +261,15 @@ pub trait GenericDomain {
     ///
     /// See `Domain::serialize_corpus` for more details.
     fn serialize_corpus(&self, val: &GenericCorpusValue) -> anyhow::Result<Vec<u8>>;
+
+    /// Formats a `GenericCorpusValue` into `out`.
+    ///
+    /// See `Domain::print_corpus_value` for more details.
+    fn print_corpus_value(
+        &self,
+        val: &GenericCorpusValue,
+        out: &mut dyn std::fmt::Write,
+    ) -> anyhow::Result<()>;
 }
 
 /// Blanket implementation of the `GenericDomain` trait for types implementing the `Domain` trait.
@@ -286,5 +322,83 @@ where
     /// See `GenericDomain::serialize_corpus` for more details.
     fn serialize_corpus(&self, val: &GenericCorpusValue) -> anyhow::Result<Vec<u8>> {
         self.serialize_corpus(val.downcast_ref().context("Failed to retrieve the Corpus Value")?)
+    }
+
+    /// Retrieves the underlying `Domain`'s `CorpusValue` from the `GenericCorpusValue` and calls
+    /// the underlying `Domain::print_corpus_value` method.
+    ///
+    /// If the `GenericCorpusValue` cannot be downcasted to the underlying `Domain`'s `CorpusValue`
+    /// then an Error is returned.
+    ///
+    /// See `GenericDomain::print_corpus_value` for more details.
+    fn print_corpus_value(
+        &self,
+        val: &GenericCorpusValue,
+        out: &mut dyn std::fmt::Write,
+    ) -> anyhow::Result<()> {
+        self.print_corpus_value(
+            val.downcast_ref().context("Failed to retrieve the Corpus Value")?,
+            out,
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use googletest::prelude::*;
+
+    #[googletest::test]
+    fn test_domain_default_and_custom_printers() {
+        let default_domain = arbitrary::Arbitrary::<i32>::default();
+        let mut out = String::new();
+        Domain::print_corpus_value(&default_domain, &42, &mut out).unwrap();
+        expect_that!(out, eq("42"));
+
+        let generic_val: GenericCorpusValue = Box::new(99i32);
+        let generic_domain: &dyn GenericDomain = &default_domain;
+        out.clear();
+        generic_domain.print_corpus_value(&generic_val, &mut out).unwrap();
+        expect_that!(out, eq("99"));
+
+        struct CustomUserPrinterDomain;
+
+        impl Domain for CustomUserPrinterDomain {
+            type UserValue<'user> = i32;
+            type CorpusValue = i32;
+
+            fn init(&mut self, _rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue> {
+                Ok(0)
+            }
+
+            fn mutate(
+                &mut self,
+                _val: &mut Self::CorpusValue,
+                _rng: &mut dyn rand::Rng,
+                _only_shrink: bool,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            fn corpus_to_user_value<'a>(
+                &self,
+                corpus_value: &'a Self::CorpusValue,
+            ) -> anyhow::Result<Self::UserValue<'a>> {
+                Ok(*corpus_value * 2)
+            }
+
+            fn print_user_value(
+                &self,
+                user_value: &Self::UserValue<'_>,
+                out: &mut dyn std::fmt::Write,
+            ) -> anyhow::Result<()> {
+                write!(out, "user({user_value})")?;
+                Ok(())
+            }
+        }
+
+        out.clear();
+        Domain::print_corpus_value(&CustomUserPrinterDomain, &5, &mut out).unwrap();
+        expect_that!(out, eq("user(10)"));
     }
 }
