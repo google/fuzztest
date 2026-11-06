@@ -64,6 +64,24 @@ absl::StatusOr<std::string> FindFile(absl::string_view root_path,
   return absl::NotFoundError(absl::StrCat("File ", file_name, " not found."));
 }
 
+// Returns the modification times of the crashing inputs of
+// FuzzTest.FailsInTwoWays in the corpus database at `db_path`, keyed by path.
+absl::flat_hash_map<std::string, absl::Time> GetFailsInTwoWaysCrashMTimes(
+    absl::string_view db_path) {
+  absl::flat_hash_map<std::string, absl::Time> mtimes;
+  for (const std::string& path : ListDirectoryRecursively(db_path)) {
+    std::filesystem::path fs_path(path);
+    if (fs_path.parent_path().filename() != "crashing" ||
+        fs_path.parent_path().parent_path().filename() !=
+            "FuzzTest.FailsInTwoWays") {
+      continue;
+    }
+    const absl::StatusOr<absl::Time> mtime = RemoteFileGetMTime(path);
+    if (mtime.ok()) mtimes[path] = *mtime;
+  }
+  return mtimes;
+}
+
 enum class ExecutionModelParam {
   kTestBinary,
   kTestBinaryInvokingCentipedeBinary,
@@ -400,21 +418,9 @@ TEST_P(UpdateCorpusDatabaseTest, PrintsErrorsWhenBazelTimeoutIsNotEnough) {
 TEST_P(UpdateCorpusDatabaseTest, ReplayDoesNotUpdateDatabaseByDefault) {
   const std::string db_path = UpdateCorpusDatabaseAndGetPath();
 
-  std::vector<std::string> crash_files;
-  for (const std::string& path : ListDirectoryRecursively(db_path)) {
-    std::filesystem::path fs_path(path);
-    if (fs_path.parent_path().filename() == "crashing" &&
-        fs_path.parent_path().parent_path().filename() ==
-            "FuzzTest.FailsInTwoWays") {
-      crash_files.push_back(path);
-    }
-  }
-  ASSERT_FALSE(crash_files.empty());
-  const std::string target_crash = crash_files[0];
-
-  const auto initial_mtime = RemoteFileGetMTime(target_crash);
-  ASSERT_TRUE(initial_mtime.ok());
-  const absl::Time initial_mod_time = *initial_mtime;
+  const absl::flat_hash_map<std::string, absl::Time> initial_mtimes =
+      GetFailsInTwoWaysCrashMTimes(db_path);
+  ASSERT_FALSE(initial_mtimes.empty());
 
   absl::SleepFor(absl::Seconds(2));
 
@@ -428,29 +434,15 @@ TEST_P(UpdateCorpusDatabaseTest, ReplayDoesNotUpdateDatabaseByDefault) {
   auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
       GetCorpusDatabaseTestingBinaryPath(), run_options);
 
-  const auto final_mtime = RemoteFileGetMTime(target_crash);
-  ASSERT_TRUE(final_mtime.ok());
-  EXPECT_EQ(*final_mtime, initial_mod_time);
+  EXPECT_EQ(GetFailsInTwoWaysCrashMTimes(db_path), initial_mtimes);
 }
 
 TEST_P(UpdateCorpusDatabaseTest, ReplayUpdatesDatabaseWithFlag) {
   const std::string db_path = UpdateCorpusDatabaseAndGetPath();
 
-  std::vector<std::string> crash_files;
-  for (const std::string& path : ListDirectoryRecursively(db_path)) {
-    std::filesystem::path fs_path(path);
-    if (fs_path.parent_path().filename() == "crashing" &&
-        fs_path.parent_path().parent_path().filename() ==
-            "FuzzTest.FailsInTwoWays") {
-      crash_files.push_back(path);
-    }
-  }
-  ASSERT_FALSE(crash_files.empty());
-  const std::string target_crash = crash_files[0];
-
-  const auto initial_mtime = RemoteFileGetMTime(target_crash);
-  ASSERT_TRUE(initial_mtime.ok());
-  const absl::Time initial_mod_time = *initial_mtime;
+  const absl::flat_hash_map<std::string, absl::Time> initial_mtimes =
+      GetFailsInTwoWaysCrashMTimes(db_path);
+  ASSERT_FALSE(initial_mtimes.empty());
 
   absl::SleepFor(absl::Seconds(2));
 
@@ -465,12 +457,22 @@ TEST_P(UpdateCorpusDatabaseTest, ReplayUpdatesDatabaseWithFlag) {
   auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
       GetCorpusDatabaseTestingBinaryPath(), run_options);
 
-  const auto final_mtime = RemoteFileGetMTime(target_crash);
-  ASSERT_TRUE(final_mtime.ok());
-  EXPECT_GT(*final_mtime, initial_mod_time)
-      << "target_crash: " << target_crash << "\nstd_err:\n"
-      << std_err << "\nstd_out:\n"
-      << std_out;
+  // Crash deduplication touches only the crashing inputs that reproduce with
+  // their stored signatures. Others are kept as is or replaced, so we only
+  // require that at least one crashing input was touched.
+  const absl::flat_hash_map<std::string, absl::Time> final_mtimes =
+      GetFailsInTwoWaysCrashMTimes(db_path);
+  bool any_crash_touched = false;
+  for (const auto& [path, initial_mtime] : initial_mtimes) {
+    const auto it = final_mtimes.find(path);
+    if (it != final_mtimes.end() && it->second > initial_mtime) {
+      any_crash_touched = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(any_crash_touched) << "std_err:\n"
+                                 << std_err << "\nstd_out:\n"
+                                 << std_out;
 }
 
 TEST_P(UpdateCorpusDatabaseTest, FuzzingDoesNotUpdateDatabaseWithFlag) {
