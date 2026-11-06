@@ -181,6 +181,54 @@ For reproducing findings please rely on file based reproduction.
   EXPECT_EQ(get_failure(), "");
 }
 
+TEST(OnFailureTest, DisablesReporterAfterPrintingReportOnce) {
+  auto& runtime = Runtime::instance();
+  const auto get_failure = [&] {
+    std::string s;
+    runtime.PrintReport(&s);
+    return s;
+  };
+
+  FuzzTest test({"SUITE_NAME", "TEST_NAME", "FILE", 123}, nullptr);
+  Configuration configuration;
+  std::tuple args(17, std::string("ABC"));
+  const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4, 5};
+  UntypedDomain domain = TupleOf(Arbitrary<int>(), Arbitrary<std::string>());
+  GenericDomainCorpusType generic_args(
+      std::in_place_type<std::tuple<int, std::string>>, args);
+  Runtime::Args debug_args{generic_args, domain};
+  runtime.SetRunMode(RunMode::kFuzz);
+  runtime.SetCurrentTest(&test, &configuration);
+  runtime.SetCurrentArgs(&debug_args);
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+
+  auto crash_metadata_listener_calls = std::make_shared<int>(0);
+  runtime.RegisterCrashMetadataListener(
+      [crash_metadata_listener_calls](absl::string_view,
+                                      absl::Span<const std::string>) {
+        ++*crash_metadata_listener_calls;
+      });
+
+  EXPECT_NE(get_failure(), "");
+  EXPECT_EQ(*crash_metadata_listener_calls, 1);
+
+  // Once a report is printed, subsequent PrintReport calls in the same
+  // EnableReporter session must not emit a duplicate report.
+  EXPECT_EQ(get_failure(), "");
+  EXPECT_EQ(*crash_metadata_listener_calls, 1);
+
+  // Re-enabling the reporter allows printing again, once.
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  EXPECT_NE(get_failure(), "");
+  EXPECT_EQ(*crash_metadata_listener_calls, 2);
+  EXPECT_EQ(get_failure(), "");
+  EXPECT_EQ(*crash_metadata_listener_calls, 2);
+
+  runtime.UnsetCurrentArgs();
+  runtime.SetCurrentTest(nullptr, nullptr);
+  runtime.SetRunMode(RunMode::kUnitTest);
+}
+
 TEST(RegressionTestNameForCrashingInputTest,
      ReturnsRegressionTestNameForValidInputFilename) {
   const absl::StatusOr<std::string> regression_test_name =

@@ -290,10 +290,10 @@ void Runtime::PrintFinalStats(RawSink out) const {
 #endif
 }
 
-void Runtime::PrintReport(RawSink out) const {
+void Runtime::PrintReport(RawSink out) {
   // We don't want to try and print a fuzz report when we are not running a fuzz
   // test, even if we got a crash.
-  if (!reporter_enabled_) return;
+  if (!reporter_enabled_.exchange(false)) return;
 
   if (auto* coverage = GetExecutionCoverage()) {
     // Turn off tracing to avoid having the report trigger more problems during
@@ -684,9 +684,7 @@ void Runtime::PrintFinalStatsOnDefaultSink() const {
   PrintFinalStats(&signal_out_sink);
 }
 
-void Runtime::PrintReportOnDefaultSink() const {
-  PrintReport(&signal_out_sink);
-}
+void Runtime::PrintReportOnDefaultSink() { PrintReport(&signal_out_sink); }
 
 #else   // __linux__ || __APPLE__
 // TODO(sbenzaquen): We should still install signal handlers in other systems.
@@ -694,7 +692,7 @@ void InstallSignalHandlers(FILE* out) {}
 
 void Runtime::PrintFinalStatsOnDefaultSink() const {}
 
-void Runtime::PrintReportOnDefaultSink() const {}
+void Runtime::PrintReportOnDefaultSink() {}
 #endif  // __linux__ || __APPLE__
 
 void InstallUnexpectedExitHandler() {

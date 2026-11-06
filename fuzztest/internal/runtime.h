@@ -227,8 +227,8 @@ class Runtime {
 
   void PrintFinalStats(absl::FormatRawSink out) const;
   void PrintFinalStatsOnDefaultSink() const;
-  void PrintReport(absl::FormatRawSink out) const;
-  void PrintReportOnDefaultSink() const;
+  void PrintReport(absl::FormatRawSink out);
+  void PrintReportOnDefaultSink();
 
   // Registers a crash metadata listener that will be called when crash metadata
   // is available.
@@ -290,7 +290,7 @@ class Runtime {
   absl::Time creation_time_ = absl::Now();
   size_t test_counter_ = 0;
 
-  bool reporter_enabled_ = false;
+  std::atomic<bool> reporter_enabled_ = false;
   Args* current_args_ = nullptr;
   const FuzzTest* current_test_ = nullptr;
   const Configuration* current_configuration_;
