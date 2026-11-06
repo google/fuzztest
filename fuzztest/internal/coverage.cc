@@ -199,9 +199,54 @@ namespace {
 // zmm when avx512 is enabled.
 using Vector = uint8_t __attribute__((vector_size(64)));
 
+// When aligned, just cast. This generates an aligned instruction. When
+// unaligned, go through memcpy. This generates a slower unaligned instruction.
+template <class T>
+FUZZTEST_INTERNAL_NOSANITIZE auto UpdateRead(const uint8_t* p, T aligned) {
+  if constexpr (aligned) {
+    return *reinterpret_cast<const Vector*>(p);
+  } else {
+    Vector v;
+    memcpy(&v, p, sizeof(v));
+    return v;
+  }
+}
+
+template <class T>
+FUZZTEST_INTERNAL_NOSANITIZE void UpdateWrite(uint8_t* p, Vector v, T aligned) {
+  if constexpr (aligned) {
+    *reinterpret_cast<Vector*>(p) = v;
+  } else {
+    memcpy(p, &v, sizeof(v));
+  }
+}
+
+// We don't care about potential ABI change since all of this has internal
+// linkage. Silence the warning.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-warning-option"
+#pragma clang diagnostic ignored "-Wpsabi"
+template <class T>
+FUZZTEST_INTERNAL_NOSANITIZE void UpdateMergeData(Vector& any_greater,
+                                                  const uint8_t* execution_data,
+                                                  uint8_t* corpus_data,
+                                                  T aligned) {
+  const Vector execution_v = UpdateRead(execution_data, aligned);
+  const Vector corpus_v = UpdateRead(corpus_data, aligned);
+  // Normalize counter value with log2 to reduce corpus size.
+  // Approximation for `bit_width(execution_v) > bit_width(corpus_v)`:
+  // When the above comparison returns true, this comparison may not be
+  // true; But when this comparison is true, the above comparison must be
+  // true.
+  const Vector max_v = execution_v >> 1 >= corpus_v ? execution_v : corpus_v;
+  UpdateWrite(corpus_data, max_v, aligned);
+  any_greater |= max_v ^ corpus_v;
+}
+#pragma clang diagnostic pop
+
 constexpr size_t kVectorSize = sizeof(Vector);
 FUZZTEST_INTERNAL_NOSANITIZE bool UpdateVectorized(
-    const uint8_t *execution_data, uint8_t *corpus_data, size_t size,
+    const uint8_t* execution_data, uint8_t* corpus_data, size_t size,
     size_t offset_to_align) {
   FUZZTEST_CHECK(size >= kVectorSize)
       << "size cannot be smaller than block size!";
@@ -209,64 +254,24 @@ FUZZTEST_INTERNAL_NOSANITIZE bool UpdateVectorized(
   // Avoid collapsing the "greater than" vector until the end.
   Vector any_greater{};
 
-  // When aligned, just cast. This generates an aligned instruction.
-  // When unaligned, go through memcpy. This generates a slower unaligned
-  // instruction.
-  const auto read = [](const uint8_t *p, auto aligned)
-                        FUZZTEST_INTERNAL_NOSANITIZE {
-                          if constexpr (aligned) {
-                            return *reinterpret_cast<const Vector *>(p);
-                          } else {
-                            Vector v;
-                            memcpy(&v, p, sizeof(v));
-                            return v;
-                          }
-                        };
-  const auto write = [](uint8_t *p, Vector v, auto aligned)
-                         FUZZTEST_INTERNAL_NOSANITIZE {
-                           if constexpr (aligned) {
-                             *reinterpret_cast<Vector *>(p) = v;
-                           } else {
-                             memcpy(p, &v, sizeof(v));
-                           }
-                         };
-  // We don't care about potential ABI change since all of this has internal
-  // linkage. Silence the warning.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunknown-warning-option"
-#pragma clang diagnostic ignored "-Wpsabi"
-  const auto merge_data = [&](auto aligned) FUZZTEST_INTERNAL_NOSANITIZE {
-    const Vector execution_v = read(execution_data, aligned);
-    const Vector corpus_v = read(corpus_data, aligned);
-    // Normalize counter value with log2 to reduce corpus size.
-    // Approximation for `bit_width(execution_v) > bit_width(corpus_v)`:
-    // When the above comparison returns true, this comparison may not be
-    // true; But when this comparison is true, the above comparison must be
-    // true.
-    const Vector max_v = execution_v >> 1 >= corpus_v ? execution_v : corpus_v;
-    write(corpus_data, max_v, aligned);
-    any_greater |= max_v ^ corpus_v;
-  };
-#pragma clang diagnostic pop
-
   // Merge every sizeof(Vector) chunks.
   // We read the first and last blocks with unaligned reads.
   // The rest we make sure that memory is properly aligned and use the faster
   // aligned operations. There will be overlap between the two parts, but the
   // merge is idempotent.
 
-  merge_data(std::false_type{});
+  UpdateMergeData(any_greater, execution_data, corpus_data, std::false_type{});
   execution_data += offset_to_align;
   corpus_data += offset_to_align;
   size -= offset_to_align;
 
   for (; size > kVectorSize; size -= kVectorSize, execution_data += kVectorSize,
                              corpus_data += kVectorSize) {
-    merge_data(std::true_type{});
+    UpdateMergeData(any_greater, execution_data, corpus_data, std::true_type{});
   }
   execution_data = execution_data + size - kVectorSize;
   corpus_data = corpus_data + size - kVectorSize;
-  merge_data(std::false_type{});
+  UpdateMergeData(any_greater, execution_data, corpus_data, std::false_type{});
 
   // If any position has a bit on, we updated something.
   for (size_t i = 0; i < sizeof(Vector); ++i) {
