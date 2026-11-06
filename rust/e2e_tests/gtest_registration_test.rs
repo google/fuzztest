@@ -53,3 +53,33 @@ fn test_fuzztest_property_function_executes_in_gtest(fixture: &EnvVars) {
 
     expect_that!(stdout, matchers::contains_substring("bool_fuzz_test property function ran..."));
 }
+
+#[gtest]
+fn test_panicking_fuzztest_prints_finding_report_in_smoke_test(fixture: &EnvVars) {
+    let target_binary_path = fixture.binary_path("fuzztest_main");
+
+    let output = Command::new(&target_binary_path)
+        .arg("find_bug_fuzz_test")
+        .arg("--nocapture")
+        .output()
+        .expect("Failed to execute test binary");
+
+    expect_false!(output.status.success());
+
+    let combined = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    expect_that!(combined, matchers::contains_substring("=== BUG FOUND!"));
+    expect_that!(
+        combined,
+        matchers::contains_substring(
+            "Counterexample found for fuzztest_main::__fuzztest_mod__find_bug_fuzz_test::find_bug_fuzz_test."
+        )
+    );
+    expect_that!(
+        combined,
+        matchers::contains_substring("The test fails with input:\nargument 0: ")
+    );
+}

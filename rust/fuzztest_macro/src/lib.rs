@@ -59,7 +59,6 @@ impl Parse for FuzzTestArg {
 /// }
 /// ```
 /// ```
-///
 #[proc_macro_attribute]
 pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
     let item = parse_macro_input!(input as Item);
@@ -71,8 +70,8 @@ pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
     let original_ident = test_fn.sig.ident.clone();
     let fuzztest_name = original_ident.to_string();
 
-    // TODO(mathuxny-73): Support the case where there are no arguments. Probably we should return an error
-    //  in this case as it may not make sense to have a FuzzTest without input.
+    // TODO(mathuxny-73): Support the case where there are no arguments. Probably we should return
+    // an error  in this case as it may not make sense to have a FuzzTest without input.
     let args =
         syn::punctuated::Punctuated::<FuzzTestArg, syn::Token![,]>::parse_terminated.parse(args);
 
@@ -118,16 +117,17 @@ pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
 
             use super::#original_ident as #prop_fn_ident;
 
-            #fuzztest_object_tokenstream
-
-            const _: () = {
-                static FUZZTEST_INFO: ::fuzztest::internal::FuzzTestInfo =
+            static FUZZTEST_INFO: ::fuzztest::internal::FuzzTestInfo =
                 ::fuzztest::internal::FuzzTestInfo {
                     name: #fuzztest_name,
+                    module_path: module_path!(),
                     file: file!(),
                     line: line!(),
                 };
 
+            #fuzztest_object_tokenstream
+
+            const _: () = {
                 ::fuzztest::reexports::inventory::submit! {
                 ::fuzztest::internal::FuzzTestRegistration {
                     info: &FUZZTEST_INFO,
