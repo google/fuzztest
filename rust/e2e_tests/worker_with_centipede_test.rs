@@ -30,12 +30,9 @@ fn run_centipede_test<'a>(
     fs::create_dir_all(&work_dir).expect("Failed to create working directory");
 
     let rust_test_name = test_name.replace(".", "::");
+    let target_binary_path = fixture.binary_path("fuzztest_main");
     let mut args: Vec<String> = vec![
-        format!(
-            "--binary={} --nocapture {} --exact",
-            fixture.target_binary_path.display(),
-            rust_test_name
-        ),
+        format!("--binary={} --nocapture {} --exact", target_binary_path.display(), rust_test_name),
         format!("--workdir={}", work_dir.display()),
         format!("--test_name=fuzztest_main.{}", test_name),
     ];

@@ -19,23 +19,28 @@ use std::process::Command;
 
 pub struct EnvVars {
     pub tmp_dir_path: PathBuf,
-    pub target_binary_path: PathBuf,
+    pub testdata_dir_path: PathBuf,
     pub centipede_path: PathBuf,
+}
+
+impl EnvVars {
+    pub fn binary_path(&self, name: &str) -> PathBuf {
+        self.testdata_dir_path.join(name)
+    }
 }
 
 impl Fixture for EnvVars {
     fn set_up() -> googletest::Result<Self> {
-        const TARGET_BINARY: &str =
-            "_main/rust/e2e_tests/testdata/fuzztest_main";
+        const TESTDATA_DIR: &str = "_main/rust/e2e_tests/testdata";
 
         const CENTIPEDE: &str =
             "_main/centipede/centipede_uninstrumented";
         let src_dir_path = PathBuf::from(env::var("TEST_SRCDIR").unwrap());
         let tmp_dir_path = PathBuf::from(env::var("TEST_TMPDIR").unwrap());
-        let target_binary_path = src_dir_path.join(PathBuf::from(TARGET_BINARY));
-        let centipede_path = src_dir_path.join(PathBuf::from(CENTIPEDE));
+        let testdata_dir_path = src_dir_path.join(TESTDATA_DIR);
+        let centipede_path = src_dir_path.join(CENTIPEDE);
 
-        Ok(EnvVars { tmp_dir_path, target_binary_path, centipede_path })
+        Ok(EnvVars { tmp_dir_path, testdata_dir_path, centipede_path })
     }
     fn tear_down(self) -> googletest::Result<()> {
         Ok(())
@@ -86,7 +91,7 @@ pub fn run_target_binary_with_args_and_env_expect_termination(
     args: &[&str],
     envs: &[(&str, &str)],
 ) -> String {
-    let process = Command::new(&fixture.target_binary_path)
+    let process = Command::new(fixture.binary_path("fuzztest_main"))
         .args(args)
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
         .env("FUZZTEST_CENTIPEDE_BINARY_PATH", &fixture.centipede_path)

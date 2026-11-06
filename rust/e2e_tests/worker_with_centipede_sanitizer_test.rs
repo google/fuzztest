@@ -29,8 +29,9 @@ fn ensure_use_after_free_signature_with_asan(fixture: &EnvVars) {
     let work_dir = fixture.tmp_dir_path.join("WD"); // For permissions
     fs::create_dir_all(&work_dir).expect("Failed to create working directory");
 
+    let target_binary_path = fixture.binary_path("fuzztest_main");
     let args = [
-        &format!("--binary={}", fixture.target_binary_path.display()),
+        &format!("--binary={}", target_binary_path.display()),
         &format!("--workdir={}", work_dir.display()),
         "--exit_on_crash",
         "--test_name=fuzztest_main.__fuzztest_mod__use_after_free_asan_death_test.use_after_free_asan_death_test",
@@ -60,8 +61,9 @@ fn ensure_sanitizer_crash_signature_with_msan(fixture: &EnvVars) {
     let work_dir = fixture.tmp_dir_path.join("WD"); // For permissions
     fs::create_dir_all(&work_dir).expect("Failed to create working directory");
 
+    let target_binary_path = fixture.binary_path("fuzztest_main");
     let args = [
-        &format!("--binary={}", fixture.target_binary_path.display()),
+        &format!("--binary={}", target_binary_path.display()),
         &format!("--workdir={}", work_dir.display()),
         "--exit_on_crash",
         "--test_name=fuzztest_main.__fuzztest_mod__msan_death_test.msan_death_test",

@@ -14,15 +14,12 @@
 
 use googletest::matchers;
 use googletest::prelude::*;
-use std::env;
-use std::path::PathBuf;
 use std::process::Command;
+use test_utils::EnvVars;
 
 #[gtest]
-fn test_fuzztests_are_registered_as_gtests() {
-    let src_dir_path = PathBuf::from(env::var("TEST_SRCDIR").unwrap());
-    let target_binary_path = src_dir_path
-        .join("_main/rust/e2e_tests/testdata/fuzz_tests_as_gtests");
+fn test_fuzztests_are_registered_as_gtests(fixture: &EnvVars) {
+    let target_binary_path = fixture.binary_path("fuzz_tests_as_gtests");
 
     // Run the test binary with `--list` to list all registered tests.
     let output = Command::new(&target_binary_path)
@@ -40,10 +37,8 @@ fn test_fuzztests_are_registered_as_gtests() {
 }
 
 #[gtest]
-fn test_fuzztest_property_function_executes_in_gtest() {
-    let src_dir_path = PathBuf::from(env::var("TEST_SRCDIR").unwrap());
-    let target_binary_path = src_dir_path
-        .join("_main/rust/e2e_tests/testdata/fuzz_tests_as_gtests");
+fn test_fuzztest_property_function_executes_in_gtest(fixture: &EnvVars) {
+    let target_binary_path = fixture.binary_path("fuzz_tests_as_gtests");
 
     // Run a fuzz test
     let output = Command::new(&target_binary_path)

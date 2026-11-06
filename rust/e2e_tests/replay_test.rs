@@ -15,26 +15,14 @@
 use googletest::matchers;
 use googletest::prelude::*;
 use std::fs;
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use test_utils::EnvVars;
-
-fn get_target_binary_path(fixture: &EnvVars) -> PathBuf {
-    if let Some(path) = std::env::var_os("CARGO_BIN_EXE_replay_fuzz_tests_bin") {
-        return PathBuf::from(path);
-    }
-    fixture
-        .target_binary_path
-        .parent()
-        .expect("target_binary_path must have a parent")
-        .join("replay_fuzz_tests_bin")
-}
 
 #[gtest]
 fn replay_by_id_reproduces_panic(fixture: &EnvVars) {
     let test_name = "__fuzztest_mod__find_two_bugs_fuzz_test::find_two_bugs_fuzz_test";
 
-    let target_binary_path = get_target_binary_path(fixture);
+    let target_binary_path = fixture.binary_path("replay_fuzz_tests_bin");
 
     let db_dir = fixture.tmp_dir_path.join("replay_by_id_reproduces_panic").join("corpus_db");
     fs::create_dir_all(&db_dir).expect("Failed to create db directory");
@@ -110,7 +98,7 @@ fn replay_by_id_reproduces_panic(fixture: &EnvVars) {
 fn replay_all_reproduces_all_failures(fixture: &EnvVars) {
     let test_name = "__fuzztest_mod__find_two_bugs_fuzz_test::find_two_bugs_fuzz_test";
 
-    let target_binary_path = get_target_binary_path(fixture);
+    let target_binary_path = fixture.binary_path("replay_fuzz_tests_bin");
 
     let db_dir =
         fixture.tmp_dir_path.join("replay_all_reproduces_all_failures").join("corpus_db_all");

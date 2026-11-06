@@ -19,8 +19,7 @@ use test_utils::EnvVars;
 
 #[gtest]
 fn standalone_mode_invokes_centipede(fixture: &EnvVars) {
-    let target_binary_path =
-        fixture.target_binary_path.parent().unwrap().join("standalone_fuzz_tests_bin");
+    let target_binary_path = fixture.binary_path("standalone_fuzz_tests_bin");
     let test_name = "__fuzztest_mod__standalone_validation_test::standalone_validation_test";
 
     let process = Command::new(&target_binary_path)
@@ -48,8 +47,7 @@ fn standalone_mode_invokes_centipede(fixture: &EnvVars) {
 
 #[gtest]
 fn standalone_mode_invokes_the_correct_fuzztest(fixture: &EnvVars) {
-    let target_binary_path =
-        fixture.target_binary_path.parent().unwrap().join("standalone_fuzz_tests_bin");
+    let target_binary_path = fixture.binary_path("standalone_fuzz_tests_bin");
     let test_name = "__fuzztest_mod__standalone_validation_test::standalone_validation_test";
 
     let process = Command::new(&target_binary_path)
@@ -79,7 +77,7 @@ fn standalone_mode_invokes_the_correct_fuzztest(fixture: &EnvVars) {
 fn standalone_mode_handles_worker_crash(fixture: &EnvVars) {
     let test_name = "__fuzztest_mod__find_bug_fuzz_test::find_bug_fuzz_test";
 
-    let process = Command::new(&fixture.target_binary_path)
+    let process = Command::new(fixture.binary_path("fuzztest_main"))
         .arg(test_name)
         .env("FUZZTEST_FUZZ_FOR", "15s")
         .env("FUZZTEST_PRINT_SUBPROCESS_LOG", "true")
@@ -103,7 +101,7 @@ fn standalone_mode_handles_worker_crash(fixture: &EnvVars) {
 fn standalone_mode_continues_after_crash_when_enabled(fixture: &EnvVars) {
     let test_name = "__fuzztest_mod__find_bug_fuzz_test::find_bug_fuzz_test";
 
-    let process = Command::new(&fixture.target_binary_path)
+    let process = Command::new(fixture.binary_path("fuzztest_main"))
         .arg(test_name)
         .env("FUZZTEST_FUZZ_FOR", "15s")
         .env("FUZZTEST_CONTINUE_AFTER_CRASH", "true")
@@ -125,8 +123,7 @@ fn standalone_mode_continues_after_crash_when_enabled(fixture: &EnvVars) {
 
 #[gtest]
 fn standalone_mode_spawns_parallel_jobs(fixture: &EnvVars) {
-    let target_binary_path =
-        fixture.target_binary_path.parent().unwrap().join("standalone_fuzz_tests_bin");
+    let target_binary_path = fixture.binary_path("standalone_fuzz_tests_bin");
     let test_name = "__fuzztest_mod__jobs_test::jobs_test";
 
     let process = Command::new(&target_binary_path)
@@ -162,8 +159,7 @@ fn standalone_mode_spawns_parallel_jobs(fixture: &EnvVars) {
 
 #[gtest]
 fn standalone_mode_replay_corpus_per_test_budget(fixture: &EnvVars) {
-    let target_binary_path =
-        fixture.target_binary_path.parent().unwrap().join("standalone_fuzz_tests_bin");
+    let target_binary_path = fixture.binary_path("standalone_fuzz_tests_bin");
 
     let corpus_db = fixture
         .tmp_dir_path
@@ -252,8 +248,7 @@ fn standalone_mode_replay_corpus_per_test_budget(fixture: &EnvVars) {
 
 #[gtest]
 fn standalone_mode_replay_corpus_total_budget(fixture: &EnvVars) {
-    let target_binary_path =
-        fixture.target_binary_path.parent().unwrap().join("standalone_fuzz_tests_bin");
+    let target_binary_path = fixture.binary_path("standalone_fuzz_tests_bin");
 
     let corpus_db = fixture
         .tmp_dir_path
