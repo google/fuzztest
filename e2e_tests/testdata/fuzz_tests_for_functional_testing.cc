@@ -36,6 +36,8 @@
 #include "absl/algorithm/container.h"
 #include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/absl_log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
@@ -129,6 +131,69 @@ FUZZ_TEST(MySuite, CrashesConcurrentlyInManyThreads);
 void RaisesSigterm(int) { std::raise(SIGTERM); }
 FUZZ_TEST(MySuite, RaisesSigterm);
 
+__attribute__((noinline)) void CheckFailsImpl2(int foo, int bar) {
+  ABSL_CHECK_LE(foo, bar);
+}
+
+__attribute__((noinline)) void CheckFailsImpl1(int foo, int bar) {
+  CheckFailsImpl2(foo, bar);
+  asm volatile("" ::: "memory");
+}
+
+__attribute__((noinline)) void CheckFails(int foo, int bar) {
+  CheckFailsImpl1(foo, bar);
+  asm volatile("" ::: "memory");
+}
+FUZZ_TEST(MySuite, CheckFails);
+
+__attribute__((noinline)) void LogFatalFailsImpl2(int foo, int bar) {
+  if (foo > bar) {
+    ABSL_LOG(FATAL) << "foo > bar";
+  }
+}
+
+__attribute__((noinline)) void LogFatalFailsImpl1(int foo, int bar) {
+  LogFatalFailsImpl2(foo, bar);
+  asm volatile("" ::: "memory");
+}
+
+__attribute__((noinline)) void LogFatalFails(int foo, int bar) {
+  LogFatalFailsImpl1(foo, bar);
+  asm volatile("" ::: "memory");
+}
+FUZZ_TEST(MySuite, LogFatalFails);
+
+__attribute__((noinline)) void CheckFailsInThreadImpl2(int value) {
+  ABSL_CHECK_LE(value, 0);
+}
+
+__attribute__((noinline)) void CheckFailsInThreadImpl1(int value) {
+  CheckFailsInThreadImpl2(value);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+__attribute__((noinline)) void CheckFailsInThread(std::atomic<bool>* start) {
+  while (!start->load()) {
+  }
+  CheckFailsInThreadImpl1(1);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+// Fails a CHECK in many threads at about the same time, to check that
+// concurrent CHECK failures are reported with a complete stack-based crash
+// signature.
+void CheckFailsConcurrentlyInManyThreads(int) {
+  constexpr int kNumThreads = 8;
+  std::atomic<bool> start = false;
+  std::vector<std::thread> threads;
+  threads.reserve(kNumThreads);
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back(CheckFailsInThread, &start);
+  }
+  start = true;
+  for (std::thread& thread : threads) thread.join();
+}
+FUZZ_TEST(MySuite, CheckFailsConcurrentlyInManyThreads);
 void PassesString(const std::string& v) {
   absl::FPrintF(stderr, "==<<Saw size=%zu>>==\n", v.size());
 }

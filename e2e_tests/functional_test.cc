@@ -2196,6 +2196,55 @@ TEST_P(FuzzingModeCrashFindingTest,
                                "(anonymous namespace)::CrashesInThread"))));
 }
 
+TEST_P(FuzzingModeCrashFindingTest, CheckCrashMetadataIsDumpedIfEnvVarIsSet) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.CheckFails", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("CHECK\n"
+                          "CRASH_SIGNATURE=CHECK:"
+                          "(anonymous namespace)::CheckFailsImpl2/"
+                          "(anonymous namespace)::CheckFailsImpl1/"
+                          "(anonymous namespace)::CheckFails")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       LogFatalCrashMetadataIsDumpedIfEnvVarIsSet) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.LogFatalFails", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("LOG(FATAL)\n"
+                          "CRASH_SIGNATURE=LOG(FATAL):"
+                          "(anonymous namespace)::LogFatalFailsImpl2/"
+                          "(anonymous namespace)::LogFatalFailsImpl1/"
+                          "(anonymous namespace)::LogFatalFails")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       ConcurrentCheckFailuresReportCompleteStackSignature) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.CheckFailsConcurrentlyInManyThreads", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  // Even though many threads fail a CHECK at about the same time, the crash is
+  // reported by a single thread, with that thread's stack signature.
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("CHECK\n"
+                          "CRASH_SIGNATURE=CHECK:"
+                          "(anonymous namespace)::CheckFailsInThreadImpl2/"
+                          "(anonymous namespace)::CheckFailsInThreadImpl1/"
+                          "(anonymous namespace)::CheckFailsInThread")));
+}
+
 TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
   TempDir out_dir;
   const std::string crash_metadata_path = out_dir.path() / "crash_metadata";

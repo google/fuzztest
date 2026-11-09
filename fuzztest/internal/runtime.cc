@@ -48,8 +48,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/log_severity.h"
+#include "absl/base/no_destructor.h"
 #include "absl/functional/bind_front.h"
 #include "absl/functional/function_ref.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/random.h"
@@ -194,6 +199,23 @@ class SignalSafeBufferWriter {
   size_t size_ = 0;
 };
 
+class FuzzTestFatalLogSink : public absl::LogSink {
+ public:
+  void Send(const absl::LogEntry& entry) override {
+    if (entry.log_severity() != absl::LogSeverity::kFatal) return;
+    Runtime& runtime = Runtime::instance();
+    if (!runtime.reporter_enabled()) return;
+    const bool is_check =
+        absl::StartsWith(entry.text_message(), "Check failed: ");
+    const absl::string_view crash_type = is_check ? "CHECK" : "LOG(FATAL)";
+    // Only compute the signature if this call set the crash type, so that both
+    // describe the same crash.
+    if (runtime.SetCrashTypeIfUnset(crash_type)) {
+      runtime.SetStackCrashSignatureIfUnset(crash_type);
+    }
+  }
+};
+
 }  // namespace
 
 ReproducerOutputLocation GetReproducerOutputLocation() {
@@ -262,6 +284,8 @@ void PrintReproducerIfRequested(RawSink out, const FuzzTest& test,
 void (*crash_handler_hook)();
 
 Runtime::Runtime() {
+  static absl::NoDestructor<FuzzTestFatalLogSink> fatal_log_sink;
+  absl::AddLogSink(fatal_log_sink.get());
   FuzzTestSetSanitizerErrorSummaryCallback([](const char* crash_type_data,
                                               size_t crash_type_size) {
     const absl::string_view crash_type(crash_type_data, crash_type_size);

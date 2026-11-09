@@ -395,9 +395,14 @@ fuzztest_cc_library(
     fuzztest::serialization
     fuzztest::status
     absl::core_headers
+    absl::log_severity
+    absl::no_destructor
     absl::any_invocable
     absl::bind_front
     absl::function_ref
+    absl::log_entry
+    absl::log_sink
+    absl::log_sink_registry
     absl::random_random
     absl::random_bit_gen_ref
     absl::random_distributions
