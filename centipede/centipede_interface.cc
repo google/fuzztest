@@ -486,9 +486,11 @@ void RecordFuzzingResults(const Environment& env, const DatabasePaths& db_paths,
   } else if (env.report_crash_summary) {
     // Just report the crashes.
     for (const auto& [crash_signature, crash_details] : crashes_by_signature) {
-      crash_summary.AddCrash({/*id=*/crash_details.input_signature,
-                              /*category=*/crash_details.description,
-                              crash_signature, crash_details.description});
+      crash_summary.AddCrash(
+          {/*id=*/crash_details.input_signature,
+           /*category=*/
+           std::string(GetCrashCategory(crash_details.description)),
+           crash_signature, crash_details.description});
     }
     crash_summary.Report(&std::cerr);
   }
@@ -785,9 +787,11 @@ void ReplayCrash(const Environment& env,
         GetCrashesFromWorkdir(workdir, /*total_shards=*/1);
     FUZZTEST_CHECK_LE(crashes_by_signature.size(), 1);
     for (const auto& [signature, crash_details] : crashes_by_signature) {
-      crash_summary.AddCrash({env.crash_id,
-                              /*category=*/crash_details.description, signature,
-                              crash_details.description});
+      crash_summary.AddCrash(
+          {env.crash_id,
+           /*category=*/
+           std::string(GetCrashCategory(crash_details.description)), signature,
+           crash_details.description});
     }
     crash_summary.Report(&std::cerr);
   }

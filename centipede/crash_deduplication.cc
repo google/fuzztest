@@ -29,11 +29,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "absl/strings/strip.h"
 #include "absl/time/clock.h"
 #include "absl/time/clock_interface.h"
 #include "absl/time/time.h"
@@ -62,23 +59,15 @@ std::string GetInputFileName(std::string_view bug_id,
   return absl::StrCat(bug_id, "-", crash_signature, "-", input_signature);
 }
 
-std::optional<std::string_view> TryParseCrashType(
-    std::string_view description) {
-  for (std::string_view line : absl::StrSplit(description, '\n')) {
-    line = absl::StripAsciiWhitespace(line);
-    if (absl::ConsumePrefix(&line, "CRASH_TYPE=")) {
-      return line;
-    }
-  }
-  return std::nullopt;
-}
-
-bool IsLegacyCrashTypeSignature(std::string_view sig,
-                                std::string_view crash_type) {
-  if (sig == Hash(crash_type)) return true;
+// Returns true iff `sig` is a legacy crash signature for a crash in
+// `category`. Legacy crash signatures were the hash of the (single-line) crash
+// description, which is now the crash category (see `GetCrashCategory`).
+bool IsLegacyCategorySignature(std::string_view sig,
+                               std::string_view category) {
+  if (sig == Hash(category)) return true;
   // Prior to dedicated fatal log sink handling, Abseil CHECK and LOG(FATAL)
   // failures terminated via abort() and were classified as SIGABRT.
-  if ((crash_type == "CHECK" || crash_type == "LOG(FATAL)") &&
+  if ((category == "CHECK" || category == "LOG(FATAL)") &&
       sig == Hash("SIGABRT")) {
     return true;
   }
@@ -385,10 +374,8 @@ ExistingCrashAction ComputeExistingCrashAction(
   }
 
   if (!sig_new.empty()) {
-    if (std::optional<std::string_view> crash_type =
-            TryParseCrashType(existing.crash_report.details.description);
-        crash_type.has_value() &&
-        IsLegacyCrashTypeSignature(sig, *crash_type) &&
+    if (IsLegacyCategorySignature(
+            sig, GetCrashCategory(existing.crash_report.details.description)) &&
         claimed_signatures.insert(sig_new).second) {
       return {existing, ActionType::kMigrateSignature, std::nullopt,
               absl::StrCat("Crash reproduced with fine-grained signature '",
@@ -498,9 +485,10 @@ absl::Status WriteCrashToFile(const std::filesystem::path& crashing_dir,
         RemoteFileCopy(details.input_path, new_input_path.c_str()));
   }
 
-  crash_summary.AddCrash({/*id=*/new_input_file_name,
-                          /*category=*/details.description,
-                          std::string(crash_signature), details.description});
+  crash_summary.AddCrash(
+      {/*id=*/new_input_file_name,
+       /*category=*/std::string(GetCrashCategory(details.description)),
+       std::string(crash_signature), details.description});
   return absl::OkStatus();
 }
 
@@ -545,7 +533,7 @@ absl::Status TouchCrash(const ExistingCrash& existing,
       /*id=*/std::filesystem::path(existing.crash_report.details.input_path)
           .filename()
           .c_str(),
-      /*category=*/description,
+      /*category=*/std::string(GetCrashCategory(description)),
       existing.crash_report.signature,
       description,
   });

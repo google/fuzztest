@@ -83,5 +83,16 @@ TEST_F(CrashSummaryTest, ReportCallsExternalCrashReporter) {
   EXPECT_THAT(dumped_summary_, Pointee(summary));
 }
 
+TEST(GetCrashCategoryTest, ReturnsSingleLineDescriptionAsIs) {
+  EXPECT_EQ(GetCrashCategory("heap-buffer-overflow"), "heap-buffer-overflow");
+  EXPECT_EQ(GetCrashCategory(""), "");
+}
+
+TEST(GetCrashCategoryTest, ReturnsFirstLineOfMultiLineDescription) {
+  EXPECT_EQ(GetCrashCategory("SETUP FAILURE: data-race\n"
+                             "CRASH_SIGNATURE=data-race"),
+            "SETUP FAILURE: data-race");
+}
+
 }  // namespace
 }  // namespace fuzztest::internal

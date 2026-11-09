@@ -132,11 +132,19 @@ extern "C" size_t CentipedeGetCoverageData(uint8_t* data, size_t capacity);
 // "empty" with no features or metadata.
 extern "C" void CentipedeSetExecutionResult(const uint8_t* data, size_t size);
 
-// Set the failure description for the runner to propagate further. Only the
-// description from the first call will be used.
+// Set the failure description and signature for the runner to propagate
+// further. Only the values from the first call will be used. If `signature` is
+// nullptr, `(description, description_size)` is used as the signature.
 //
 // If used during executing batch inputs, the rest of the inputs would be
 // skipped and the batch would be considered as failed.
+extern "C" void CentipedeSetFailure(const char* description,
+                                    size_t description_size,
+                                    const char* signature,
+                                    size_t signature_size);
+
+// Equivalent to `CentipedeSetFailure(description, strlen(description),
+// description, strlen(description))`.
 extern "C" void CentipedeSetFailureDescription(const char* description);
 
 namespace fuzztest::internal {

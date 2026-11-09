@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -294,6 +295,46 @@ TEST(FuzzTestSanitizerErrorSummaryCallbackTest,
   EXPECT_EQ(recorded_crash_type, "Sanitizer crash");
 
   FuzzTestSetSanitizerErrorSummaryCallback(nullptr);
+}
+
+absl::string_view FormatCrashDescription(absl::string_view prefix,
+                                         absl::string_view crash_type,
+                                         absl::string_view signature,
+                                         absl::Span<char> out) {
+  const size_t size = FuzzTestFormatCrashDescription(
+      prefix.data(), prefix.size(), crash_type.data(), crash_type.size(),
+      signature.data(), signature.size(), out.data(), out.size());
+  return absl::string_view(out.data(), size);
+}
+
+TEST(FuzzTestFormatCrashDescriptionTest, AppendsSignatureLine) {
+  char buffer[128];
+  EXPECT_EQ(FormatCrashDescription("", "heap-use-after-free",
+                                   "heap-use-after-free:Foo/Bar", buffer),
+            "heap-use-after-free\nCRASH_SIGNATURE=heap-use-after-free:Foo/Bar");
+}
+
+TEST(FuzzTestFormatCrashDescriptionTest, PrependsPrefix) {
+  char buffer[128];
+  EXPECT_EQ(FormatCrashDescription("SETUP FAILURE: ", "SIGSEGV", "SIGSEGV:Foo",
+                                   buffer),
+            "SETUP FAILURE: SIGSEGV\nCRASH_SIGNATURE=SIGSEGV:Foo");
+}
+
+TEST(FuzzTestFormatCrashDescriptionTest, OmitsSignatureLineIfEmpty) {
+  char buffer[128];
+  EXPECT_EQ(
+      FormatCrashDescription("SETUP FAILURE: ", "Generic crash", "", buffer),
+      "SETUP FAILURE: Generic crash");
+}
+
+TEST(FuzzTestFormatCrashDescriptionTest, TruncatesToOutputSize) {
+  char buffer[20];
+  EXPECT_EQ(FormatCrashDescription("", "SIGSEGV", "SIGSEGV:Foo", buffer),
+            "SIGSEGV\nCRASH_SIGNAT");
+  EXPECT_EQ(FormatCrashDescription("", "SIGSEGV", "SIGSEGV:Foo",
+                                   absl::Span<char>(buffer, 0)),
+            "");
 }
 
 }  // namespace

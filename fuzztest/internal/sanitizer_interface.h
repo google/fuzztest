@@ -37,6 +37,19 @@ using FuzzTestSanitizerErrorSummaryCallback =
 void FuzzTestSetSanitizerErrorSummaryCallback(
     FuzzTestSanitizerErrorSummaryCallback callback);
 
+// Formats a crash description into `(out, out_size)`: writes
+// `<prefix><crash_type>` and, only if `signature_size > 0`, the metadata line
+// `\nCRASH_SIGNATURE=<signature>`. The output is truncated to `out_size` bytes
+// and is not null-terminated. Returns the number of bytes written.
+//
+// Pure and async-signal-safe (does not allocate).
+size_t FuzzTestFormatCrashDescription(const char* prefix, size_t prefix_size,
+                                      const char* crash_type,
+                                      size_t crash_type_size,
+                                      const char* signature,
+                                      size_t signature_size, char* out,
+                                      size_t out_size);
+
 }  // extern "C"
 
 namespace fuzztest::internal {

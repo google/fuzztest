@@ -14,8 +14,10 @@
 
 #include "./fuzztest/internal/sanitizer_interface.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <cstring>
 #include <optional>
 
 #include "absl/status/status.h"
@@ -24,6 +26,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "absl/types/span.h"
 #include "./common/logging.h"
 
 namespace fuzztest::internal {
@@ -76,6 +79,14 @@ std::optional<absl::string_view> MaybeExtractTsanCrashType(
     return "use-invalid-mutex";
   }
   return std::nullopt;
+}
+
+void AppendToBuffer(absl::Span<char> out_buffer, size_t& offset,
+                    absl::string_view piece) {
+  if (offset >= out_buffer.size() || piece.empty()) return;
+  const size_t to_copy = std::min(piece.size(), out_buffer.size() - offset);
+  std::memcpy(out_buffer.data() + offset, piece.data(), to_copy);
+  offset += to_copy;
 }
 
 }  // namespace
@@ -136,4 +147,23 @@ extern "C" void FuzzTestSetSanitizerErrorSummaryCallback(
   (void)hook;
   fuzztest::internal::sanitizer_error_summary_callback.store(
       callback, std::memory_order_relaxed);
+}
+
+extern "C" size_t FuzzTestFormatCrashDescription(
+    const char* prefix, size_t prefix_size, const char* crash_type,
+    size_t crash_type_size, const char* signature, size_t signature_size,
+    char* out, size_t out_size) {
+  const absl::Span<char> out_buffer(out, out_size);
+  size_t offset = 0;
+  fuzztest::internal::AppendToBuffer(out_buffer, offset,
+                                     absl::string_view(prefix, prefix_size));
+  fuzztest::internal::AppendToBuffer(
+      out_buffer, offset, absl::string_view(crash_type, crash_type_size));
+  if (signature_size > 0) {
+    fuzztest::internal::AppendToBuffer(out_buffer, offset,
+                                       "\nCRASH_SIGNATURE=");
+    fuzztest::internal::AppendToBuffer(
+        out_buffer, offset, absl::string_view(signature, signature_size));
+  }
+  return offset;
 }

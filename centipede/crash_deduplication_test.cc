@@ -357,8 +357,9 @@ TEST_F(OrganizeCrashingInputsTest,
   const std::string legacy_sig = Hash("heap-buffer-overflow");
   SetContentsAndGetPath(crashing_dir(),
                         absl::StrCat("bug-", legacy_sig, "-isig"), "input");
+  // The legacy signature is the hash of the category (the first line).
   const std::string desc =
-      "heap-buffer-overflow\nCRASH_TYPE=heap-buffer-overflow";
+      "heap-buffer-overflow\nCRASH_SIGNATURE=heap-buffer-overflow:Foo/Bar";
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
                                        {"input", {"csig_new", desc}},
                                    });
@@ -382,7 +383,10 @@ TEST_F(OrganizeCrashingInputsTest,
   EXPECT_THAT(ReadFiles(incubating_dir()), IsEmpty());
   EXPECT_THAT(crash_report, AllOf(HasSubstr("Total crashes: 1"),
                                   HasSubstr("Crash ID   : bug-csig_new-isig"),
-                                  HasSubstr("Category   : " + desc),
+                                  // The category is only the first line of
+                                  // the description, without metadata lines.
+                                  HasSubstr("Category   : "
+                                            "heap-buffer-overflow\n"),
                                   HasSubstr("Signature  : csig_new"),
                                   HasSubstr("Description: " + desc)));
   EXPECT_THAT(log_capture.FullLog(),
@@ -400,8 +404,8 @@ TEST_F(OrganizeCrashingInputsTest,
                         absl::StrCat("bug1-", legacy_sig, "-isig1"), "input1");
   SetContentsAndGetPath(crashing_dir(),
                         absl::StrCat("bug2-", legacy_sig, "-isig2"), "input2");
-  const std::string check_desc = "CHECK\nCRASH_TYPE=CHECK";
-  const std::string fatal_desc = "LOG(FATAL)\nCRASH_TYPE=LOG(FATAL)";
+  const std::string check_desc = "CHECK";
+  const std::string fatal_desc = "LOG(FATAL)";
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
                                        {"input1", {"csig_check", check_desc}},
                                        {"input2", {"csig_fatal", fatal_desc}},
@@ -433,7 +437,7 @@ TEST_F(OrganizeCrashingInputsTest,
   SetContentsAndGetPath(crashing_dir(),
                         absl::StrCat("bug1-", legacy_sig, "-isig1"), "input1");
   SetContentsAndGetPath(crashing_dir(), "bug2-csig_new-isig2", "input2");
-  const std::string desc = "data-race\nCRASH_TYPE=data-race";
+  const std::string desc = "data-race";
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
                                        {"input1", {"csig_new", desc}},
                                        {"input2", {"csig_new", desc}},
@@ -467,7 +471,7 @@ TEST_F(OrganizeCrashingInputsTest,
                         absl::StrCat("bug1-", legacy_sig1, "-isig1"), "input1");
   SetContentsAndGetPath(crashing_dir(),
                         absl::StrCat("bug2-", legacy_sig2, "-isig2"), "input2");
-  const std::string desc = "CHECK\nCRASH_TYPE=CHECK";
+  const std::string desc = "CHECK";
   FakeCentipedeCallbacks callbacks(env(), /*crashing_inputs=*/{
                                        {"input1", {"csig_new", desc}},
                                        {"input2", {"csig_new", desc}},

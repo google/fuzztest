@@ -75,6 +75,14 @@ class CrashSummary {
 
 using ExternalCrashReporter = void (*)(const CrashSummary&);
 
+// Returns the crash category for a failure `description`: its first line.
+//
+// For FuzzTest crashes, the category is the crash type (e.g.,
+// `heap-buffer-overflow`), prefixed with `SETUP FAILURE: ` for setup failures.
+// The failure description may contain additional metadata lines (e.g.,
+// `CRASH_SIGNATURE=...`) after the first line.
+std::string_view GetCrashCategory(std::string_view description);
+
 // Sets an external crash reporter that will be called when a `CrashSummary` is
 // reported.
 void SetExternalCrashReporter(ExternalCrashReporter reporter);

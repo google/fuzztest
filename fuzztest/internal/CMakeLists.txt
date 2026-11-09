@@ -426,6 +426,7 @@ fuzztest_cc_test(
     absl::statusor
     absl::strings
     absl::time
+    absl::span
     fuzztest::domain_core
 )
 
@@ -442,6 +443,7 @@ fuzztest_cc_library(
     absl::status
     absl::statusor
     absl::strings
+    absl::span
 )
 
 fuzztest_cc_test(
@@ -454,6 +456,7 @@ fuzztest_cc_test(
     absl::status
     absl::statusor
     absl::string_view
+    absl::span
     GTest::gmock_main
 )
 

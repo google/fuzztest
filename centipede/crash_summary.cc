@@ -14,6 +14,7 @@
 
 #include "./centipede/crash_summary.h"
 
+#include <string_view>
 #include <utility>
 
 #include "absl/strings/str_format.h"
@@ -55,6 +56,10 @@ void CrashSummary::Report(absl::FormatRawSink sink) const {
 
 void SetExternalCrashReporter(ExternalCrashReporter reporter) {
   external_crash_reporter = reporter;
+}
+
+std::string_view GetCrashCategory(std::string_view description) {
+  return description.substr(0, description.find('\n'));
 }
 
 }  // namespace fuzztest::internal

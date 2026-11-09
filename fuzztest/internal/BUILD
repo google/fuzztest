@@ -480,6 +480,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:logging",
     ] + select({
         "//conditions:default": [],
@@ -495,6 +496,7 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
