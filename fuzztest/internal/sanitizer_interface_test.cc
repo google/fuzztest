@@ -53,6 +53,16 @@ std::vector<std::string> CollectTopAppFunctions(int max_frames) {
   return std::vector<std::string>(frames.begin(), frames.end());
 }
 
+// `FuzzTestComputeStackCrashSignature()` without a `ucontext`. Its frame is
+// filtered out as an internal frame.
+size_t ComputeStackCrashSignature(const char* crash_type_data,
+                                  size_t crash_type_size, char* out,
+                                  size_t out_size) {
+  return FuzzTestComputeStackCrashSignature(crash_type_data, crash_type_size,
+                                            /*ucontext=*/nullptr, out,
+                                            out_size);
+}
+
 }  // namespace fuzztest::internal
 
 namespace test_app {
@@ -714,8 +724,8 @@ TEST(FormatStackCrashSignatureTest, FormatsCrashTypeAndFrames) {
 
 TEST(FuzzTestComputeStackCrashSignatureTest, FormatsTopAppFunctions) {
   // The `FuzzTestCompute*CrashSignature()` frames themselves are filtered out.
-  EXPECT_EQ(test_app::CallerComputeCrashSignature(
-                &FuzzTestComputeStackCrashSignature, "heap-use-after-free"),
+  EXPECT_EQ(test_app::CallerComputeCrashSignature(&ComputeStackCrashSignature,
+                                                  "heap-use-after-free"),
             "heap-use-after-free:test_app::LeafComputeCrashSignature/"
             "test_app::CallerComputeCrashSignature");
   EXPECT_EQ(test_app::CallerComputeCrashSignature(
@@ -729,16 +739,17 @@ TEST(FuzzTestComputeStackCrashSignatureTest,
   char out[1024];
   const absl::string_view crash_type = "heap-use-after-free";
   const size_t size = FuzzTestComputeStackCrashSignature(
-      crash_type.data(), crash_type.size(), out, sizeof(out));
+      crash_type.data(), crash_type.size(), /*ucontext=*/nullptr, out,
+      sizeof(out));
   EXPECT_EQ(absl::string_view(out, size), crash_type);
 }
 
 TEST(FuzzTestComputeStackCrashSignatureTest, TruncatesToOutputSize) {
-  EXPECT_EQ(test_app::CallerComputeCrashSignature(
-                &FuzzTestComputeStackCrashSignature, "heap-use-after-free", 30),
+  EXPECT_EQ(test_app::CallerComputeCrashSignature(&ComputeStackCrashSignature,
+                                                  "heap-use-after-free", 30),
             "heap-use-after-free:test_app::");
-  EXPECT_EQ(test_app::CallerComputeCrashSignature(
-                &FuzzTestComputeStackCrashSignature, "heap-use-after-free", 0),
+  EXPECT_EQ(test_app::CallerComputeCrashSignature(&ComputeStackCrashSignature,
+                                                  "heap-use-after-free", 0),
             "");
 }
 

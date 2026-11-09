@@ -130,6 +130,10 @@ using CrashMetadataListener = absl::AnyInvocable<void(
 using CrashMetadataListenerRef = absl::FunctionRef<void(
     absl::string_view description, absl::string_view signature) const>;
 
+// Returns a non-zero identifier of the calling thread on Linux and macOS, or 0
+// on other platforms. Async-signal-safe.
+uintptr_t GetCurrentThreadIdForCrashHandling();
+
 // This class encapsulates the runtime state that is global by necessity.
 // The state is accessed by calling `Runtime::instance()`, which handles the
 // necessary initialization steps.
@@ -267,6 +271,22 @@ class Runtime {
   std::optional<absl::string_view> crash_signature() const {
     return crash_signature_.Get();
   }
+  // If the crash signature is unset, sets it to a signature computed from
+  // `crash_type` and the top application functions on the current stack
+  // (`<crash_type>:<f0>/<f1>/<f2>`), using
+  // `FuzzTestComputeStackCrashSignature()`. Async-signal-safe.
+  //
+  // If called from a signal handler, `ucontext` should be the `ucontext_t*`
+  // passed to the handler, so that the signature includes the interrupted
+  // function.
+  void SetStackCrashSignatureIfUnset(absl::string_view crash_type,
+                                     const void* ucontext = nullptr);
+  // If another thread is writing the crash signature (e.g., computing the stack
+  // crash signature in `SetStackCrashSignatureIfUnset`), waits (up to a few
+  // seconds) for it to finish, so that the crash report includes the complete
+  // signature. Does not wait if the calling thread is the one writing the
+  // signature (e.g., if it crashed while doing so). Async-signal-safe.
+  void WaitWhileCrashSignatureIsWrittenByAnotherThread() const;
   void ResetCrashType() {
     // If a thread (e.g., one that failed non-fatally during a previous input)
     // is still computing the crash signature, keep the crash type as well, so
@@ -389,7 +409,10 @@ class Runtime {
                                           std::memory_order_acq_rel)) {
         return false;
       }
+      writer_thread_.store(GetCurrentThreadIdForCrashHandling(),
+                           std::memory_order_relaxed);
       size_ = std::min<size_t>(writer(absl::Span<char>(buffer_)), kCapacity);
+      writer_thread_.store(0, std::memory_order_relaxed);
       state_.store(State::kReady, std::memory_order_release);
       return true;
     }
@@ -413,6 +436,14 @@ class Runtime {
       return state_.load(std::memory_order_acquire) == State::kWriting;
     }
 
+    // Returns true iff the calling thread has claimed the buffer and is still
+    // writing the value (e.g., if it crashed while doing so).
+    bool is_being_written_by_current_thread() const {
+      const uintptr_t this_thread = GetCurrentThreadIdForCrashHandling();
+      return this_thread != 0 && is_being_written() &&
+             writer_thread_.load(std::memory_order_relaxed) == this_thread;
+    }
+
     std::optional<absl::string_view> Get() const {
       if (!has_value()) return std::nullopt;
       return absl::string_view(buffer_, size_);
@@ -422,6 +453,9 @@ class Runtime {
     enum class State : uint8_t { kEmpty, kWriting, kReady };
 
     std::atomic<State> state_ = State::kEmpty;
+    // The thread that claimed the buffer while `kWriting`, or 0 (if unset or
+    // unknown).
+    std::atomic<uintptr_t> writer_thread_ = 0;
     char buffer_[kCapacity] = {};
     size_t size_ = 0;
   };

@@ -2165,7 +2165,35 @@ TEST_P(FuzzingModeCrashFindingTest, SignalCrashMetadataIsDumpedIfEnvVarIsSet) {
           {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
 
   EXPECT_THAT(ReadFile(crash_metadata_path),
-              Optional(Eq("SIGABRT\nCRASH_SIGNATURE=SIGABRT")));
+              Optional(Eq("SIGABRT\n"
+                          "CRASH_SIGNATURE=SIGABRT:"
+                          "(anonymous namespace)::AbortsImpl2/"
+                          "(anonymous namespace)::AbortsImpl1/"
+                          "(anonymous namespace)::Aborts")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       ConcurrentSignalCrashesReportCompleteStackSignature) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.CrashesConcurrentlyInManyThreads", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  // Even though many threads crash at about the same time, the crash is
+  // reported by a single thread, with that thread's stack signature.
+  // `__builtin_trap()` raises SIGTRAP on AArch64 and SIGILL on x86.
+#if defined(__aarch64__)
+  constexpr absl::string_view kTrapSignal = "SIGTRAP";
+#else
+  constexpr absl::string_view kTrapSignal = "SIGILL";
+#endif
+  EXPECT_THAT(
+      ReadFile(crash_metadata_path),
+      Optional(Eq(absl::StrCat(kTrapSignal, "\nCRASH_SIGNATURE=", kTrapSignal,
+                               ":(anonymous namespace)::CrashesInThreadImpl2/"
+                               "(anonymous namespace)::CrashesInThreadImpl1/"
+                               "(anonymous namespace)::CrashesInThread"))));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
@@ -2188,9 +2216,11 @@ TEST_P(FuzzingModeCrashFindingTest,
       Run("FaultySetupTest.NoOp", kDefaultTargetBinary,
           {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
 
-  EXPECT_THAT(ReadFile(crash_metadata_path),
-              Optional(Eq("SETUP FAILURE: SIGABRT\n"
-                          "CRASH_SIGNATURE=SIGABRT")));
+  EXPECT_THAT(
+      ReadFile(crash_metadata_path),
+      Optional(Eq("SETUP FAILURE: SIGABRT\n"
+                  "CRASH_SIGNATURE=SIGABRT:"
+                  "(anonymous namespace)::FaultySetupTest::FaultySetupTest")));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, HandlesUnexpectedExit) {

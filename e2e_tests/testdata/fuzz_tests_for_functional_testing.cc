@@ -16,6 +16,7 @@
 //
 // Specifically, used by `functional_test` only.
 
+#include <atomic>
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
@@ -25,6 +26,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>  // NOLINT(build/c++11)
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -32,6 +34,7 @@
 #include "./fuzztest/flatbuffers.h"  // IWYU pragma: keep
 #include "./fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
+#include "absl/base/optimization.h"
 #include "absl/functional/function_ref.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
@@ -79,10 +82,49 @@ void PassesWithPositiveInput(int x) {
 FUZZ_TEST(MySuite, PassesWithPositiveInput)
     .WithDomains(fuzztest::Positive<int>());
 
-void Aborts(int foo, int bar) {
+__attribute__((noinline)) void AbortsImpl2(int foo, int bar) {
   if (foo > bar) std::abort();
 }
+
+__attribute__((noinline)) void AbortsImpl1(int foo, int bar) {
+  AbortsImpl2(foo, bar);
+  asm volatile("" ::: "memory");
+}
+
+__attribute__((noinline)) void Aborts(int foo, int bar) {
+  AbortsImpl1(foo, bar);
+  asm volatile("" ::: "memory");
+}
 FUZZ_TEST(MySuite, Aborts);
+
+__attribute__((noinline)) void CrashesInThreadImpl2() { __builtin_trap(); }
+
+__attribute__((noinline)) void CrashesInThreadImpl1() {
+  CrashesInThreadImpl2();
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+__attribute__((noinline)) void CrashesInThread(std::atomic<bool>* start) {
+  while (!start->load()) {
+  }
+  CrashesInThreadImpl1();
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+// Crashes (with SIGILL) in many threads at about the same time, to check that
+// concurrent crashes are reported with a complete stack-based crash signature.
+void CrashesConcurrentlyInManyThreads(int) {
+  constexpr int kNumThreads = 8;
+  std::atomic<bool> start = false;
+  std::vector<std::thread> threads;
+  threads.reserve(kNumThreads);
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back(CrashesInThread, &start);
+  }
+  start = true;
+  for (std::thread& thread : threads) thread.join();
+}
+FUZZ_TEST(MySuite, CrashesConcurrentlyInManyThreads);
 
 void RaisesSigterm(int) { std::raise(SIGTERM); }
 FUZZ_TEST(MySuite, RaisesSigterm);
@@ -882,7 +924,7 @@ FUZZ_TEST(MySuite, SkipInputs).WithSeeds({1});
 
 class FaultySetupTest {
  public:
-  FaultySetupTest() { std::abort(); }
+  __attribute__((noinline)) FaultySetupTest() { std::abort(); }
   void NoOp(int) {}
 };
 FUZZ_TEST_F(FaultySetupTest, NoOp);

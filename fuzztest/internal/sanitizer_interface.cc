@@ -21,6 +21,10 @@
 #endif
 #endif
 
+#if defined(__linux__)
+#include <ucontext.h>
+#endif
+
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
@@ -231,6 +235,21 @@ std::atomic_flag crash_signature_scratch_busy = ATOMIC_FLAG_INIT;
 absl::string_view crash_signature_frame_storage[3];
 char crash_signature_symbol_storage[3 * 1024];
 
+// Returns the PC of the code interrupted by a signal, given the `ucontext`
+// passed to the signal handler, or null if unknown. Async-signal-safe.
+void* GetInterruptedPc(const void* ucontext) {
+  if (ucontext == nullptr) return nullptr;
+#if defined(__linux__) && defined(__x86_64__)
+  return reinterpret_cast<void*>(
+      static_cast<const ucontext_t*>(ucontext)->uc_mcontext.gregs[REG_RIP]);
+#elif defined(__linux__) && defined(__aarch64__)
+  return reinterpret_cast<void*>(
+      static_cast<const ucontext_t*>(ucontext)->uc_mcontext.pc);
+#else
+  return nullptr;
+#endif
+}
+
 #if defined(FUZZTEST_HAS_UNWIND_H)
 struct UnwindState {
   void** stack;
@@ -359,37 +378,75 @@ absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
 }
 
 absl::Span<const absl::string_view> GetTopAppFunctions(
-    absl::Span<absl::string_view> out_frames, absl::Span<char> symbol_storage) {
+    absl::Span<absl::string_view> out_frames, absl::Span<char> symbol_storage,
+    const void* ucontext) {
   if (out_frames.empty() || symbol_storage.empty()) {
     return {};
   }
 
-  void* stack[kMaxStackFrames] = {};
+  // Leave room in front of the unwound frames for the interrupted PC.
+  void* stack[kMaxStackFrames + 1] = {};
+  void** const unwound = stack + 1;
   int depth = 0;
 #if defined(FUZZTEST_HAS_UNWIND_H)
-  UnwindState state = {stack, /*count=*/0, kMaxStackFrames, /*skip_count=*/1};
-  _Unwind_Backtrace(&UnwindCallback, &state);
-  depth = state.count;
+  // In a signal handler (`ucontext != nullptr`), don't use `_Unwind_Backtrace`:
+  // it isn't async-signal-safe (e.g., it may take the dynamic linker's lock or
+  // allocate), so it may deadlock if the crash happened while holding such a
+  // lock (e.g., in `malloc`). Use Abseil's signal-safe unwinder instead.
+  if (ucontext == nullptr) {
+    UnwindState state = {unwound, /*count=*/0, kMaxStackFrames,
+                         /*skip_count=*/1};
+    _Unwind_Backtrace(&UnwindCallback, &state);
+    depth = state.count;
+  }
 #endif
   if (depth == 0) {
-    depth = absl::GetStackTrace(stack, kMaxStackFrames, /*skip_count=*/1);
+    // With `ucontext`, Abseil's unwinder can unwind through the signal frame
+    // (e.g., from an alternate signal stack).
+    depth = absl::GetStackTraceWithContext(unwound, kMaxStackFrames,
+                                           /*skip_count=*/1, ucontext,
+                                           /*min_dropped_frames=*/nullptr);
     for (int i = 0; i < depth; ++i) {
-      const uintptr_t ip = reinterpret_cast<uintptr_t>(stack[i]);
+      const uintptr_t ip = reinterpret_cast<uintptr_t>(unwound[i]);
       if (ip > 0) {
-        stack[i] = reinterpret_cast<void*>(ip - 1);
+        unwound[i] = reinterpret_cast<void*>(ip - 1);
       }
+    }
+  }
+
+  void** frames = unwound;
+  int num_pcs = depth;
+  if (void* const interrupted_pc = GetInterruptedPc(ucontext);
+      interrupted_pc != nullptr) {
+    // Unwinding from within a signal handler may skip the frame of the
+    // interrupted function (e.g., frame-pointer unwinding goes from the handler
+    // directly to the interrupted function's caller). If the unwound stack
+    // contains the interrupted PC, start from there. Otherwise, prepend it.
+    const uintptr_t pc = reinterpret_cast<uintptr_t>(interrupted_pc);
+    int i = 0;
+    while (i < depth && reinterpret_cast<uintptr_t>(unwound[i]) != pc &&
+           reinterpret_cast<uintptr_t>(unwound[i]) != pc - 1) {
+      ++i;
+    }
+    if (i < depth) {
+      frames = unwound + i;
+      num_pcs = depth - i;
+    } else {
+      stack[0] = interrupted_pc;
+      frames = stack;
+      num_pcs = depth + 1;
     }
   }
 
   size_t num_frames = 0;
   size_t storage_offset = 0;
-  for (int i = 0; i < depth && num_frames < out_frames.size() &&
+  for (int i = 0; i < num_pcs && num_frames < out_frames.size() &&
                   storage_offset < symbol_storage.size();
        ++i) {
     char* current_buf = symbol_storage.data() + storage_offset;
     const size_t remaining_storage = symbol_storage.size() - storage_offset;
     if (std::optional<absl::string_view> func_name =
-            SymbolizeAppFunction(stack[i], current_buf, remaining_storage);
+            SymbolizeAppFunction(frames[i], current_buf, remaining_storage);
         func_name.has_value()) {
       // Compact `func_name` to the start of `current_buf` so `symbol_storage`
       // only advances by `func_name->size()`.
@@ -490,8 +547,8 @@ extern "C" size_t FuzzTestFormatCrashDescription(
 }
 
 extern "C" size_t FuzzTestComputeStackCrashSignature(
-    const char* crash_type_data, size_t crash_type_size, char* out,
-    size_t out_size) {
+    const char* crash_type_data, size_t crash_type_size, const void* ucontext,
+    char* out, size_t out_size) {
   const absl::string_view crash_type(crash_type_data, crash_type_size);
   const absl::Span<char> out_buffer(out, out_size);
   if (fuzztest::internal::crash_signature_scratch_busy.test_and_set(
@@ -501,7 +558,7 @@ extern "C" size_t FuzzTestComputeStackCrashSignature(
   const absl::Span<const absl::string_view> frames =
       fuzztest::internal::GetTopAppFunctions(
           fuzztest::internal::crash_signature_frame_storage,
-          fuzztest::internal::crash_signature_symbol_storage);
+          fuzztest::internal::crash_signature_symbol_storage, ucontext);
   const size_t size = fuzztest::internal::CopyToBuffer(
       fuzztest::internal::FormatStackCrashSignature(crash_type, frames,
                                                     out_buffer),
@@ -549,5 +606,6 @@ extern "C" size_t FuzzTestComputeSanitizerCrashSignature(
   }
 #endif  // defined(ABSL_HAVE_THREAD_SANITIZER)
   return FuzzTestComputeStackCrashSignature(crash_type_data, crash_type_size,
-                                            out, out_size);
+                                            /*ucontext=*/nullptr, out,
+                                            out_size);
 }

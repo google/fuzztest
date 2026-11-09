@@ -59,14 +59,20 @@ size_t FuzzTestFormatCrashDescription(const char* prefix, size_t prefix_size,
 // `out_size` bytes and is not null-terminated. Returns the number of bytes
 // written.
 //
+// If called from a signal handler, `ucontext` should be the `ucontext_t*`
+// passed to the handler (or null otherwise), so that the signature includes the
+// interrupted function (see `GetTopAppFunctions()`).
+//
 // Async-signal-safe. To avoid using a lot of stack space (e.g., when running on
 // an alternate signal stack), the frames are symbolized into process-wide
 // static storage, which is guarded by a lock-free flag. Never blocks.
 size_t FuzzTestComputeStackCrashSignature(const char* crash_type_data,
-                                          size_t crash_type_size, char* out,
+                                          size_t crash_type_size,
+                                          const void* ucontext, char* out,
                                           size_t out_size);
 
-// Like `FuzzTestComputeStackCrashSignature()`, but for sanitizer errors: must
+// Like `FuzzTestComputeStackCrashSignature()` (with a null `ucontext`), but
+// for sanitizer errors: must
 // be called from the sanitizer error summary callback (see
 // `FuzzTestSetSanitizerErrorSummaryCallback()`), with the crash type passed to
 // the callback.
@@ -100,11 +106,17 @@ absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
 // file/line info, and populates up to `out_frames.size()` application function
 // names in `out_frames`.
 //
+// If called from a signal handler, `ucontext` should be the `ucontext_t*`
+// passed to the handler (or null otherwise). It is used to include the frame
+// of the interrupted function, which stack unwinding from within the handler
+// may otherwise miss.
+//
 // Returns the subspan of `out_frames` that was populated, with each
 // `absl::string_view` pointing into `symbol_storage`.
 absl::Span<const absl::string_view> GetTopAppFunctions(
     absl::Span<absl::string_view> out_frames ABSL_ATTRIBUTE_LIFETIME_BOUND,
-    absl::Span<char> symbol_storage ABSL_ATTRIBUTE_LIFETIME_BOUND);
+    absl::Span<char> symbol_storage ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    const void* ucontext = nullptr);
 
 // Formats a stack-based crash signature from `crash_type` and `frames` into
 // `out_buffer`:
