@@ -14,11 +14,14 @@
 
 use super::domains::GenericCorpusValue;
 use super::domains::GenericDomain;
-
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
+
+const REPORT_SEPARATOR: &str = "=================================================================";
+const VALUE_MAX_PRINT_LENGTH: usize = 2048;
 
 /// A trait implemented by types used to Fuzz a given property function.
 ///
@@ -37,8 +40,12 @@ pub trait FuzzTest {
     ///
     /// Returns `true` if the property function holds, `false` if it crashes.
     fn execute(&self, args: &GenericCorpusValue) -> bool;
-    fn print_finding_report(&self);
     fn domains(&self) -> Arc<Mutex<dyn GenericDomain>>;
+
+    /// Formats and prints the counterexample finding report for `formatted_args` to `stderr`.
+    fn print_finding_report(&self, info: &FuzzTestInfo, formatted_args: &[String]) {
+        print_finding_report(info, formatted_args);
+    }
 }
 
 /// Identifies the property function of a fuzz test.
@@ -47,8 +54,51 @@ pub trait FuzzTest {
 /// appropriate values.
 pub struct FuzzTestInfo {
     pub name: &'static str,
+    pub module_path: &'static str,
     pub file: &'static str,
     pub line: u32,
+}
+
+impl FuzzTestInfo {
+    /// Returns the fully qualified test name (e.g.,
+    /// `escaping_test::__fuzztest_mod__unescaping_never_panics::unescaping_never_panics`).
+    fn full_test_name(&self) -> String {
+        format!("{}::{}", self.module_path, self.name)
+    }
+}
+
+/// Formats the `=== BUG FOUND!` finding report block for the given fuzz test and formatted
+/// arguments, truncating any argument that exceeds `VALUE_MAX_PRINT_LENGTH` bytes.
+fn format_finding_report(info: &FuzzTestInfo, formatted_args: &[String]) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "\n{REPORT_SEPARATOR}");
+    let _ = writeln!(out, "=== BUG FOUND!\n");
+    let _ = writeln!(
+        out,
+        "{}:{}: Counterexample found for {}.",
+        info.file,
+        info.line,
+        info.full_test_name()
+    );
+    let _ = writeln!(out, "The test fails with input:");
+    for (idx, arg) in formatted_args.iter().enumerate() {
+        if arg.len() > VALUE_MAX_PRINT_LENGTH {
+            let mut end = VALUE_MAX_PRINT_LENGTH;
+            while !arg.is_char_boundary(end) {
+                end -= 1;
+            }
+            let _ = writeln!(out, "argument {idx}: {} ...<value too long>", &arg[..end]);
+        } else {
+            let _ = writeln!(out, "argument {idx}: {arg}");
+        }
+    }
+    let _ = writeln!(out, "\n{REPORT_SEPARATOR}");
+    out
+}
+
+/// Prints the `=== BUG FOUND!` finding report block to `stderr`.
+fn print_finding_report(info: &FuzzTestInfo, formatted_args: &[String]) {
+    eprint!("{}", format_finding_report(info, formatted_args));
 }
 
 pub type BoxedFuzzTest = Box<dyn FuzzTest + Send + Sync>;
@@ -72,4 +122,61 @@ pub static FUZZ_TEST_NAME_TO_FACTORY: LazyLock<HashMap<&str, fn() -> BoxedFuzzTe
 pub struct InputStateAndDomain<I, D> {
     pub input_state: Option<I>,
     pub domain: D,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use googletest::prelude::*;
+
+    #[googletest::test]
+    fn test_full_test_name_includes_crate_and_module_path() {
+        let info = FuzzTestInfo {
+            name: "unescaping_never_panics",
+            module_path: "escaping_test::__fuzztest_mod__unescaping_never_panics",
+            file: "third_party/googlefuzztest/rust/codelab/escaping_test.rs",
+            line: 72,
+        };
+        expect_that!(
+            info.full_test_name(),
+            eq("escaping_test::__fuzztest_mod__unescaping_never_panics::unescaping_never_panics")
+        );
+    }
+
+    #[googletest::test]
+    fn test_format_finding_report_matches_expected_format() {
+        let info = FuzzTestInfo {
+            name: "test_name",
+            module_path: "crate_name::module_name",
+            file: "FILE",
+            line: 123,
+        };
+        let args = vec![format!("{:?}", 17), format!("{:?}", "ABC")];
+        let report = format_finding_report(&info, &args);
+        expect_that!(
+            report,
+            eq(concat!(
+                "\n=================================================================\n",
+                "=== BUG FOUND!\n\n",
+                "FILE:123: Counterexample found for crate_name::module_name::test_name.\n",
+                "The test fails with input:\n",
+                "argument 0: 17\n",
+                "argument 1: \"ABC\"\n\n",
+                "=================================================================\n",
+            ))
+        );
+    }
+
+    #[googletest::test]
+    fn test_format_finding_report_truncates_long_values_at_char_boundary() {
+        let info = FuzzTestInfo {
+            name: "test_name",
+            module_path: "crate_name::module_name",
+            file: "FILE",
+            line: 123,
+        };
+        let long_str = "é".repeat(1500);
+        let report = format_finding_report(&info, &[long_str]);
+        expect_that!(report, contains_substring(" ...<value too long>\n"));
+    }
 }

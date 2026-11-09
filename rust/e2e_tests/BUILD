@@ -87,6 +87,7 @@ rust_test(
     srcs = ["gtest_registration_test.rs"],
     data = [
         "@com_google_fuzztest//rust/e2e_tests/testdata:fuzz_tests_as_gtests",
+        "@com_google_fuzztest//rust/e2e_tests/testdata:fuzztest_main",
     ],
     edition = "2024",
     deps = [
