@@ -35,6 +35,8 @@ build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
 # Enable stack depth tracking.
 build:fuzztest-common --copt=-fsanitize-coverage=stack-depth
 
+# Preserve frame pointers for stack-based crash signature unwinding.
+build:fuzztest-common --copt=-fno-omit-frame-pointer
 EOF
 
 cat <<EOF

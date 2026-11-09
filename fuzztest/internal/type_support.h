@@ -44,6 +44,7 @@
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
+#include "./fuzztest/internal/symbol_name_utils.h"
 
 namespace google::protobuf {
 class EnumDescriptor;
@@ -451,31 +452,6 @@ struct ContainerPrinter {
 template <typename F>
 constexpr bool HasFunctionName() {
   return std::is_function_v<std::remove_pointer_t<F>>;
-}
-
-inline void ConsumeFileAndLineNumber(absl::string_view& v) {
-  // We're essentially matching the regexp "[^:]\:\d+ ", but manually since we
-  // don't want to introduce a dependency on RE2.
-  absl::string_view::size_type pos = 0;
-  while (pos < v.size()) {
-    pos = v.find(':', pos);
-    if (pos == v.npos) return;
-    // Skip the colon.
-    ++pos;
-    if (pos >= v.size() || !std::isdigit(v[pos])) {
-      // Colon not followed by a digit. Skip any subsequent colons and continue.
-      while (pos < v.size() && v[pos] == ':') ++pos;
-      continue;
-    }
-    // Skip the digits.
-    ++pos;
-    while (pos < v.size() && std::isdigit(v[pos])) ++pos;
-    if (pos >= v.size() || v[pos] != ' ') continue;
-    // Skip the space.
-    ++pos;
-    v.remove_prefix(pos);
-    return;
-  }
 }
 
 template <typename F>

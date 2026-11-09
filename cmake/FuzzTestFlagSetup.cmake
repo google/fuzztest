@@ -14,8 +14,10 @@
 
 macro(fuzztest_setup_fuzzing_flags)
   if (FUZZTEST_FUZZING_MODE OR (FUZZTEST_COMPATIBILITY_MODE STREQUAL "libfuzzer"))
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -UNDEBUG -fsanitize=address")
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -UNDEBUG -fsanitize=address")
+    # -fno-omit-frame-pointer preserves frame pointers for stack-based crash
+    # signature unwinding.
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fno-omit-frame-pointer -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -UNDEBUG -fsanitize=address")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fno-omit-frame-pointer -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -UNDEBUG -fsanitize=address")
     SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
   endif ()
   if (FUZZTEST_COMPATIBILITY_MODE STREQUAL "libfuzzer")

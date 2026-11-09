@@ -33,6 +33,7 @@ cc_binary(
     testonly = 1,
     srcs = ["fuzz_tests_for_microbenchmarking.cc"],
     deps = [
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/random:distributions",
@@ -83,6 +84,7 @@ cc_binary(
     ],
     deps = [
         "@abseil-cpp//absl/algorithm:container",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:function_ref",

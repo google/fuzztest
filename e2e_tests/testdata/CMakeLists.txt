@@ -8,6 +8,7 @@ target_link_libraries(
   fuzztest_status
   protobuf::libprotobuf
   fuzztest::test_protobuf_cc_proto
+  absl::core_headers
   absl::random_bit_gen_ref
   absl::random_distributions
   absl::flat_hash_set
@@ -30,6 +31,7 @@ target_link_libraries(
   fuzztest::test_protobuf_cc_proto
   absl::algorithm_container
   absl::check
+  absl::core_headers
   absl::flat_hash_map
   absl::flat_hash_set
   absl::function_ref

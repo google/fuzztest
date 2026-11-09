@@ -15,18 +15,298 @@
 #include "./fuzztest/internal/sanitizer_interface.h"
 
 #include <cstddef>
+#include <functional>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 
 namespace fuzztest::internal {
+
+std::vector<std::string> CollectTopAppFunctions(int max_frames) {
+  if (max_frames <= 0) {
+    char symbol_storage[1024];
+    const absl::Span<const absl::string_view> frames =
+        GetTopAppFunctions({}, symbol_storage);
+    return std::vector<std::string>(frames.begin(), frames.end());
+  }
+  std::vector<absl::string_view> frame_storage(max_frames);
+  char symbol_storage[10 * 1024];
+  const absl::Span<const absl::string_view> frames =
+      GetTopAppFunctions(absl::MakeSpan(frame_storage), symbol_storage);
+  return std::vector<std::string>(frames.begin(), frames.end());
+}
+
+}  // namespace fuzztest::internal
+
+namespace test_app {
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> Helper4(int max_frames) {
+  auto frames = fuzztest::internal::CollectTopAppFunctions(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> Helper3(int max_frames) {
+  auto frames = Helper4(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> Helper2(int max_frames) {
+  auto frames = Helper3(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> Helper1(int max_frames) {
+  auto frames = Helper2(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+struct Functor {
+  ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> operator()(
+      int max_frames) const {
+    auto frames = fuzztest::internal::CollectTopAppFunctions(max_frames);
+    ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+    return frames;
+  }
+};
+
+struct Buffer {
+  ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> operator[](
+      int max_frames) const {
+    Functor functor;
+    auto frames = functor(max_frames);
+    ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+    return frames;
+  }
+};
+
+// Calls `compute_signature` (one of the `FuzzTestCompute*CrashSignature()`
+// functions) with `crash_type` and an output buffer of size `out_size`.
+ABSL_ATTRIBUTE_NOINLINE std::string LeafComputeCrashSignature(
+    size_t (*compute_signature)(const char*, size_t, char*, size_t),
+    absl::string_view crash_type, size_t out_size) {
+  std::string out(out_size, '\0');
+  out.resize(compute_signature(crash_type.data(), crash_type.size(), out.data(),
+                               out.size()));
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return out;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::string CallerComputeCrashSignature(
+    size_t (*compute_signature)(const char*, size_t, char*, size_t),
+    absl::string_view crash_type, size_t out_size = 1024) {
+  auto out = LeafComputeCrashSignature(compute_signature, crash_type, out_size);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return out;
+}
+
+}  // namespace test_app
+
+// A user function with an `LLVMFuzzer` prefix, like the
+// `LLVMFuzzerTestOneInput` harness of LLVM fuzzer targets, which must not be
+// filtered out.
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> LLVMFuzzerUserHarness(
+    int max_frames) {
+  auto frames = fuzztest::internal::CollectTopAppFunctions(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
 namespace {
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((__abi_tag__("cxx11")))
+#endif
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> AnonAppHelper(int max_frames) {
+  test_app::Buffer buffer;
+  auto frames = buffer[max_frames];
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+}  // namespace
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FuzzTestUserFunction(
+    int max_frames) {
+  auto frames = AnonAppHelper(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+// Functions and namespaces matching internal frame prefixes in
+// `IsInternalFrame` to verify they are skipped during stack unwinding.
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> __fake_double_underscore_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = next(max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> sanitizer_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = __fake_double_underscore_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> asan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = sanitizer_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> msan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = asan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> tsan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = msan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> ubsan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = tsan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> lsan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = ubsan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> hwasan_fake_frame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = lsan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> SignalAction(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = hwasan_fake_frame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> SignalHandler(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = SignalAction(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FuzzTestWorkerFakeFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = SignalHandler(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> CentipedeFakeFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = FuzzTestWorkerFakeFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+namespace centipede {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeCentipedeNamespaceFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = CentipedeFakeFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace centipede
+
+namespace tcmalloc {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeTcmallocFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = centipede::FakeCentipedeNamespaceFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace tcmalloc
+
+namespace absl {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeAbslFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = tcmalloc::FakeTcmallocFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace absl
+
+namespace testing {
+namespace internal {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeGTestInternalFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = absl::FakeAbslFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace internal
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeGTestFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = internal::FakeGTestInternalFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace testing
+
+namespace fuzztest {
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeFuzzTestFrame(
+    const std::function<std::vector<std::string>(int)>& next, int max_frames) {
+  auto frames = testing::FakeGTestFrame(next, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+}  // namespace fuzztest
+
+namespace test_app {
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> InnerAppFunc(int max_frames) {
+  auto frames = fuzztest::FakeFuzzTestFrame(
+      &fuzztest::internal::CollectTopAppFunctions, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> OuterAppFunc(int max_frames) {
+  auto frames = fuzztest::FakeFuzzTestFrame(&InnerAppFunc, max_frames);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+  return frames;
+}
+
+}  // namespace test_app
+
+namespace fuzztest::internal {
+namespace {
+
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeWhenItIsTheOnlyToken) {
@@ -334,6 +614,86 @@ TEST(FuzzTestFormatCrashDescriptionTest, TruncatesToOutputSize) {
             "SIGSEGV\nCRASH_SIGNAT");
   EXPECT_EQ(FormatCrashDescription("", "SIGSEGV", "SIGSEGV:Foo",
                                    absl::Span<char>(buffer, 0)),
+            "");
+}
+
+TEST(GetTopAppFunctionsTest, CapturesTopApplicationFunctionsFromCallStack) {
+  EXPECT_THAT(test_app::Helper1(3),
+              ElementsAre("test_app::Helper4", "test_app::Helper3",
+                          "test_app::Helper2"));
+  EXPECT_THAT(test_app::Helper1(2),
+              ElementsAre("test_app::Helper4", "test_app::Helper3"));
+  // Requesting more frames than exist in `test_app` walks the rest of the
+  // stack (`fuzztest::internal`, `testing::internal`, `testing::Test::Run`,
+  // `main`, `__libc_start_main`, `_start`) and filters all of them out.
+  EXPECT_THAT(test_app::Helper1(10),
+              ElementsAre("test_app::Helper4", "test_app::Helper3",
+                          "test_app::Helper2", "test_app::Helper1"));
+  EXPECT_THAT(test_app::Helper1(0), IsEmpty());
+  EXPECT_THAT(test_app::Helper1(-1), IsEmpty());
+}
+
+TEST(GetTopAppFunctionsTest,
+     FiltersOutSanitizerFuzzTestGTestAbseilAndStlFrames) {
+  EXPECT_THAT(test_app::OuterAppFunc(10),
+              ElementsAre("test_app::InnerAppFunc", "test_app::OuterAppFunc"));
+}
+
+TEST(GetTopAppFunctionsTest, PreservesLLVMFuzzerPrefixedUserFunctions) {
+  EXPECT_THAT(LLVMFuzzerUserHarness(1), ElementsAre("LLVMFuzzerUserHarness"));
+}
+
+TEST(GetTopAppFunctionsTest,
+     PreservesUserOperatorsAnonNamespacesAndFuzzTestPrefixedUserNames) {
+  EXPECT_THAT(FuzzTestUserFunction(10),
+              ElementsAre("test_app::Functor::operator()",
+                          "test_app::Buffer::operator[]",
+                          "(anonymous namespace)::AnonAppHelper",
+                          "FuzzTestUserFunction"));
+}
+
+TEST(FormatStackCrashSignatureTest, FormatsCrashTypeAndFrames) {
+  char out_buffer[256];
+  EXPECT_EQ(FormatStackCrashSignature("heap-buffer-overflow", {}, out_buffer),
+            "heap-buffer-overflow");
+  EXPECT_EQ(FormatStackCrashSignature("heap-buffer-overflow",
+                                      {"MyApp::ParseHeader"}, out_buffer),
+            "heap-buffer-overflow:MyApp::ParseHeader");
+  EXPECT_EQ(FormatStackCrashSignature(
+                "heap-buffer-overflow",
+                {"Buffer::operator[]", "MyApp::ParseHeader", "ProcessPacket"},
+                out_buffer),
+            "heap-buffer-overflow:Buffer::operator[]/MyApp::ParseHeader/"
+            "ProcessPacket");
+}
+
+TEST(FuzzTestComputeStackCrashSignatureTest, FormatsTopAppFunctions) {
+  // The `FuzzTestCompute*CrashSignature()` frames themselves are filtered out.
+  EXPECT_EQ(test_app::CallerComputeCrashSignature(
+                &FuzzTestComputeStackCrashSignature, "heap-use-after-free"),
+            "heap-use-after-free:test_app::LeafComputeCrashSignature/"
+            "test_app::CallerComputeCrashSignature");
+  EXPECT_EQ(test_app::CallerComputeCrashSignature(
+                &FuzzTestComputeSanitizerCrashSignature, "heap-use-after-free"),
+            "heap-use-after-free:test_app::LeafComputeCrashSignature/"
+            "test_app::CallerComputeCrashSignature");
+}
+
+TEST(FuzzTestComputeStackCrashSignatureTest,
+     WritesCrashTypeIfThereAreNoAppFrames) {
+  char out[1024];
+  const absl::string_view crash_type = "heap-use-after-free";
+  const size_t size = FuzzTestComputeStackCrashSignature(
+      crash_type.data(), crash_type.size(), out, sizeof(out));
+  EXPECT_EQ(absl::string_view(out, size), crash_type);
+}
+
+TEST(FuzzTestComputeStackCrashSignatureTest, TruncatesToOutputSize) {
+  EXPECT_EQ(test_app::CallerComputeCrashSignature(
+                &FuzzTestComputeStackCrashSignature, "heap-use-after-free", 30),
+            "heap-use-after-free:test_app::");
+  EXPECT_EQ(test_app::CallerComputeCrashSignature(
+                &FuzzTestComputeStackCrashSignature, "heap-use-after-free", 0),
             "");
 }
 

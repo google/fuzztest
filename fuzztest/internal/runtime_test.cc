@@ -31,14 +31,38 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
+
+extern "C" void __sanitizer_report_error_summary(const char* error_summary);
+
+namespace test_app {
+
+// Reports a sanitizer error with `crash_type` to the sanitizer error summary
+// hook, which calls the callback registered by `Runtime`.
+ABSL_ATTRIBUTE_NOINLINE void LeafSanitizerCrash(absl::string_view crash_type) {
+  const std::string error_summary =
+      absl::StrCat("SUMMARY: AddressSanitizer: ", crash_type);
+  __sanitizer_report_error_summary(error_summary.c_str());
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+ABSL_ATTRIBUTE_NOINLINE void CallerSanitizerCrash(
+    absl::string_view crash_type) {
+  LeafSanitizerCrash(crash_type);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+}  // namespace test_app
 
 namespace fuzztest::internal {
 namespace {
@@ -322,6 +346,21 @@ TEST(OnFailureTest, CrashMetadataListenerReceivesDescriptionAndSignature) {
   EXPECT_EQ(received->second, "Generic crash");
   enable_reporter();
 
+  // The sanitizer error summary callback formats crash_signature_ with the top
+  // application stack frames.
+  test_app::CallerSanitizerCrash("heap-use-after-free");
+  test_app::CallerSanitizerCrash("ignored");
+  EXPECT_EQ(runtime.crash_type(), "heap-use-after-free");
+  trigger_report();
+  EXPECT_TRUE(
+      absl::StartsWith(received->second,
+                       "heap-use-after-free:test_app::LeafSanitizerCrash/"
+                       "test_app::CallerSanitizerCrash"))
+      << "Actual signature: " << received->second;
+  EXPECT_EQ(received->first, absl::StrCat("heap-use-after-free\n"
+                                          "CRASH_SIGNATURE=",
+                                          received->second));
+
   runtime.UnsetCurrentArgs();
   runtime.DisableReporter();
 }
@@ -349,6 +388,63 @@ TEST(CrashMetadataTest, ConcurrentSetCrashTypeIfUnsetKeepsOneCompleteValue) {
       runtime.crash_signature();
   ASSERT_TRUE(crash_signature.has_value());
   EXPECT_THAT(values, Contains(std::string(*crash_signature)));
+  runtime.ResetCrashType();
+}
+
+TEST(CrashMetadataTest, ConcurrentSanitizerErrorsKeepOneCrashSignature) {
+  auto& runtime = Runtime::instance();
+  runtime.ResetCrashType();
+  std::vector<std::thread> threads;
+  for (int i = 0; i < 8; ++i) {
+    threads.emplace_back(
+        [] { test_app::CallerSanitizerCrash("heap-use-after-free"); });
+  }
+  for (std::thread& thread : threads) thread.join();
+
+  const std::optional<absl::string_view> crash_signature =
+      runtime.crash_signature();
+  ASSERT_TRUE(crash_signature.has_value());
+  EXPECT_TRUE(absl::StartsWith(*crash_signature,
+                               "heap-use-after-free:test_app::"
+                               "LeafSanitizerCrash/test_app::"
+                               "CallerSanitizerCrash"))
+      << "Actual signature: " << *crash_signature;
+  runtime.ResetCrashType();
+}
+
+TEST(CrashMetadataTest, SetCrashTypeIfUnsetReturnsWhetherItSetTheType) {
+  auto& runtime = Runtime::instance();
+  runtime.ResetCrashType();
+  EXPECT_TRUE(runtime.SetCrashTypeIfUnset("SIGSEGV"));
+  EXPECT_FALSE(runtime.SetCrashTypeIfUnset("SIGABRT"));
+  EXPECT_EQ(runtime.crash_type(), "SIGSEGV");
+  runtime.ResetCrashType();
+}
+
+TEST(CrashMetadataTest, ConcurrentFailuresKeepCrashTypeAndSignatureConsistent) {
+  auto& runtime = Runtime::instance();
+  runtime.ResetCrashType();
+  std::vector<std::string> crash_types;
+  for (int i = 0; i < 8; ++i) {
+    crash_types.push_back(absl::StrCat("crash-type-", i));
+  }
+  std::vector<std::thread> threads;
+  for (const std::string& crash_type : crash_types) {
+    threads.emplace_back(
+        [&crash_type] { test_app::CallerSanitizerCrash(crash_type); });
+  }
+  for (std::thread& thread : threads) thread.join();
+
+  // The signature must be computed by the thread that set the crash type.
+  const std::optional<absl::string_view> crash_type = runtime.crash_type();
+  const std::optional<absl::string_view> crash_signature =
+      runtime.crash_signature();
+  ASSERT_TRUE(crash_type.has_value());
+  ASSERT_TRUE(crash_signature.has_value());
+  EXPECT_TRUE(absl::StartsWith(*crash_signature,
+                               absl::StrCat(*crash_type, ":test_app::")))
+      << "Crash type: " << *crash_type
+      << ", crash signature: " << *crash_signature;
   runtime.ResetCrashType();
 }
 

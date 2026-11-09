@@ -2151,7 +2151,10 @@ TEST_P(FuzzingModeCrashFindingTest, AsanCrashMetadataIsDumpedIfEnvVarIsSet) {
 
   EXPECT_THAT(ReadFile(crash_metadata_path),
               Optional(Eq("heap-buffer-overflow\n"
-                          "CRASH_SIGNATURE=heap-buffer-overflow")));
+                          "CRASH_SIGNATURE=heap-buffer-overflow:"
+                          "(anonymous namespace)::BufferOverreadImpl/"
+                          "(anonymous namespace)::BufferOverread/"
+                          "(anonymous namespace)::BufferOverreadWithString")));
 }
 
 TEST_P(FuzzingModeCrashFindingTest, SignalCrashMetadataIsDumpedIfEnvVarIsSet) {

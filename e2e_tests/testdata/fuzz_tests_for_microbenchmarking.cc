@@ -39,6 +39,7 @@
 #include <vector>
 
 #include "./fuzztest/fuzztest.h"
+#include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
@@ -58,17 +59,25 @@ void Iters10000(std::true_type) {
 FUZZ_TEST(Control, Iters10000);
 
 // We use this test to make sure we catch buffer overflows.
-void BufferOverread(std::string_view s) {
+__attribute__((noinline)) void BufferOverreadImpl(std::string_view s) {
   if (s.empty()) return;
   size_t out_of_bounds_index = s.size();
   googlefuzz_force_write = s.data()[out_of_bounds_index];
+}
+
+__attribute__((noinline)) void BufferOverread(std::string_view s) {
+  BufferOverreadImpl(s);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
 }
 
 void BufferOverreadWithStringView(std::string_view s) { BufferOverread(s); }
 FUZZ_TEST(MySuite, BufferOverreadWithStringView)
     .WithDomains(fuzztest::Arbitrary<std::string_view>());
 
-void BufferOverreadWithString(std::string_view s) { BufferOverread(s); }
+__attribute__((noinline)) void BufferOverreadWithString(std::string_view s) {
+  BufferOverread(s);
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
 FUZZ_TEST(MySuite, BufferOverreadWithString)
     .WithDomains(fuzztest::Arbitrary<std::string>());
 

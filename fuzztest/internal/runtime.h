@@ -250,19 +250,28 @@ class Runtime {
           listener(description.substr(0, description.find('\n')), {});
         });
   }
-  void SetCrashTypeIfUnset(absl::string_view crash_type) {
-    crash_type_.SetIfUnset(crash_type);
+  // Sets the crash type if it is unset. Returns true iff this call set it.
+  //
+  // Callers that also compute a crash signature should only do so if this
+  // returns true, so that the crash type and signature describe the same
+  // crash even if multiple threads fail concurrently.
+  bool SetCrashTypeIfUnset(absl::string_view crash_type) {
+    return crash_type_.SetIfUnset(crash_type);
   }
   std::optional<absl::string_view> crash_type() const {
     return crash_type_.Get();
   }
-  void SetCrashSignatureIfUnset(absl::string_view crash_signature) {
-    crash_signature_.SetIfUnset(crash_signature);
+  bool SetCrashSignatureIfUnset(absl::string_view crash_signature) {
+    return crash_signature_.SetIfUnset(crash_signature);
   }
   std::optional<absl::string_view> crash_signature() const {
     return crash_signature_.Get();
   }
   void ResetCrashType() {
+    // If a thread (e.g., one that failed non-fatally during a previous input)
+    // is still computing the crash signature, keep the crash type as well, so
+    // that the type and signature stay consistent.
+    if (crash_signature_.is_being_written()) return;
     crash_type_.Reset();
     crash_signature_.Reset();
   }
@@ -359,23 +368,49 @@ class Runtime {
   template <size_t kCapacity>
   class CrashMetadataBuffer {
    public:
-    void SetIfUnset(absl::string_view value) {
+    // Returns true iff this call claimed the buffer and set the value.
+    bool SetIfUnset(absl::string_view value) {
+      return SetIfUnsetWith([value](absl::Span<char> out) {
+        const size_t size = std::min(value.size(), out.size());
+        if (size > 0) std::memcpy(out.data(), value.data(), size);
+        return size;
+      });
+    }
+
+    // If unset, claims the buffer and calls `writer(absl::Span<char> out)`,
+    // which must write the value into `out` and return its size (at most
+    // `out.size()`). `writer` is only called by the thread that claims the
+    // buffer, so it may use storage that is shared across threads. Returns
+    // true iff this call claimed the buffer.
+    template <typename Writer>
+    bool SetIfUnsetWith(Writer writer) {
       State expected = State::kEmpty;
       if (!state_.compare_exchange_strong(expected, State::kWriting,
                                           std::memory_order_acq_rel)) {
-        return;
+        return false;
       }
-      size_ = std::min(value.size(), kCapacity);
-      if (size_ > 0) {
-        std::memcpy(buffer_, value.data(), size_);
-      }
+      size_ = std::min<size_t>(writer(absl::Span<char>(buffer_)), kCapacity);
       state_.store(State::kReady, std::memory_order_release);
+      return true;
     }
 
-    void Reset() { state_.store(State::kEmpty, std::memory_order_release); }
+    // Clears a set value. Leaves an in-progress write untouched, so that a
+    // concurrent writer keeps exclusive use of the buffer (and of any shared
+    // storage its writer uses) until it completes.
+    void Reset() {
+      State expected = State::kReady;
+      state_.compare_exchange_strong(expected, State::kEmpty,
+                                     std::memory_order_acq_rel);
+    }
 
     bool has_value() const {
       return state_.load(std::memory_order_acquire) == State::kReady;
+    }
+
+    // Returns true iff a thread has claimed the buffer and is still writing
+    // the value.
+    bool is_being_written() const {
+      return state_.load(std::memory_order_acquire) == State::kWriting;
     }
 
     std::optional<absl::string_view> Get() const {

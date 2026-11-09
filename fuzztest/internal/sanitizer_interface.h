@@ -20,6 +20,7 @@
 #include "absl/base/attributes.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 
 extern "C" {
 
@@ -50,6 +51,29 @@ size_t FuzzTestFormatCrashDescription(const char* prefix, size_t prefix_size,
                                       size_t signature_size, char* out,
                                       size_t out_size);
 
+// Computes a stack-based crash signature `<crash_type>:<f0>/<f1>/<f2>` from
+// `crash_type` and the top (up to three) application functions on the current
+// stack, and writes it into `(out, out_size)`. Writes just `crash_type` if
+// there are no application frames, or if another thread is concurrently
+// computing a crash signature (see below). The output is truncated to
+// `out_size` bytes and is not null-terminated. Returns the number of bytes
+// written.
+//
+// Async-signal-safe. To avoid using a lot of stack space (e.g., when running on
+// an alternate signal stack), the frames are symbolized into process-wide
+// static storage, which is guarded by a lock-free flag. Never blocks.
+size_t FuzzTestComputeStackCrashSignature(const char* crash_type_data,
+                                          size_t crash_type_size, char* out,
+                                          size_t out_size);
+
+// Like `FuzzTestComputeStackCrashSignature()`, but for sanitizer errors: must
+// be called from the sanitizer error summary callback (see
+// `FuzzTestSetSanitizerErrorSummaryCallback()`), with the crash type passed to
+// the callback.
+size_t FuzzTestComputeSanitizerCrashSignature(const char* crash_type_data,
+                                              size_t crash_type_size, char* out,
+                                              size_t out_size);
+
 }  // extern "C"
 
 namespace fuzztest::internal {
@@ -63,6 +87,26 @@ namespace fuzztest::internal {
 // valid.
 absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
     absl::string_view error_summary ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
+// Captures the current stack trace, symbolizes each PC into `symbol_storage`,
+// filters out internal frames, strips trailing parameter lists `(...)` and
+// file/line info, and populates up to `out_frames.size()` application function
+// names in `out_frames`.
+//
+// Returns the subspan of `out_frames` that was populated, with each
+// `absl::string_view` pointing into `symbol_storage`.
+absl::Span<const absl::string_view> GetTopAppFunctions(
+    absl::Span<absl::string_view> out_frames ABSL_ATTRIBUTE_LIFETIME_BOUND,
+    absl::Span<char> symbol_storage ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
+// Formats a stack-based crash signature from `crash_type` and `frames` into
+// `out_buffer`:
+// - Returns `crash_type` if `frames` is empty.
+// - Otherwise writes `<crash_type>:<f0>/<f1>/...` into `out_buffer` and returns
+//   a view into `out_buffer`.
+absl::string_view FormatStackCrashSignature(
+    absl::string_view crash_type, absl::Span<const absl::string_view> frames,
+    absl::Span<char> out_buffer ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
 }  // namespace fuzztest::internal
 

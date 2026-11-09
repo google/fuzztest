@@ -439,10 +439,13 @@ fuzztest_cc_library(
     "sanitizer_interface.cc"
   DEPS
     fuzztest::common_logging
+    fuzztest::symbol_name_utils
     absl::core_headers
+    absl::stacktrace
     absl::status
     absl::statusor
     absl::strings
+    absl::symbolize
     absl::span
 )
 
@@ -453,10 +456,11 @@ fuzztest_cc_test(
     "sanitizer_interface_test.cc"
   DEPS
     fuzztest::sanitizer_interface
+    absl::core_headers
+    absl::span
     absl::status
     absl::statusor
     absl::string_view
-    absl::span
     GTest::gmock_main
 )
 
@@ -557,6 +561,15 @@ fuzztest_cc_test(
 
 fuzztest_cc_library(
   NAME
+    symbol_name_utils
+  HDRS
+    "symbol_name_utils.h"
+  DEPS
+    absl::string_view
+)
+
+fuzztest_cc_library(
+  NAME
     table_of_recent_compares
   HDRS
     "table_of_recent_compares.h"
@@ -612,6 +625,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::meta
     fuzztest::printer
+    fuzztest::symbol_name_utils
     absl::nullability
     absl::symbolize
     absl::function_ref

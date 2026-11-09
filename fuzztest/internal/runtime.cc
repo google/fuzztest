@@ -252,11 +252,20 @@ void PrintReproducerIfRequested(RawSink out, const FuzzTest& test,
 void (*crash_handler_hook)();
 
 Runtime::Runtime() {
-  FuzzTestSetSanitizerErrorSummaryCallback(
-      [](const char* crash_type_data, size_t crash_type_size) {
-        Runtime::instance().SetCrashTypeIfUnset(
-            absl::string_view(crash_type_data, crash_type_size));
-      });
+  FuzzTestSetSanitizerErrorSummaryCallback([](const char* crash_type_data,
+                                              size_t crash_type_size) {
+    const absl::string_view crash_type(crash_type_data, crash_type_size);
+    Runtime& runtime = Runtime::instance();
+    // Only compute the signature if this call set the crash type, so that
+    // both describe the same crash.
+    if (runtime.SetCrashTypeIfUnset(crash_type)) {
+      runtime.crash_signature_.SetIfUnsetWith(
+          [crash_type](absl::Span<char> out) {
+            return FuzzTestComputeSanitizerCrashSignature(
+                crash_type.data(), crash_type.size(), out.data(), out.size());
+          });
+    }
+  });
   if (const char* crash_metadata_path =
           std::getenv("FUZZTEST_CRASH_METADATA_PATH");
       crash_metadata_path != nullptr) {

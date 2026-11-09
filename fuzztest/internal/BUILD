@@ -456,6 +456,7 @@ cc_test(
         ":configuration",
         ":runtime",
         ":test_protobuf_cc_proto",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
@@ -476,7 +477,10 @@ cc_library(
     # executable).
     linkstatic = True,
     deps = [
+        ":symbol_name_utils",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/debugging:stacktrace",
+        "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -493,6 +497,7 @@ cc_test(
     srcs = ["sanitizer_interface_test.cc"],
     deps = [
         ":sanitizer_interface",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:string_view",
@@ -587,6 +592,12 @@ cc_test(
 )
 
 cc_library(
+    name = "symbol_name_utils",
+    hdrs = ["symbol_name_utils.h"],
+    deps = ["@abseil-cpp//absl/strings:string_view"],
+)
+
+cc_library(
     name = "table_of_recent_compares",
     hdrs = ["table_of_recent_compares.h"],
     deps = [
@@ -624,6 +635,7 @@ cc_library(
     deps = [
         ":meta",
         ":printer",
+        ":symbol_name_utils",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/functional:function_ref",
