@@ -478,6 +478,7 @@ cc_library(
     linkstatic = True,
     deps = [
         ":symbol_name_utils",
+        "@abseil-cpp//absl/base:config",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/debugging:stacktrace",
         "@abseil-cpp//absl/debugging:symbolize",
@@ -497,9 +498,11 @@ cc_test(
     srcs = ["sanitizer_interface_test.cc"],
     deps = [
         ":sanitizer_interface",
+        "@abseil-cpp//absl/base:config",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",

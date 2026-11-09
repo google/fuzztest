@@ -29,6 +29,7 @@
 #include <optional>
 
 #include "absl/base/attributes.h"
+#include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/debugging/stacktrace.h"
 #include "absl/debugging/symbolize.h"
 #include "absl/status/status.h"
@@ -41,6 +42,10 @@
 #include "absl/types/span.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/symbol_name_utils.h"
+
+#if defined(ABSL_HAVE_THREAD_SANITIZER)
+#include <sanitizer/tsan_interface.h>
+#endif
 
 namespace fuzztest::internal {
 
@@ -259,6 +264,70 @@ _Unwind_Reason_Code UnwindCallback(_Unwind_Context* context, void* arg) {
 }
 #endif  // defined(FUZZTEST_HAS_UNWIND_H)
 
+#if defined(ABSL_HAVE_THREAD_SANITIZER)
+constexpr size_t kSleepTraceSize = 16;
+
+absl::string_view ExtractAppFunctionFromTsanMop(void* report, size_t mop_idx,
+                                                absl::Span<char> symbol_buf) {
+  int tid = 0;
+  void* addr = nullptr;
+  int size = 0;
+  int write = 0;
+  int atomic = 0;
+  void* trace[kMaxStackFrames] = {nullptr};
+  if (!__tsan_get_report_mop(report, mop_idx, &tid, &addr, &size, &write,
+                             &atomic, trace, kMaxStackFrames)) {
+    return "";
+  }
+  for (void* pc : trace) {
+    if (pc == nullptr) {
+      break;
+    }
+    if (std::optional<absl::string_view> func_name =
+            SymbolizeAppFunction(pc, symbol_buf.data(), symbol_buf.size());
+        func_name.has_value()) {
+      return *func_name;
+    }
+  }
+  return "";
+}
+
+// If `report` is a ThreadSanitizer race report (`data-race`, `data-race-vptr`,
+// or `external-race`) with two memory operations, sets `f0` and `f1` to the top
+// application functions of the two racing memory operations (symbolized into
+// `symbol_storage`, or empty if there are none) and returns true. Otherwise,
+// returns false.
+bool GetTsanRaceAppFunctions(void* report, absl::Span<char> symbol_storage,
+                             absl::string_view& f0, absl::string_view& f1) {
+  const char* description = nullptr;
+  int count = 0;
+  int stack_count = 0;
+  int mop_count = 0;
+  int loc_count = 0;
+  int mutex_count = 0;
+  int thread_count = 0;
+  int unique_tid_count = 0;
+  void* sleep_trace[kSleepTraceSize] = {nullptr};
+  if (!__tsan_get_report_data(report, &description, &count, &stack_count,
+                              &mop_count, &loc_count, &mutex_count,
+                              &thread_count, &unique_tid_count, sleep_trace,
+                              kSleepTraceSize)) {
+    return false;
+  }
+  // Other reports with two memory operations (e.g., `heap-use-after-free`) are
+  // always detected by the same (accessing) thread, so their single-thread
+  // stack signature is already deterministic.
+  const absl::string_view desc = description == nullptr ? "" : description;
+  const bool is_race = desc == "data-race" || desc == "data-race-vptr" ||
+                       desc == "external-race";
+  if (!is_race || mop_count < 2) return false;
+  const size_t half = symbol_storage.size() / 2;
+  f0 = ExtractAppFunctionFromTsanMop(report, 0, symbol_storage.first(half));
+  f1 = ExtractAppFunctionFromTsanMop(report, 1, symbol_storage.subspan(half));
+  return true;
+}
+#endif  // defined(ABSL_HAVE_THREAD_SANITIZER)
+
 }  // namespace
 
 absl::StatusOr<absl::string_view> ParseCrashTypeFromSanitizerSummary(
@@ -353,6 +422,24 @@ absl::string_view FormatStackCrashSignature(
   return absl::string_view(out_buffer.data(), offset);
 }
 
+absl::string_view FormatTwoThreadCrashSignature(absl::string_view crash_type,
+                                                absl::string_view f0,
+                                                absl::string_view f1,
+                                                absl::Span<char> out_buffer) {
+  if (f0.empty() && f1.empty()) {
+    return crash_type;
+  }
+  const absl::string_view resolved_f0 = f0.empty() ? "<unknown>" : f0;
+  const absl::string_view resolved_f1 = f1.empty() ? "<unknown>" : f1;
+  size_t offset = 0;
+  AppendToBuffer(out_buffer, offset, crash_type);
+  AppendToBuffer(out_buffer, offset, ":");
+  AppendToBuffer(out_buffer, offset, std::min(resolved_f0, resolved_f1));
+  AppendToBuffer(out_buffer, offset, " <-> ");
+  AppendToBuffer(out_buffer, offset, std::max(resolved_f0, resolved_f1));
+  return absl::string_view(out_buffer.data(), offset);
+}
+
 }  // namespace fuzztest::internal
 
 // clang-format off
@@ -427,6 +514,40 @@ extern "C" size_t FuzzTestComputeStackCrashSignature(
 extern "C" size_t FuzzTestComputeSanitizerCrashSignature(
     const char* crash_type_data, size_t crash_type_size, char* out,
     size_t out_size) {
+#if defined(ABSL_HAVE_THREAD_SANITIZER)
+  // ThreadSanitizer sets the current report of the reporting thread before
+  // printing it, which calls the sanitizer error summary hook. For race
+  // reports (per TSan's report type, independently of the crash type parsed
+  // from the summary), use the commutative two-thread signature of the two
+  // racing memory operations, which doesn't depend on which thread detected
+  // the race. Otherwise (e.g., no current report, as for deadly signals), fall
+  // back to the stack signature.
+  if (void* const report = __tsan_get_current_report(); report != nullptr) {
+    const absl::string_view crash_type(crash_type_data, crash_type_size);
+    const absl::Span<char> out_buffer(out, out_size);
+    if (fuzztest::internal::crash_signature_scratch_busy.test_and_set(
+            std::memory_order_acquire)) {
+      return fuzztest::internal::CopyToBuffer(crash_type, out_buffer);
+    }
+    absl::string_view f0;
+    absl::string_view f1;
+    const bool has_race_frames =
+        fuzztest::internal::GetTsanRaceAppFunctions(
+            report, fuzztest::internal::crash_signature_symbol_storage, f0,
+            f1) &&
+        !(f0.empty() && f1.empty());
+    size_t size = 0;
+    if (has_race_frames) {
+      size = fuzztest::internal::CopyToBuffer(
+          fuzztest::internal::FormatTwoThreadCrashSignature(crash_type, f0, f1,
+                                                            out_buffer),
+          out_buffer);
+    }
+    fuzztest::internal::crash_signature_scratch_busy.clear(
+        std::memory_order_release);
+    if (has_race_frames) return size;
+  }
+#endif  // defined(ABSL_HAVE_THREAD_SANITIZER)
   return FuzzTestComputeStackCrashSignature(crash_type_data, crash_type_size,
                                             out, out_size);
 }

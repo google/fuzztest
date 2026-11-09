@@ -70,6 +70,13 @@ size_t FuzzTestComputeStackCrashSignature(const char* crash_type_data,
 // be called from the sanitizer error summary callback (see
 // `FuzzTestSetSanitizerErrorSummaryCallback()`), with the crash type passed to
 // the callback.
+//
+// For a ThreadSanitizer race report (`data-race`, `data-race-vptr`, or
+// `external-race`, per the report type of `__tsan_get_current_report()`),
+// writes the commutative two-thread signature
+// `<crash_type>:<min(f0, f1)> <-> <max(f0, f1)>` instead, where `f0` and `f1`
+// are the top application functions of the two racing memory operations (see
+// `FormatTwoThreadCrashSignature()`).
 size_t FuzzTestComputeSanitizerCrashSignature(const char* crash_type_data,
                                               size_t crash_type_size, char* out,
                                               size_t out_size);
@@ -106,6 +113,16 @@ absl::Span<const absl::string_view> GetTopAppFunctions(
 //   a view into `out_buffer`.
 absl::string_view FormatStackCrashSignature(
     absl::string_view crash_type, absl::Span<const absl::string_view> frames,
+    absl::Span<char> out_buffer ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
+// Formats a commutative two-thread crash signature from `crash_type`, `f0`, and
+// `f1` into `out_buffer`:
+// - Returns `crash_type` if both `f0` and `f1` are empty.
+// - Otherwise substitutes `"<unknown>"` for an empty frame, writes
+//   `<crash_type>:<min(f0, f1)> <-> <max(f0, f1)>` into `out_buffer`, and
+//   returns a view into `out_buffer`.
+absl::string_view FormatTwoThreadCrashSignature(
+    absl::string_view crash_type, absl::string_view f0, absl::string_view f1,
     absl::Span<char> out_buffer ABSL_ATTRIBUTE_LIFETIME_BOUND);
 
 }  // namespace fuzztest::internal

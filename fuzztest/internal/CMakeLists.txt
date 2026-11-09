@@ -440,6 +440,7 @@ fuzztest_cc_library(
   DEPS
     fuzztest::common_logging
     fuzztest::symbol_name_utils
+    absl::config
     absl::core_headers
     absl::stacktrace
     absl::status
@@ -456,10 +457,12 @@ fuzztest_cc_test(
     "sanitizer_interface_test.cc"
   DEPS
     fuzztest::sanitizer_interface
+    absl::config
     absl::core_headers
     absl::span
     absl::status
     absl::statusor
+    absl::str_format
     absl::string_view
     GTest::gmock_main
 )

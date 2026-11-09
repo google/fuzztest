@@ -22,11 +22,20 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/attributes.h"
+#include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+
+#if defined(ABSL_HAVE_THREAD_SANITIZER)
+#include <cstdio>
+#include <cstdlib>
+#include <thread>  // NOLINT
+
+#include "absl/strings/str_format.h"
+#endif
 
 namespace fuzztest::internal {
 
@@ -282,6 +291,22 @@ ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> FakeFuzzTestFrame(
   ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
   return frames;
 }
+
+#if defined(ABSL_HAVE_THREAD_SANITIZER)
+ABSL_ATTRIBUTE_NOINLINE void InternalRaceWrite(volatile int* shared) {
+  *shared = *shared + 1;
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+ABSL_ATTRIBUTE_NOINLINE void InternalOnlyRaceThread(volatile int* shared) {
+  while (*shared < 100) {
+    if (*shared % 2 == 1) {
+      InternalRaceWrite(shared);
+    }
+  }
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+#endif  // defined(ABSL_HAVE_THREAD_SANITIZER)
 }  // namespace fuzztest
 
 namespace test_app {
@@ -298,6 +323,26 @@ ABSL_ATTRIBUTE_NOINLINE std::vector<std::string> OuterAppFunc(int max_frames) {
   ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
   return frames;
 }
+
+#if defined(ABSL_HAVE_THREAD_SANITIZER)
+ABSL_ATTRIBUTE_NOINLINE void RaceThreadA(volatile int* shared) {
+  while (*shared < 100) {
+    if (*shared % 2 == 0) {
+      fuzztest::InternalRaceWrite(shared);
+    }
+  }
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+
+ABSL_ATTRIBUTE_NOINLINE void RaceThreadB(volatile int* shared) {
+  while (*shared < 100) {
+    if (*shared % 2 == 1) {
+      fuzztest::InternalRaceWrite(shared);
+    }
+  }
+  ABSL_BLOCK_TAIL_CALL_OPTIMIZATION();
+}
+#endif  // defined(ABSL_HAVE_THREAD_SANITIZER)
 
 }  // namespace test_app
 
@@ -696,6 +741,80 @@ TEST(FuzzTestComputeStackCrashSignatureTest, TruncatesToOutputSize) {
                 &FuzzTestComputeStackCrashSignature, "heap-use-after-free", 0),
             "");
 }
+
+TEST(FormatTwoThreadCrashSignatureTest,
+     FormatsCommutativeSignatureFromTwoThreadFrames) {
+  char out_buffer[256];
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "", "", out_buffer),
+            "data-race");
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "ThreadA", "ThreadB",
+                                          out_buffer),
+            "data-race:ThreadA <-> ThreadB");
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "ThreadB", "ThreadA",
+                                          out_buffer),
+            "data-race:ThreadA <-> ThreadB");
+  EXPECT_EQ(FormatTwoThreadCrashSignature("data-race", "Worker", "Worker",
+                                          out_buffer),
+            "data-race:Worker <-> Worker");
+  EXPECT_EQ(
+      FormatTwoThreadCrashSignature("data-race", "Worker", "", out_buffer),
+      "data-race:<unknown> <-> Worker");
+  EXPECT_EQ(
+      FormatTwoThreadCrashSignature("data-race", "", "Worker", out_buffer),
+      "data-race:<unknown> <-> Worker");
+}
+
+#if defined(ABSL_HAVE_THREAD_SANITIZER)
+TEST(FuzzTestComputeSanitizerCrashSignatureDeathTest,
+     FormatsBothRacingThreadFunctionsOnDataRace) {
+  EXPECT_DEATH(
+      {
+        FuzzTestSetSanitizerErrorSummaryCallback(
+            [](const char* crash_type_data, size_t crash_type_size) {
+              char sig_buf[256];
+              const size_t sig_size = FuzzTestComputeSanitizerCrashSignature(
+                  crash_type_data, crash_type_size, sig_buf, sizeof(sig_buf));
+              absl::FPrintF(stderr, "SANITIZER_CRASH_SIGNATURE=%s\n",
+                            absl::string_view(sig_buf, sig_size));
+              std::fflush(stderr);
+              std::_Exit(1);
+            });
+        volatile int shared = 0;
+        std::thread t1(test_app::RaceThreadA, &shared);
+        std::thread t2(test_app::RaceThreadB, &shared);
+        t1.join();
+        t2.join();
+        std::_Exit(0);
+      },
+      HasSubstr("SANITIZER_CRASH_SIGNATURE=data-race:test_app::RaceThreadA <-> "
+                "test_app::RaceThreadB"));
+}
+
+TEST(FuzzTestComputeSanitizerCrashSignatureDeathTest,
+     SubstitutesUnknownWhenRacingThreadHasOnlyInternalFrames) {
+  EXPECT_DEATH(
+      {
+        FuzzTestSetSanitizerErrorSummaryCallback(
+            [](const char* crash_type_data, size_t crash_type_size) {
+              char sig_buf[256];
+              const size_t sig_size = FuzzTestComputeSanitizerCrashSignature(
+                  crash_type_data, crash_type_size, sig_buf, sizeof(sig_buf));
+              absl::FPrintF(stderr, "SANITIZER_CRASH_SIGNATURE=%s\n",
+                            absl::string_view(sig_buf, sig_size));
+              std::fflush(stderr);
+              std::_Exit(1);
+            });
+        volatile int shared = 0;
+        std::thread t1(test_app::RaceThreadA, &shared);
+        std::thread t2(fuzztest::InternalOnlyRaceThread, &shared);
+        t1.join();
+        t2.join();
+        std::_Exit(0);
+      },
+      HasSubstr("SANITIZER_CRASH_SIGNATURE=data-race:<unknown> <-> "
+                "test_app::RaceThreadA"));
+}
+#endif  // defined(ABSL_HAVE_THREAD_SANITIZER)
 
 }  // namespace
 }  // namespace fuzztest::internal
