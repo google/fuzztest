@@ -19,6 +19,7 @@ use super::utility::mutate_integer;
 use super::utility::shrink_towards;
 use super::utility::NUM_VALID_CODEPOINTS;
 use super::Domain;
+use super::ReversibleDomain;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -109,6 +110,30 @@ impl Domain for Arbitrary<bool> {
     }
 }
 
+macro_rules! impl_reversible_domain_for_copy_primitive {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl ReversibleDomain<$ty> for Arbitrary<$ty> {
+                fn to_unvalidated_corpus_value(
+                    &self,
+                    value: $ty,
+                ) -> anyhow::Result<Self::CorpusValue> {
+                    Ok(value)
+                }
+            }
+
+            impl<'a> ReversibleDomain<&'a $ty> for Arbitrary<$ty> {
+                fn to_unvalidated_corpus_value(
+                    &self,
+                    value: &'a $ty,
+                ) -> anyhow::Result<Self::CorpusValue> {
+                    Ok(*value)
+                }
+            }
+        )+
+    };
+}
+
 macro_rules! impl_domain_for_integer {
     // We need an additional "integer type" for this, because
     // rand::distr::Distribution<> is not implemented for StandardUniform for isize and usize.
@@ -158,6 +183,8 @@ macro_rules! impl_domain_for_integer {
                 Ok(())
             }
         }
+
+        impl_reversible_domain_for_copy_primitive!($ty);
     };
 }
 
@@ -236,6 +263,8 @@ macro_rules! impl_domain_for_float {
                 Ok(())
             }
         }
+
+        impl_reversible_domain_for_copy_primitive!($ty);
     };
 }
 
@@ -319,18 +348,26 @@ impl Domain for Arbitrary<()> {
     }
 }
 
+impl_reversible_domain_for_copy_primitive!(bool, char, ());
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
+    use std::fmt::Debug;
+    use std::hash::Hash;
 
-    use crate::domains::utility::SpecialValues;
+    use googletest::prelude::*;
     use num_traits::{Float, One, Zero};
     use rand::distr::uniform::SampleUniform;
     use rand::distr::{Distribution, StandardUniform};
     use rand::rngs::{SmallRng, SysRng};
     use rand::SeedableRng;
 
+    use crate::domains::utility::iterations_to_hit_all;
+    use crate::domains::utility::SpecialValues;
     use crate::domains::Domain;
+    use crate::domains::ReversibleDomain;
+    use crate::domains::SeedableDomainExt;
 
     use super::*;
 
@@ -753,6 +790,130 @@ mod tests {
                 "Char did not shrink to null within {} iterations. Final value: {}",
                 MAX_ITERATIONS, value
             );
+        }
+    }
+
+    fn test_arbitrary_seeding<T>(eager_seeds: [T; 2], provider_seeds: [T; 2])
+    where
+        T: Copy + Eq + Hash + Debug + Send + 'static,
+        for<'u> Arbitrary<T>: Domain<UserValue<'u> = T, CorpusValue = T>,
+        Arbitrary<T>: ReversibleDomain<T> + for<'a> ReversibleDomain<&'a T>,
+    {
+        let base_domain = Arbitrary::<T>::default();
+        for seed in eager_seeds.into_iter().chain(provider_seeds) {
+            expect_that!(base_domain.into_corpus_value(seed), ok(eq(&seed)));
+            expect_that!(base_domain.into_corpus_value(&seed), ok(eq(&seed)));
+        }
+        let mut domain =
+            base_domain.with_seeds(&eager_seeds).with_seed_provider(move || provider_seeds);
+        let mut rng = get_rng();
+        let mut observed = HashSet::new();
+        for _ in 0..iterations_to_hit_all(4, 0.5 / 4.0) {
+            observed.insert(domain.init(&mut rng).unwrap());
+        }
+        for seed in eager_seeds {
+            expect_that!(observed, contains(eq(&seed)));
+        }
+        for seed in provider_seeds {
+            expect_that!(observed, contains(eq(&seed)));
+        }
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_integers_and_char() {
+        test_arbitrary_seeding::<i8>([-42, 42], [-17, 29]);
+        test_arbitrary_seeding::<u8>([7, 42], [17, 29]);
+        test_arbitrary_seeding::<i16>([-1234, 1234], [-2345, 3456]);
+        test_arbitrary_seeding::<u16>([1234, 5678], [2345, 6789]);
+        test_arbitrary_seeding::<i32>([-123456, 123456], [-234567, 345678]);
+        test_arbitrary_seeding::<u32>([123456, 654321], [234567, 765432]);
+        test_arbitrary_seeding::<i64>([-123456789, 123456789], [-234567890, 345678901]);
+        test_arbitrary_seeding::<u64>([123456789, 987654321], [234567890, 876543210]);
+        test_arbitrary_seeding::<i128>([-123456789, 123456789], [-234567890, 345678901]);
+        test_arbitrary_seeding::<u128>([123456789, 987654321], [234567890, 876543210]);
+        test_arbitrary_seeding::<isize>([-12345, 12345], [-23456, 34567]);
+        test_arbitrary_seeding::<usize>([12345, 54321], [23456, 65432]);
+        test_arbitrary_seeding::<char>(['b', 'Z'], ['m', '9']);
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_bool() {
+        let base_domain = Arbitrary::<bool>::default();
+        expect_that!(base_domain.into_corpus_value(true), ok(eq(&true)));
+        expect_that!(base_domain.into_corpus_value(false), ok(eq(&false)));
+        expect_that!(base_domain.into_corpus_value(&true), ok(eq(&true)));
+        expect_that!(base_domain.into_corpus_value(&false), ok(eq(&false)));
+
+        let mut domain =
+            base_domain.with_seeds([true]).with_seeds(&[false]).with_seed_provider(|| [false]);
+        let mut rng = get_rng();
+        for _ in 0..10 {
+            expect_that!(domain.init(&mut rng), ok(anything()));
+        }
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_f32() {
+        let base_domain = Arbitrary::<f32>::default();
+        let seeds = [42.5f32, f32::INFINITY, f32::NEG_INFINITY];
+        let provider_seeds = [-13.75f32, f32::NAN, -0.0f32];
+        for seed in seeds.into_iter().chain(provider_seeds) {
+            expect_that!(
+                base_domain.into_corpus_value(seed).map(f32::to_bits),
+                ok(eq(&seed.to_bits()))
+            );
+            expect_that!(
+                base_domain.into_corpus_value(&seed).map(f32::to_bits),
+                ok(eq(&seed.to_bits()))
+            );
+        }
+        let mut domain = base_domain.with_seeds(&seeds).with_seed_provider(move || provider_seeds);
+        let mut rng = get_rng();
+        let mut observed_bits = HashSet::new();
+        for _ in 0..iterations_to_hit_all(6, 0.5 / 6.0) {
+            observed_bits.insert(domain.init(&mut rng).unwrap().to_bits());
+        }
+        for expected in seeds.into_iter().chain(provider_seeds) {
+            expect_that!(observed_bits, contains(eq(&expected.to_bits())));
+        }
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_f64() {
+        let base_domain = Arbitrary::<f64>::default();
+        let seeds = [42.5f64, f64::INFINITY, f64::NEG_INFINITY];
+        let provider_seeds = [-13.75f64, f64::NAN, -0.0f64];
+        for seed in seeds.into_iter().chain(provider_seeds) {
+            expect_that!(
+                base_domain.into_corpus_value(seed).map(f64::to_bits),
+                ok(eq(&seed.to_bits()))
+            );
+            expect_that!(
+                base_domain.into_corpus_value(&seed).map(f64::to_bits),
+                ok(eq(&seed.to_bits()))
+            );
+        }
+        let mut domain = base_domain.with_seeds(&seeds).with_seed_provider(move || provider_seeds);
+        let mut rng = get_rng();
+        let mut observed_bits = HashSet::new();
+        for _ in 0..iterations_to_hit_all(6, 0.5 / 6.0) {
+            observed_bits.insert(domain.init(&mut rng).unwrap().to_bits());
+        }
+        for expected in seeds.into_iter().chain(provider_seeds) {
+            expect_that!(observed_bits, contains(eq(&expected.to_bits())));
+        }
+    }
+
+    #[gtest]
+    fn test_arbitrary_seeding_unit() {
+        let base_domain = Arbitrary::<()>::default();
+        expect_that!(base_domain.into_corpus_value(()), ok(eq(&())));
+        expect_that!(base_domain.into_corpus_value(&()), ok(eq(&())));
+
+        let mut domain = base_domain.with_seeds([()]).with_seeds(&[()]).with_seed_provider(|| [()]);
+        let mut rng = get_rng();
+        for _ in 0..10 {
+            expect_that!(domain.init(&mut rng).unwrap(), eq(()));
         }
     }
 }
