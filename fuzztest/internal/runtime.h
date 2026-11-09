@@ -271,6 +271,16 @@ class Runtime {
   std::optional<absl::string_view> crash_signature() const {
     return crash_signature_.Get();
   }
+  // If the crash signature is unset, sets it to
+  // `<crash_type>:<assertion_failure_key>` when `assertion_failure_key` is
+  // non-empty (and records the assertion failure key for reporting), or to
+  // `<crash_type>` when `assertion_failure_key` is empty. Async-signal-safe.
+  void SetAssertionCrashSignatureIfUnset(
+      absl::string_view crash_type, absl::string_view assertion_failure_key);
+  std::optional<absl::string_view> assertion_failure_key() const {
+    return assertion_failure_key_.Get();
+  }
+
   // If the crash signature is unset, sets it to a signature computed from
   // `crash_type` and the top application functions on the current stack
   // (`<crash_type>:<f0>/<f1>/<f2>`), using
@@ -287,14 +297,7 @@ class Runtime {
   // signature. Does not wait if the calling thread is the one writing the
   // signature (e.g., if it crashed while doing so). Async-signal-safe.
   void WaitWhileCrashSignatureIsWrittenByAnotherThread() const;
-  void ResetCrashType() {
-    // If a thread (e.g., one that failed non-fatally during a previous input)
-    // is still computing the crash signature, keep the crash type as well, so
-    // that the type and signature stay consistent.
-    if (crash_signature_.is_being_written()) return;
-    crash_type_.Reset();
-    crash_signature_.Reset();
-  }
+  void ResetCrashType();
 
   // If the crash reporter is enabled, sets the crash type to unexpected-exit
   // and aborts the process. Otherwise, does nothing.
@@ -466,6 +469,9 @@ class Runtime {
   CrashMetadataBuffer<256> crash_type_;
   // In case of a crash, contains the crash signature.
   CrashMetadataBuffer<1024> crash_signature_;
+  // In case of an assertion failure with a custom `FailureKey`, contains the
+  // sanitized assertion failure key.
+  CrashMetadataBuffer<256> assertion_failure_key_;
 };
 
 struct ReproducerOutputLocation {

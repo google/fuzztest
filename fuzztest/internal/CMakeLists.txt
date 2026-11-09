@@ -220,6 +220,7 @@ fuzztest_cc_library(
     fuzztest::flag_name
     fuzztest::registry
     fuzztest::runtime
+    fuzztest::sanitizer_interface
     GTest::gtest
     absl::statusor
     absl::strings
@@ -426,6 +427,7 @@ fuzztest_cc_test(
   DEPS
     fuzztest::configuration
     fuzztest::runtime
+    fuzztest::sanitizer_interface
     fuzztest::test_protobuf_cc_proto
     GTest::gmock_main
     absl::statusor

@@ -1,7 +1,10 @@
 #include "./fuzztest/fuzztest_macros.h"
 
+#include <cstddef>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,6 +16,7 @@
 #include "absl/strings/match.h"
 #include "./common/logging.h"
 #include "./common/temp_dir.h"
+#include "./fuzztest/internal/sanitizer_interface.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -20,6 +24,7 @@ namespace {
 namespace fs = std::filesystem;
 
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::FieldsAre;
 using ::testing::UnorderedElementsAre;
 
@@ -184,6 +189,75 @@ kw2="world\x5g"
   EXPECT_THAT(
       dictionary_entries.status().message(),
       "Unparseable dictionary entry at line 6: Could not unescape \\x5g");
+}
+
+std::optional<std::string_view> GetPendingKey() {
+  size_t size = 0;
+  const char* data = FuzzTestGetPendingAssertionFailureKey(&size);
+  return data != nullptr ? std::optional<std::string_view>({data, size})
+                         : std::nullopt;
+}
+
+TEST(FailureKeyTest, DoesNotSetPendingKeyUntilStreamed) {
+  FuzzTestClearPendingAssertionFailureKey();
+
+  const FailureKey key("key");
+  EXPECT_EQ(key.value(), "key");
+  EXPECT_EQ(GetPendingKey(), std::nullopt);
+}
+
+TEST(FailureKeyTest, StreamingSetsPendingKeyWithoutModifyingStreamText) {
+  FuzzTestClearPendingAssertionFailureKey();
+
+  std::ostringstream oss;
+  oss << FailureKey("key") << "Message";
+  EXPECT_EQ(oss.str(), "Message");
+  EXPECT_EQ(GetPendingKey(), "key");
+  FuzzTestClearPendingAssertionFailureKey();
+
+  testing::Message msg;
+  msg << "Prefix: " << FailureKey("key") << "Message";
+  EXPECT_EQ(msg.GetString(), "Prefix: Message");
+  EXPECT_EQ(GetPendingKey(), "key");
+  FuzzTestClearPendingAssertionFailureKey();
+}
+
+TEST(FailureKeyTest, StreamingEmptyKeyIsNoOp) {
+  FuzzTestClearPendingAssertionFailureKey();
+
+  std::ostringstream oss;
+  oss << FailureKey("") << "Message";
+  EXPECT_EQ(oss.str(), "Message");
+  EXPECT_EQ(GetPendingKey(), std::nullopt);
+}
+
+TEST(FailureKeyTest, StreamingMultipleKeysKeepsLastNonEmptyKey) {
+  FuzzTestClearPendingAssertionFailureKey();
+
+  std::ostringstream oss;
+  oss << FailureKey("key_1") << "Message 1. " << FailureKey("key_2")
+      << "Message 2.";
+  EXPECT_EQ(oss.str(), "Message 1. Message 2.");
+  EXPECT_EQ(GetPendingKey(), "key_2");
+
+  oss << FailureKey("");
+  EXPECT_EQ(GetPendingKey(), "key_2");
+  FuzzTestClearPendingAssertionFailureKey();
+}
+
+TEST(FailureKeyTest, PassingAssertionsDoNotEvaluateFailureKeyExpression) {
+  FuzzTestClearPendingAssertionFailureKey();
+
+  int evaluations = 0;
+  auto compute_key = [&]() -> std::string {
+    ++evaluations;
+    return "key";
+  };
+
+  EXPECT_TRUE(true) << FailureKey(compute_key()) << "msg";
+  ASSERT_THAT(42, Eq(42)) << FailureKey(compute_key()) << "msg";
+  EXPECT_EQ(evaluations, 0);
+  EXPECT_EQ(GetPendingKey(), std::nullopt);
 }
 
 }  // namespace

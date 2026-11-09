@@ -145,27 +145,6 @@ size_t CopyToBuffer(std::array<char, N>& buffer, const Parts&... parts) {
   return offset;
 }
 
-void WriteStderr(std::string_view sv) {
-  while (!sv.empty()) {
-    const ssize_t r = write(STDERR_FILENO, sv.data(), sv.size());
-    if (r > 0) {
-      sv.remove_prefix(static_cast<size_t>(r));
-      continue;
-    }
-    if (r == -1 && errno == EINTR) continue;
-    break;
-  }
-}
-
-// Logging in diagnostic callbacks needs to be signal-safe and thread-safe.
-template <typename... Parts>
-void SignalSafeLog(const Parts&... parts) {
-  static_assert((std::is_convertible_v<const Parts&, std::string_view> && ...));
-  (WriteStderr(parts), ...);
-  WriteStderr("\n");
-  (void)fsync(STDERR_FILENO);
-}
-
 }  // namespace
 
 // The functions below that invoke the adapter (manager) callbacks disable CFI,

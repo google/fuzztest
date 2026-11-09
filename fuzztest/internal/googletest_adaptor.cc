@@ -1,6 +1,7 @@
 
 #include "./fuzztest/internal/googletest_adaptor.h"
 
+#include <cstddef>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -19,6 +20,7 @@
 #include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/registry.h"
 #include "./fuzztest/internal/runtime.h"
+#include "./fuzztest/internal/sanitizer_interface.h"
 
 #ifdef FUZZTEST_USE_CENTIPEDE
 #include "./fuzztest/internal/centipede_adaptor.h"
@@ -99,6 +101,38 @@ void RegisterFuzzTestAsGoogleTest(FuzzTest& test) {
   }
 }
 
+class GTest_EventListener : public ::testing::EmptyTestEventListener {
+ public:
+  void OnTestPartResult(
+      const ::testing::TestPartResult& test_part_result) override {
+    Runtime& runtime = Runtime::instance();
+    if (test_part_result.failed() && runtime.reporter_enabled()) {
+      if (runtime.SetCrashTypeIfUnset("GoogleTest assertion failure")) {
+        size_t key_size = 0;
+        const char* key_data = FuzzTestGetPendingAssertionFailureKey(&key_size);
+        const absl::string_view assertion_failure_key =
+            key_data != nullptr ? absl::string_view(key_data, key_size)
+                                : absl::string_view();
+        runtime.SetAssertionCrashSignatureIfUnset(
+            "GoogleTest assertion failure", assertion_failure_key);
+      }
+      FuzzTestClearPendingAssertionFailureKey();
+      if (runtime.run_mode() == RunMode::kFuzz) {
+        if (runtime.should_terminate_on_non_fatal_failure()) {
+          // The SIGABRT will trigger a report.
+          std::abort();
+        }
+      } else {
+        // Otherwise, we report it manually.
+        runtime.PrintReportOnDefaultSink();
+      }
+      runtime.SetExternalFailureDetected(true);
+    } else {
+      FuzzTestClearPendingAssertionFailureKey();
+    }
+  }
+};
+
 }  // namespace
 
 void RegisterGoogleTestAdaptor() {
@@ -119,8 +153,7 @@ void RegisterSeparateRegressionTestsForEachCrashingInput(
 
 void RegisterGoogleTestEventListener() {
   ::testing::UnitTest::GetInstance()->listeners().Append(
-      new ::fuzztest::internal::GTest_EventListener<
-          ::testing::EmptyTestEventListener, ::testing::TestPartResult>());
+      new GTest_EventListener());
 }
 
 // A singleton validator class with Run() called when GoogleTest begins to run

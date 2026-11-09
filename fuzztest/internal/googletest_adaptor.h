@@ -139,27 +139,6 @@ class GTest_TestAdaptor : public ::testing::Test {
   std::optional<Configuration> configuration_;
 };
 
-template <typename Base, typename TestPartResult>
-class GTest_EventListener : public Base {
- public:
-  void OnTestPartResult(const TestPartResult& test_part_result) override {
-    if (!test_part_result.failed()) return;
-    Runtime& runtime = Runtime::instance();
-    if (!runtime.reporter_enabled()) return;
-    runtime.SetCrashTypeIfUnset("GoogleTest assertion failure");
-    if (runtime.run_mode() == RunMode::kFuzz) {
-      if (runtime.should_terminate_on_non_fatal_failure()) {
-        // The SIGABRT will trigger a report.
-        std::abort();
-      }
-    } else {
-      // Otherwise, we report it manually.
-      runtime.PrintReportOnDefaultSink();
-    }
-    runtime.SetExternalFailureDetected(true);
-  }
-};
-
 // Registers a separate GoogleTest TEST for each crashing input of each
 // FUZZ_TEST when `configuration.reproduce_findings_as_separate_tests` is true.
 void RegisterSeparateRegressionTestsForEachCrashingInput(

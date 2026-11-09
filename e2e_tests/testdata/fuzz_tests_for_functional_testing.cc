@@ -1069,4 +1069,20 @@ void UnexpectedlyImmediatelyExitsWithoutCleanup(int) {
 }
 FUZZ_TEST(MySuite, UnexpectedlyImmediatelyExitsWithoutCleanup);
 
+void CheckFailsWithFailureKey(int foo, int bar) {
+  int side_effects = 0;
+  ABSL_CHECK_EQ(1, 1) << fuzztest::FailureKey((++side_effects, "must_not_run"));
+  ABSL_CHECK_EQ(side_effects, 0);
+  ABSL_CHECK_LE(foo, bar) << fuzztest::FailureKey("custom_check_key")
+                          << "foo > bar";
+}
+FUZZ_TEST(MySuite, CheckFailsWithFailureKey).WithSeeds({{2, 1}});
+
+void LogFatalFailsWithFailureKey(int foo, int bar) {
+  if (foo > bar) {
+    ABSL_LOG(FATAL) << fuzztest::FailureKey("custom_fatal_key") << "foo > bar";
+  }
+}
+FUZZ_TEST(MySuite, LogFatalFailsWithFailureKey).WithSeeds({{2, 1}});
+
 }  // namespace
