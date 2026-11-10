@@ -264,7 +264,15 @@ ABSL_ATTRIBUTE_NO_SANITIZE_THREAD
 _Unwind_Reason_Code UnwindCallback(_Unwind_Context* context, void* arg) {
   auto* state = static_cast<UnwindState*>(arg);
   int ip_before_insn = 0;
+#if defined(__arm__) && !defined(__USING_SJLJ_EXCEPTIONS__) && \
+    !defined(__ARM_DWARF_EH__) && !defined(__SEH__)
+  // The ARM EHABI unwinder (e.g., libgcc_s on 32-bit ARM) doesn't export
+  // `_Unwind_GetIPInfo`. Like libgcc's ARM `unwind.h`, use the inline
+  // `_Unwind_GetIP`, which never points before the instruction.
+  uintptr_t ip = _Unwind_GetIP(context);
+#else
   uintptr_t ip = _Unwind_GetIPInfo(context, &ip_before_insn);
+#endif
   if (ip == 0) {
     return _URC_END_OF_STACK;
   }
