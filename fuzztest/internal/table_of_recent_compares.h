@@ -94,7 +94,7 @@ class TableOfRecentCompares {
                 "{1, 2, 4, 8}.");
   // Use mask to calculate modulo, avoid % overflow.
   static constexpr size_t kTableSize = 4096U / sizeof(T);
-  static constexpr T kValueMask = static_cast<T>(kTableSize - 1);
+  static constexpr size_t kValueMask = kTableSize - 1;
 
   void Insert(T lhs, T rhs) {
     if (!compact_) {
