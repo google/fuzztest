@@ -41,6 +41,7 @@
 #include <deque>
 #include <filesystem>  // NOLINT
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -395,6 +396,10 @@ void Runtime::PrintReport(RawSink out) {
   // We don't want to try and print a fuzz report when we are not running a fuzz
   // test, even if we got a crash.
   if (!reporter_enabled_.exchange(false)) return;
+  if (diff_active()) {
+    re_enable_reporter_on_next_diff_input_.store(true,
+                                                 std::memory_order_relaxed);
+  }
 
   if (auto* coverage = GetExecutionCoverage()) {
     // Turn off tracing to avoid having the report trigger more problems during
@@ -450,6 +455,43 @@ void Runtime::PrintReport(RawSink out) {
                        trim ? kTrimIndicator : "");
         });
 
+    const DiffReportKind diff_report_kind =
+        diff_failure_report_.load(std::memory_order_relaxed);
+    if (diff_report_kind != DiffReportKind::kNone) {
+      const DiffMode active_diff_mode = diff_mode();
+      const absl::string_view mode_flag =
+          active_diff_mode == DiffMode::kRecord ? "record" : "diff";
+      // A RecordOrDiff finding reproduces only in corpus replay with
+      // --record/--diff, so the regression test draft and the reproducer would
+      // mislead.
+      absl::Format(out, "%s=== RecordOrDiff reproduction\n\n", GetSeparator());
+      absl::Format(
+          out,
+          "This finding is a RecordOrDiff %s. It reproduces only with\n"
+          "--%s%s%s. A regression test or a\n"
+          "FUZZTEST_REPLAY reproducer does not reproduce it, because "
+          "RecordOrDiff is a no-op there.\n",
+          diff_report_kind == DiffReportKind::kMismatch ? "mismatch" : "error",
+          FUZZTEST_FLAG_PREFIX, mode_flag,
+          active_diff_mode == DiffMode::kValidate ? " against the same baseline"
+                                                  : "");
+      const absl::string_view corpus_database =
+          current_configuration_ != nullptr
+              ? absl::string_view(current_configuration_->corpus_database)
+              : "";
+      const absl::string_view workdir_root =
+          current_configuration_ != nullptr
+              ? absl::string_view(current_configuration_->workdir_root)
+              : "";
+      absl::Format(out,
+                   "Re-run with: --%s%s=%s.%s --%scorpus_database=%s "
+                   "--%sworkdir_root=%s\n",
+                   FUZZTEST_FLAG_PREFIX, mode_flag, current_test_->suite_name(),
+                   current_test_->test_name(), FUZZTEST_FLAG_PREFIX,
+                   corpus_database, FUZZTEST_FLAG_PREFIX, workdir_root);
+      absl::Format(out, "%s", GetSeparator());
+      return;
+    }
     // There doesn't seem to be a good way to generate a reproducer test when
     // the test uses a fixture (see b/241271658).
     if (!current_test_->uses_fixture()) {
@@ -866,6 +908,309 @@ void Runtime::HandleUnexpectedExit() {
   if (!reporter_enabled_) return;
   SetCrashTypeIfUnset("unexpected-exit");
   std::abort();
+}
+
+namespace {
+
+constexpr uint64_t kDiffRecordContainerVersion = 1;
+
+std::string TrimDiffValue(absl::string_view value) {
+  if (value.size() <= kValueMaxPrintLength) return std::string(value);
+  return absl::StrCat(value.substr(0, kValueMaxPrintLength), kTrimIndicator);
+}
+
+}  // namespace
+
+std::string EncodeDiffRecordContainer(std::vector<DiffRecord> records) {
+  std::sort(records.begin(), records.end(),
+            [](const DiffRecord& a, const DiffRecord& b) {
+              return a.label < b.label;
+            });
+  IRObject container;
+  auto& subs = container.MutableSubs();
+  subs.reserve(2);
+  subs.emplace_back(kDiffRecordContainerVersion);
+  IRObject list;
+  auto& list_subs = list.MutableSubs();
+  list_subs.reserve(records.size());
+  for (DiffRecord& record : records) {
+    IRObject entry;
+    auto& entry_subs = entry.MutableSubs();
+    entry_subs.reserve(2);
+    entry_subs.emplace_back(IRObject::Value(std::move(record.label)));
+    entry_subs.emplace_back(IRObject::Value(std::move(record.payload)));
+    list_subs.push_back(std::move(entry));
+  }
+  subs.push_back(std::move(list));
+  return SerializeIRObject(container, /*binary_format=*/true);
+}
+
+std::optional<std::vector<DiffRecord>> DecodeDiffRecordContainer(
+    absl::string_view container) {
+  const std::optional<IRObject> obj = ParseIRObject(container);
+  if (!obj.has_value()) return std::nullopt;
+  const auto subs = obj->Subs();
+  if (!subs.has_value() || subs->size() != 2) return std::nullopt;
+  const auto version = (*subs)[0].GetScalar<uint64_t>();
+  if (!version.has_value() || *version != kDiffRecordContainerVersion) {
+    return std::nullopt;
+  }
+  const auto entries = (*subs)[1].Subs();
+  if (!entries.has_value()) return std::nullopt;
+  std::vector<DiffRecord> records;
+  records.reserve(entries->size());
+  for (const IRObject& entry : *entries) {
+    const auto entry_subs = entry.Subs();
+    if (!entry_subs.has_value() || entry_subs->size() != 2) {
+      return std::nullopt;
+    }
+    const std::optional<absl::string_view> label =
+        (*entry_subs)[0].GetScalar<std::string>();
+    const std::optional<absl::string_view> payload =
+        (*entry_subs)[1].GetScalar<std::string>();
+    if (!label.has_value() || !payload.has_value()) return std::nullopt;
+    records.push_back({std::string(*label), std::string(*payload)});
+  }
+  std::sort(records.begin(), records.end(),
+            [](const DiffRecord& a, const DiffRecord& b) {
+              return a.label < b.label;
+            });
+  for (size_t i = 1; i < records.size(); ++i) {
+    if (records[i - 1].label == records[i].label) return std::nullopt;
+  }
+  return records;
+}
+
+void Runtime::ResetDiffInputState() {
+  diff_input_begun_ = false;
+  diff_input_unparsable_ = false;
+  diff_actual_records_.clear();
+  diff_expected_records_.reset();
+  diff_undecodable_container_size_.reset();
+  diff_mismatches_.clear();
+  diff_failure_reported_ = false;
+}
+
+void Runtime::EnableDiffMode(DiffMode mode) {
+  FUZZTEST_CHECK(mode != DiffMode::kNone) << "Invalid diff mode to enable.";
+  diff_spinlock_.Lock();
+  diff_mode_ = mode;
+  ResetDiffInputState();
+  diff_spinlock_.Unlock();
+  diff_active_.store(true, std::memory_order_relaxed);
+}
+
+void Runtime::DisableDiffMode() {
+  diff_active_.store(false, std::memory_order_relaxed);
+  re_enable_reporter_on_next_diff_input_.store(false,
+                                               std::memory_order_relaxed);
+  diff_failure_report_.store(DiffReportKind::kNone, std::memory_order_relaxed);
+  diff_spinlock_.Lock();
+  diff_mode_ = DiffMode::kNone;
+  ResetDiffInputState();
+  diff_spinlock_.Unlock();
+}
+
+DiffMode Runtime::diff_mode() const {
+  diff_spinlock_.Lock();
+  const DiffMode mode = diff_mode_;
+  diff_spinlock_.Unlock();
+  return mode;
+}
+
+void Runtime::BeginDiffInput(std::optional<std::string> expected_container,
+                             bool unparsable) {
+  // Reset the per-process failure state so that a previous finding does not
+  // leak into this input (the runner process survives findings).
+  ResetCrashType();
+  SetExternalFailureDetected(false);
+  if (re_enable_reporter_on_next_diff_input_.exchange(
+          false, std::memory_order_relaxed)) {
+    reporter_enabled_.store(true, std::memory_order_relaxed);
+  }
+  std::optional<std::map<std::string, std::string>> expected_records;
+  std::optional<size_t> undecodable_container_size;
+  if (expected_container.has_value()) {
+    std::optional<std::vector<DiffRecord>> records =
+        DecodeDiffRecordContainer(*expected_container);
+    if (records.has_value()) {
+      expected_records.emplace();
+      for (DiffRecord& record : *records) {
+        expected_records->emplace(std::move(record.label),
+                                  std::move(record.payload));
+      }
+    } else {
+      undecodable_container_size = expected_container->size();
+    }
+  }
+  diff_spinlock_.Lock();
+  ResetDiffInputState();
+  diff_input_begun_ = true;
+  diff_input_unparsable_ = unparsable;
+  if (diff_mode_ == DiffMode::kValidate) {
+    diff_expected_records_ = std::move(expected_records);
+    diff_undecodable_container_size_ = undecodable_container_size;
+  }
+  diff_spinlock_.Unlock();
+}
+
+bool Runtime::ShouldSkipDiffCall() const {
+  diff_spinlock_.Lock();
+  const bool skip =
+      !diff_input_begun_ || diff_input_unparsable_ || diff_failure_reported_;
+  diff_spinlock_.Unlock();
+  return skip;
+}
+
+Runtime::DiffCallDisposition Runtime::BeginDiffCall(const std::string& label) {
+  DiffCallDisposition disposition;
+  diff_spinlock_.Lock();
+  if (!diff_input_begun_ || diff_input_unparsable_ || diff_failure_reported_) {
+    diff_spinlock_.Unlock();
+    return disposition;
+  }
+  if (!diff_actual_records_.emplace(label, "").second) {
+    disposition.kind = DiffCallDisposition::Kind::kDuplicateLabel;
+    diff_spinlock_.Unlock();
+    return disposition;
+  }
+  if (diff_mode_ == DiffMode::kRecord) {
+    disposition.kind = DiffCallDisposition::Kind::kRecord;
+    diff_spinlock_.Unlock();
+    return disposition;
+  }
+  if (!diff_expected_records_.has_value()) {
+    disposition.kind = DiffCallDisposition::Kind::kValidateNoBaseline;
+    diff_spinlock_.Unlock();
+    return disposition;
+  }
+  disposition.kind = DiffCallDisposition::Kind::kValidateWithBaseline;
+  if (auto it = diff_expected_records_->find(label);
+      it != diff_expected_records_->end()) {
+    disposition.expected_payload = it->second;
+  }
+  diff_spinlock_.Unlock();
+  return disposition;
+}
+
+void Runtime::AppendDiffRecord(std::string label, std::string payload) {
+  diff_spinlock_.Lock();
+  if (diff_input_begun_ && !diff_failure_reported_) {
+    diff_actual_records_[std::move(label)] = std::move(payload);
+  }
+  diff_spinlock_.Unlock();
+}
+
+void Runtime::AddDiffMismatch(std::string label, std::string reason,
+                              std::string expected_text,
+                              std::string actual_text) {
+  diff_spinlock_.Lock();
+  if (diff_input_begun_ && !diff_failure_reported_) {
+    diff_mismatches_.push_back({std::move(label), std::move(reason),
+                                std::move(expected_text),
+                                std::move(actual_text)});
+  }
+  diff_spinlock_.Unlock();
+}
+
+void Runtime::ReportDiffUsageError(absl::string_view message,
+                                   std::string crash_type) {
+  absl::FPrintF(GetStderr(), "%s%s\n", GetSeparator(), message);
+  ReportDiffFailure(std::move(crash_type), /*is_mismatch=*/false);
+}
+
+void Runtime::ReportDiffFailure(std::string crash_type, bool is_mismatch) {
+  diff_spinlock_.Lock();
+  diff_failure_reported_ = true;
+  diff_spinlock_.Unlock();
+  SetCrashTypeIfUnset(std::move(crash_type));
+  diff_failure_report_.store(
+      is_mismatch ? DiffReportKind::kMismatch : DiffReportKind::kError,
+      std::memory_order_relaxed);
+  PrintReportOnDefaultSink();
+  diff_failure_report_.store(DiffReportKind::kNone, std::memory_order_relaxed);
+}
+
+void Runtime::CheckDiffRecordsAtInputEnd() {
+  if (!diff_active()) return;
+  std::vector<DiffMismatch> mismatches;
+  diff_spinlock_.Lock();
+  if (!diff_input_begun_ || diff_input_unparsable_ || diff_failure_reported_ ||
+      diff_mode_ != DiffMode::kValidate) {
+    diff_spinlock_.Unlock();
+    return;
+  }
+  mismatches = std::move(diff_mismatches_);
+  diff_mismatches_.clear();
+  if (diff_expected_records_.has_value()) {
+    for (const auto& [label, payload] : *diff_expected_records_) {
+      if (diff_actual_records_.find(label) != diff_actual_records_.end()) {
+        continue;
+      }
+      mismatches.push_back(
+          {label,
+           absl::StrCat("baseline output \"", label, "\" was not produced"),
+           absl::StrCat("<recorded value: ", payload.size(), " bytes>"),
+           "<no output>"});
+    }
+  }
+  const std::optional<size_t> undecodable_size =
+      diff_undecodable_container_size_;
+  diff_spinlock_.Unlock();
+  if (undecodable_size.has_value()) {
+    mismatches.push_back(
+        {"<baseline container>", "cannot decode baseline container",
+         absl::StrCat("<undecodable: ", *undecodable_size, " bytes>"),
+         "<not compared>"});
+  }
+  if (mismatches.empty()) return;
+  std::stable_sort(mismatches.begin(), mismatches.end(),
+                   [](const DiffMismatch& a, const DiffMismatch& b) {
+                     return a.label < b.label;
+                   });
+  std::string block = absl::StrFormat(
+      "%s=== RecordOrDiff MISMATCH\nTest: %s\nMismatched outputs: %d\n",
+      GetSeparator(),
+      current_test_ != nullptr ? current_test_->full_name() : "<unknown>",
+      mismatches.size());
+  for (const DiffMismatch& mismatch : mismatches) {
+    absl::StrAppendFormat(
+        &block,
+        "--- RecordOrDiff label: %s\n"
+        "Reason: %s\n"
+        "Expected (baseline): %s\n"
+        "Actual (current): %s\n",
+        mismatch.label.empty() ? "<unlabeled>" : mismatch.label,
+        mismatch.reason, TrimDiffValue(mismatch.expected_text),
+        TrimDiffValue(mismatch.actual_text));
+  }
+  absl::FPrintF(GetStderr(), "%s", block);
+  ReportDiffFailure("RecordOrDiff mismatch", /*is_mismatch=*/true);
+}
+
+std::optional<RuntimeDiffResult> Runtime::TakeDiffResult() {
+  if (!diff_active()) return std::nullopt;
+  std::optional<RuntimeDiffResult> result;
+  diff_spinlock_.Lock();
+  if (diff_input_begun_) {
+    if (diff_input_unparsable_) {
+      result =
+          RuntimeDiffResult{RuntimeDiffResult::Kind::kSkippedUnparsable, ""};
+    } else if (diff_mode_ == DiffMode::kRecord) {
+      std::vector<DiffRecord> records;
+      records.reserve(diff_actual_records_.size());
+      for (auto& [label, payload] : diff_actual_records_) {
+        records.push_back({label, std::move(payload)});
+      }
+      result = RuntimeDiffResult{RuntimeDiffResult::Kind::kRecords,
+                                 EncodeDiffRecordContainer(std::move(records))};
+    } else if (diff_mode_ == DiffMode::kValidate) {
+      result = RuntimeDiffResult{RuntimeDiffResult::Kind::kAck, ""};
+    }
+  }
+  ResetDiffInputState();
+  diff_spinlock_.Unlock();
+  return result;
 }
 
 using corpus_type = GenericDomainCorpusType;
@@ -1346,6 +1691,9 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
         std::max(stats_.max_stack_used, execution_coverage_->MaxStackUsed());
   }
 
+  // Detects "fewer RecordOrDiff calls than recorded" while the current args are
+  // still set, so that the counterexample can be printed.
+  runtime_.CheckDiffRecordsAtInputEnd();
   runtime_.OnTestIterationEnd();
   runtime_.UnsetCurrentArgs();
   return {new_coverage, run_time};

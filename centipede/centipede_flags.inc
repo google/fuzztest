@@ -539,6 +539,12 @@ CENTIPEDE_FLAG(
     absl::Duration, fuzztest_time_limit_per_test, absl::InfiniteDuration(),
     "The time limit per fuzz test for working on the corpus database.")
 CENTIPEDE_FLAG(
+    std::string, fuzztest_diff_mode, "",
+    "Incremental differential fuzzing mode for corpus replay: \"record\", "
+    "\"validate\", or empty (disabled). Effective only together with "
+    "--fuzztest_only_replay. The baseline is stored under "
+    "<fuzztest_workdir_root>/baseline/<fuzztest_binary_identifier>/<test>/.")
+CENTIPEDE_FLAG(
     size_t, replay_crash_attempts, 1,
     "Number of attempts to replay a crash input during batch failure triage "
     "or deduplication before considering it non-reproducible.")

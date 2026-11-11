@@ -645,6 +645,7 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
   // In-loop variables declared outside to save allocations.
   std::vector<uint64_t> features;
   std::vector<uint8_t> serialized_metadata;
+  ExecutionMetadata request_metadata;
   std::vector<FuzzTestInputHandle> emitted_inputs;
   const auto input_sink = GetInputSinkTo(emitted_inputs);
 
@@ -659,8 +660,18 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
     // TODO(xinhaoyuan): Consider improving it. E.g. let user override stats.
     ExecutionResult::Stats stats = {};
     (void)timer.UsecSinceLast();
-    auto blob = inputs_blobseq->Read();
-    if (!blob.IsValid()) return;  // no more blobs to read.
+    const auto first_blob = inputs_blobseq->Read();
+    if (!first_blob.IsValid()) return;  // no more blobs to read.
+    // An execution request may carry an optional metadata blob before the data
+    // input (e.g. the expected values in the incremental differential fuzzing
+    // validate mode). It is delivered with `UpdateInputMetadata` before
+    // `Execute`.
+    const bool has_request_metadata =
+        IsExecutionMetadata(first_blob, request_metadata);
+    const auto blob =
+        has_request_metadata ? inputs_blobseq->Read() : first_blob;
+    // The inputs blob sequence may have overflown between the two blobs.
+    if (!blob.IsValid()) return;
     WorkerCheck(IsDataInput(blob), "Must read data input");
 
     if (!BatchResult::WriteInputBegin(*outputs_blobseq)) {
@@ -675,6 +686,12 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
     WorkerCheck(emitted_inputs.size() == 1,
                 "Deserialize must emit exactly one input");
     auto input = emitted_inputs[0];
+    if (has_request_metadata && adapter.UpdateInputMetadata != nullptr) {
+      const auto input_metadata = FuzzTestBytesView{
+          request_metadata.cmp_data.data(), request_metadata.cmp_data.size()};
+      adapter.UpdateInputMetadata(adapter.ctx, &input_metadata, input);
+      WORKER_CHECK_FOR_ERROR();
+    }
 
     features.clear();
     FuzzTestFeedbackSink feedback_sink = {

@@ -29,6 +29,7 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/command.h"
+#include "./centipede/diff_baseline.h"
 #include "./centipede/environment.h"
 #include "./centipede/fuzztest_mutator.h"
 #include "./centipede/mutation_data.h"
@@ -209,6 +210,10 @@ class CentipedeCallbacks {
   // Need unique_ptr indirection because CommandContext is not movable/copyable
   // due to Command.
   std::vector<std::unique_ptr<CommandContext>> command_contexts_;
+
+  // Baseline store for the incremental differential fuzzing (inactive unless
+  // the diff mode is set for corpus replay).
+  DiffBaselineStore diff_store_{env_};
 };
 
 // Abstract class for creating/destroying CentipedeCallbacks objects.

@@ -50,6 +50,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
@@ -292,9 +293,21 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   env.binary_name = std::filesystem::path{(*args)[0]}.filename();
   env.binary_hash = "DUMMY_HASH";
   env.env_diff_for_binaries = GetEnvDiffForBinaries();
-  env.exit_on_crash = !configuration.continue_after_crash ||
+  // Record mode continues after crashes so that every input gets a baseline.
+  env.exit_on_crash = (!configuration.continue_after_crash &&
+                       configuration.diff_mode != DiffMode::kRecord) ||
                       // Always fail on crash for reproducer tests.
                       configuration.crashing_input_to_reproduce.has_value();
+  if (configuration.diff_mode == DiffMode::kRecord &&
+      !configuration.continue_after_crash &&
+      !configuration.crashing_input_to_reproduce.has_value()) {
+    [[maybe_unused]] static bool printed_once = [] {
+      absl::FPrintF(GetStderr(),
+                    "[diff] Record mode: continuing after crashes so that "
+                    "every input gets a baseline.\n");
+      return true;
+    }();
+  }
   env.print_runner_log = configuration.print_subprocess_log;
   env.runner_cleanup_timeout = configuration.subprocess_cleanup_timeout;
   env.workdir = workdir;
@@ -509,11 +522,25 @@ class CentipedeAdaptorRunnerCallbacks
       : runtime_(*runtime),
         fuzzer_impl_(*fuzzer_impl),
         configuration_(*configuration),
-        prng_(GetRandomSeed()) {}
+        prng_(GetRandomSeed()) {
+    if (configuration_.diff_mode != DiffMode::kNone &&
+        configuration_.only_replay &&
+        !configuration_.crashing_input_to_reproduce.has_value()) {
+      runtime_.EnableDiffMode(configuration_.diff_mode);
+    }
+  }
 
   bool Execute(void* input) override {
     const auto* input_object =
         reinterpret_cast<const FuzzTestFuzzerImpl::Input*>(input);
+    // Always consume the pending diff expectations, even if the input is not
+    // executed below, so that they never leak into another input.
+    std::optional<std::string> expectations;
+    if (pending_expectations_input_ == input) {
+      expectations = std::move(pending_expectations_);
+    }
+    pending_expectations_.reset();
+    pending_expectations_input_ = nullptr;
 
     // Disable tracing until running the property function in
     // `CentipedeFxitureDriver::RunFuzzTestIteration()`
@@ -540,6 +567,10 @@ class CentipedeAdaptorRunnerCallbacks
       absl::FPrintF(GetStderr(),
                     "[.] Termination requested - not executing input.\n");
       return false;
+    }
+    if (runtime_.diff_active()) {
+      runtime_.BeginDiffInput(std::move(expectations),
+                              unparsable_inputs_.contains(input));
     }
     // We should avoid doing anything other than executing the input here so
     // that we don't affect the execution time.
@@ -590,11 +621,51 @@ class CentipedeAdaptorRunnerCallbacks
       return reinterpret_cast<void*>(
           new FuzzTestFuzzerImpl::Input{*std::move(parse_result)});
     }
-    return reinterpret_cast<void*>(
+    void* substitute = reinterpret_cast<void*>(
         new FuzzTestFuzzerImpl::Input{fuzzer_impl_.params_domain_.Init(prng_)});
+    // In the diff mode, the random substitute must not be recorded or
+    // compared, so remember that the input was unparsable.
+    if (runtime_.diff_active()) unparsable_inputs_.insert(substitute);
+    return substitute;
+  }
+
+  void SetDiffExpectations(void* input, ByteSpan expected_container) override {
+    if (!runtime_.diff_active()) return;
+    pending_expectations_input_ = input;
+    pending_expectations_ =
+        std::string(reinterpret_cast<const char*>(expected_container.data()),
+                    expected_container.size());
+  }
+
+  std::optional<DiffResult> TakeDiffResult(void* input) override {
+    pending_expectations_.reset();
+    pending_expectations_input_ = nullptr;
+    if (!runtime_.diff_active()) return std::nullopt;
+    std::optional<RuntimeDiffResult> result = runtime_.TakeDiffResult();
+    if (!result.has_value()) return std::nullopt;
+    DiffResult diff_result;
+    switch (result->kind) {
+      case RuntimeDiffResult::Kind::kRecords:
+        diff_result.kind = DiffEnvelopeKind::kRecords;
+        break;
+      case RuntimeDiffResult::Kind::kAck:
+        diff_result.kind = DiffEnvelopeKind::kAck;
+        break;
+      case RuntimeDiffResult::Kind::kSkippedUnparsable:
+        diff_result.kind = DiffEnvelopeKind::kSkippedUnparsable;
+        break;
+    }
+    diff_result.payload.assign(result->container.begin(),
+                               result->container.end());
+    return diff_result;
   }
 
   void FreeInput(void* input) override {
+    unparsable_inputs_.erase(input);
+    if (pending_expectations_input_ == input) {
+      pending_expectations_.reset();
+      pending_expectations_input_ = nullptr;
+    }
     auto it = cmp_tables_.find(input);
     if (it != cmp_tables_.end()) {
       delete it->second;
@@ -618,7 +689,10 @@ class CentipedeAdaptorRunnerCallbacks
     return mutant;
   }
 
-  ~CentipedeAdaptorRunnerCallbacks() override { runtime_.UnsetCurrentArgs(); }
+  ~CentipedeAdaptorRunnerCallbacks() override {
+    runtime_.UnsetCurrentArgs();
+    runtime_.DisableDiffMode();
+  }
 
  private:
   Runtime& runtime_;
@@ -627,6 +701,11 @@ class CentipedeAdaptorRunnerCallbacks
   absl::BitGen prng_;
   absl::flat_hash_map<void*, fuzztest::internal::TablesOfRecentCompares*>
       cmp_tables_;
+  // Incremental differential fuzzing: inputs that could not be parsed by the
+  // current domains, and the expectations set for the next input to execute.
+  absl::flat_hash_set<void*> unparsable_inputs_;
+  void* pending_expectations_input_ = nullptr;
+  std::optional<std::string> pending_expectations_;
 };
 
 namespace {

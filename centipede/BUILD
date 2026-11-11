@@ -635,6 +635,7 @@ cc_library(
         ":byte_array_mutator",
         ":command",
         ":control_flow",
+        ":diff_baseline",
         ":environment",
         ":fuzztest_mutator",
         ":mutation_data",
@@ -646,6 +647,7 @@ cc_library(
         ":workdir",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -656,6 +658,29 @@ cc_library(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
+    ],
+)
+
+cc_library(
+    name = "diff_baseline",
+    srcs = ["diff_baseline.cc"],
+    hdrs = ["diff_baseline.h"],
+    deps = [
+        ":environment",
+        ":execution_metadata",
+        ":runner_result",
+        ":stop",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
     ],
 )
 
@@ -727,6 +752,7 @@ cc_library(
         ":corpus",
         ":corpus_io",
         ":coverage",
+        ":diff_baseline",
         ":environment",
         ":feature",
         ":feature_set",
@@ -771,6 +797,7 @@ cc_library(
         ":coverage",
         ":crash_deduplication",
         ":crash_summary",
+        ":diff_baseline",
         ":distill",
         ":environment",
         ":minimize_crash",
@@ -1600,11 +1627,30 @@ cc_test(
 )
 
 cc_test(
+    name = "diff_baseline_test",
+    srcs = ["diff_baseline_test.cc"],
+    deps = [
+        ":diff_baseline",
+        ":environment",
+        ":execution_metadata",
+        ":runner_result",
+        ":stop",
+        ":util",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:test_util",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "execution_metadata_test",
     srcs = ["execution_metadata_test.cc"],
     deps = [
         ":execution_metadata",
+        ":runner_request",
         ":shared_memory_blob_sequence",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
         "@googletest//:gtest_main",
     ],
@@ -2049,6 +2095,7 @@ cc_test(
         ":stop",
         ":util",
         ":workdir",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",

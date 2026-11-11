@@ -251,6 +251,21 @@ void Environment::UpdateWithTargetConfig(
   fuzztest_execution_id = config.execution_id.value_or("");
   fuzztest_replay_coverage_inputs = config.replay_coverage_inputs;
   fuzztest_time_limit_per_test = config.GetTimeLimitPerTest();
+  if (config.diff_mode != fuzztest::internal::DiffMode::kNone) {
+    const std::string target_diff_mode =
+        fuzztest::internal::AbslUnparseFlag(config.diff_mode);
+    FUZZTEST_CHECK(fuzztest_diff_mode == Default().fuzztest_diff_mode ||
+                   fuzztest_diff_mode == target_diff_mode)
+        << "Value for --fuzztest_diff_mode is inconsistent with the value for "
+           "diff_mode in the target binary:"
+        << VV(fuzztest_diff_mode) << VV(target_diff_mode);
+    fuzztest_diff_mode = target_diff_mode;
+  }
+  if (fuzztest_only_replay && fuzztest_diff_mode == "record" && !replay_crash &&
+      !config.crashing_input_to_reproduce.has_value()) {
+    // Record mode continues after crashes so that every input gets a baseline.
+    exit_on_crash = false;
+  }
   if (replay_crash_attempts == Default().replay_crash_attempts) {
     replay_crash_attempts = config.replay_crash_attempts;
   }
