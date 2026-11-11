@@ -50,6 +50,7 @@
 #include "./centipede/coverage.h"
 #include "./centipede/crash_deduplication.h"
 #include "./centipede/crash_summary.h"
+#include "./centipede/diff_baseline.h"
 #include "./centipede/distill.h"
 #include "./centipede/environment.h"
 #include "./centipede/minimize_crash.h"
@@ -640,6 +641,15 @@ void UpdateCorpusDatabase(Environment env,
         RemoteFileSetContents(execution_id_path, env.fuzztest_execution_id));
   }
 
+  bool diff_prepared = false;
+  // Incremental differential fuzzing: print the summary and decide the result
+  // at the end of the test. Declared before `clean_up_workdir` so that it runs
+  // after the workdir cleanup (and after `RecordFuzzingResults`).
+  absl::Cleanup finish_diff = [&diff_prepared, &env, &stop_condition] {
+    if (diff_prepared) {
+      FinishDiffForTest(env, stop_condition);
+    }
+  };
   absl::Cleanup clean_up_workdir = [is_workdir_specified, &env,
                                     &stop_condition] {
     if (!is_workdir_specified && !stop_condition.StopRequested()) {
@@ -660,6 +670,13 @@ void UpdateCorpusDatabase(Environment env,
                             GetSeedCoverageDirs(env)),
         env.binary_name, env.binary_hash))
         << "while generating the seed corpus";
+  }
+
+  // Incremental differential fuzzing: set up the baseline of the test (no-op
+  // unless the diff mode is active). May request a failing stop.
+  if (!stop_condition.StopRequested()) {
+    PrepareDiffBaselineForTest(env, stop_condition);
+    diff_prepared = !stop_condition.StopRequested();
   }
 
   absl::Duration time_limit = env.fuzztest_time_limit_per_test;

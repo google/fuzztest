@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -188,6 +189,16 @@ class RunnerCallbacks {
   virtual void* DeserializeInput(ByteSpan bytes) = 0;
   // Called when the runner is done with `input`.
   virtual void FreeInput(void* input) = 0;
+  // Incremental differential fuzzing: called before `Execute(input)` with the
+  // expected record container (the baseline) sent by the controller for
+  // `input`. `expected_container` does not outlive this call; implementations
+  // must copy it if needed during `Execute(input)`. The default implementation
+  // ignores it.
+  virtual void SetDiffExpectations(void* input, ByteSpan expected_container);
+  // Incremental differential fuzzing: called after `Execute(input)`. Returns
+  // the diff result of the execution to send back to the controller, or
+  // nullopt if there is none. The default implementation returns nullopt.
+  virtual std::optional<DiffResult> TakeDiffResult(void* input);
   virtual ~RunnerCallbacks() = default;
 };
 
