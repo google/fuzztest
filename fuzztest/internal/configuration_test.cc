@@ -43,7 +43,8 @@ MATCHER_P(IsOkAndEquals, config, "") {
              other->crashing_input_to_reproduce &&
          config.replay_crash_attempts == other->replay_crash_attempts &&
          config.reproduction_command_template ==
-             other->reproduction_command_template;
+             other->reproduction_command_template &&
+         config.persistent_metadata_root == other->persistent_metadata_root;
 }
 
 TEST(ConfigurationTest,
@@ -106,7 +107,8 @@ TEST(ConfigurationTest,
                               "centipede_command",
                               "crashing_input_to_reproduce",
                               /*replay_crash_attempts=*/20,
-                              "reproduction_command_template"};
+                              "reproduction_command_template",
+                              "persistent_metadata_root"};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
               IsOkAndEquals(configuration));

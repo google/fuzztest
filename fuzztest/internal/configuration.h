@@ -122,6 +122,11 @@ struct Configuration {
   // - $TEST_FILTER: for replaying only a subset of the tests in a binary.
   std::optional<std::string> reproduction_command_template;
 
+  // If non-empty, the root directory where the engine stores the persistent
+  // input metadata that the test attaches to its inputs, and from where it
+  // passes the stored metadata back before executing the same inputs again.
+  std::string persistent_metadata_root;
+
   // Preprocessing step for reproducing crashing input.
   // Note: This field is not serialized and deserialized.
   // TODO(b/329709054): Consider eliminating the field.

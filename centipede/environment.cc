@@ -245,6 +245,7 @@ void Environment::UpdateWithTargetConfig(
   fuzztest_binary_identifier = config.binary_identifier;
   fuzztest_stats_root = config.stats_root;
   fuzztest_workdir_root = config.workdir_root;
+  fuzztest_persistent_metadata_root = config.persistent_metadata_root;
   fuzztest_seed_corpus_databases = config.seed_corpus_databases;
   fuzztest_only_replay = config.only_replay;
   fuzztest_update_corpus_database = config.update_corpus_database;

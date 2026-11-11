@@ -129,14 +129,21 @@ class BatchResult {
   // Writes unit execution stats.
   static bool WriteStats(const ExecutionResult::Stats& stats,
                          BlobSequence& blobseq);
-  // Writes the execution `metadata` to `blobseq`.
+  // Writes the execution `metadata` (the mutation hints and, if non-empty, the
+  // persistent metadata) to `blobseq`.
   // Returns true iff successful.
   static bool WriteMetadata(const ExecutionMetadata& metadata,
                             BlobSequence& blobseq);
 
-  // Writes the execution `metadata` to `blobseq` as raw bytes.
+  // Writes the mutation hints of the execution metadata to `blobseq` as raw
+  // bytes.
   // Returns true iff successful.
   static bool WriteMetadata(ByteSpan bytes, BlobSequence& blobseq);
+
+  // Writes the persistent input metadata to `blobseq` as raw bytes. Writes
+  // nothing if `bytes` is empty.
+  // Returns true iff successful.
+  static bool WritePersistentMetadata(ByteSpan bytes, BlobSequence& blobseq);
 
   // Reads everything written by the runner to `blobseq` into `this`.
   // Returns true iff successful.

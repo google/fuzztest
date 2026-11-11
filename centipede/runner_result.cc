@@ -46,6 +46,9 @@ enum Tags : Blob::SizeAndTagT {
   kTagHasCustomMutator,
   kTagMutantOrigin,
   kTagMutant,
+
+  // Appended after the mutation result tags to keep the existing tag values.
+  kTagPersistentMetadata,
 };
 
 }  // namespace
@@ -72,11 +75,18 @@ bool BatchResult::WriteStats(const ExecutionResult::Stats &stats,
 
 bool BatchResult::WriteMetadata(const ExecutionMetadata &metadata,
                                 BlobSequence &blobseq) {
-  return WriteMetadata(metadata.cmp_data, blobseq);
+  return WriteMetadata(metadata.cmp_data, blobseq) &&
+         WritePersistentMetadata(metadata.persistent_data, blobseq);
 }
 
 bool BatchResult::WriteMetadata(ByteSpan bytes, BlobSequence &blobseq) {
   return blobseq.Write({kTagMetadata, bytes.size(), bytes.data()});
+}
+
+bool BatchResult::WritePersistentMetadata(ByteSpan bytes,
+                                          BlobSequence& blobseq) {
+  if (bytes.empty()) return true;
+  return blobseq.Write({kTagPersistentMetadata, bytes.size(), bytes.data()});
 }
 
 // The sequence we expect to receive is
@@ -110,6 +120,12 @@ bool BatchResult::Read(BlobSequence &blobseq) {
     if (blob.tag == kTagMetadata) {
       if (current_execution_result == nullptr) return false;
       current_execution_result->metadata().cmp_data.assign(
+          blob.data, blob.data + blob.size);
+      continue;
+    }
+    if (blob.tag == kTagPersistentMetadata) {
+      if (current_execution_result == nullptr) return false;
+      current_execution_result->metadata().persistent_data.assign(
           blob.data, blob.data + blob.size);
       continue;
     }
