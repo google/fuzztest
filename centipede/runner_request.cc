@@ -36,20 +36,6 @@ enum Tags : Blob::SizeAndTagT {
   kTagDataInput,
 };
 
-// Writes `inputs` to `blobseq`, returns the number of inputs written.
-static size_t WriteInputs(absl::Span<const ByteSpan> inputs,
-                          BlobSequence& blobseq) {
-  size_t num_inputs = inputs.size();
-  if (!blobseq.Write(kTagNumInputs, num_inputs)) return 0;
-  size_t result = 0;
-  for (const auto &input : inputs) {
-    if (!blobseq.Write({kTagDataInput, input.size(), input.data()}))
-      return result;
-    ++result;
-  }
-  return result;
-}
-
 static bool WriteMetadataFromRefOrDefault(const ExecutionMetadata *metadata,
                                           BlobSequence &blobseq) {
   if (metadata != nullptr)
@@ -58,7 +44,7 @@ static bool WriteMetadataFromRefOrDefault(const ExecutionMetadata *metadata,
   return default_metadata->Write(kTagExecutionMetadata, blobseq);
 }
 
-// Similar to above, but for mutation inputs.
+// Writes mutation `inputs` to `blobseq`, returns the number of inputs written.
 static size_t WriteInputs(absl::Span<const MutationInputRef> inputs,
                           BlobSequence& blobseq) {
   size_t num_inputs = inputs.size();
@@ -73,12 +59,41 @@ static size_t WriteInputs(absl::Span<const MutationInputRef> inputs,
   return result;
 }
 
+// Writes `inputs` (and optional per-input `metadata`, if non-empty) to
+// `blobseq`, returns the number of inputs written.
+static size_t WriteInputs(absl::Span<const ByteSpan> inputs,
+                          absl::Span<const ByteSpan> metadata,
+                          BlobSequence& blobseq) {
+  size_t num_inputs = inputs.size();
+  if (!blobseq.Write(kTagNumInputs, num_inputs)) return 0;
+  size_t result = 0;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    if (i < metadata.size() && !metadata[i].empty() &&
+        !blobseq.Write(
+            {kTagExecutionMetadata, metadata[i].size(), metadata[i].data()})) {
+      return result;
+    }
+    if (!blobseq.Write({kTagDataInput, inputs[i].size(), inputs[i].data()}))
+      return result;
+    ++result;
+  }
+  return result;
+}
+
 }  // namespace
 
 size_t RequestExecution(absl::Span<const ByteSpan> inputs,
                         BlobSequence& blobseq) {
   if (!blobseq.Write({kTagExecution, 0, nullptr})) return 0;
-  return WriteInputs(inputs, blobseq);
+  return WriteInputs(inputs, /*metadata=*/{}, blobseq);
+}
+
+size_t RequestExecution(absl::Span<const ByteSpan> inputs,
+                        absl::Span<const ByteSpan> metadata,
+                        BlobSequence& blobseq) {
+  if (metadata.size() != inputs.size()) return 0;
+  if (!blobseq.Write({kTagExecution, 0, nullptr})) return 0;
+  return WriteInputs(inputs, metadata, blobseq);
 }
 
 size_t RequestMutation(size_t num_mutants,
