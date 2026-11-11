@@ -51,6 +51,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/memory/memory.h"
 #include "absl/random/distributions.h"
@@ -524,11 +525,25 @@ class CentipedeAdaptorRunnerCallbacks
       : runtime_(*runtime),
         fuzzer_impl_(*fuzzer_impl),
         configuration_(*configuration),
-        prng_(GetRandomSeed()) {}
+        prng_(GetRandomSeed()) {
+    if (configuration_.diff_mode != DiffMode::kNone &&
+        configuration_.only_replay &&
+        !configuration_.crashing_input_to_reproduce.has_value()) {
+      runtime_.EnableDiffMode(configuration_.diff_mode);
+    }
+  }
 
   bool Execute(void* input) override {
     const auto* input_object =
         reinterpret_cast<const FuzzTestFuzzerImpl::Input*>(input);
+    // Always consume the pending diff expectations, even if the input is not
+    // executed below, so that they never leak into another input.
+    std::optional<std::string> expectations;
+    if (pending_expectations_input_ == input) {
+      expectations = std::move(pending_expectations_);
+    }
+    pending_expectations_.reset();
+    pending_expectations_input_ = nullptr;
 
     // Disable tracing until running the property function in
     // `CentipedeFxitureDriver::RunFuzzTestIteration()`
@@ -540,6 +555,23 @@ class CentipedeAdaptorRunnerCallbacks
       absl::FPrintF(GetStderr(),
                     "[.] Termination requested - not executing input.\n");
       return false;
+    }
+    if (runtime_.diff_active()) {
+      const bool unparsable = unparsable_inputs_.contains(input);
+      const bool has_baseline = expectations.has_value();
+      runtime_.BeginDiffInput(std::move(expectations), unparsable);
+      if (unparsable && has_baseline &&
+          runtime_.diff_mode() == DiffMode::kValidate) {
+        // The input was replaced by a random substitute, which cannot be
+        // compared against the baseline of the original input. Report it
+        // instead of silently skipping the comparison.
+        runtime_.ReportDiffUsageError(
+            "RecordOrDiff: the input has a baseline but could not be parsed "
+            "by the current FUZZ_TEST domains. Did the signature or the "
+            "domains of the test change since the baseline was recorded?",
+            "RecordOrDiff unparsable input with baseline");
+        return true;
+      }
     }
     // We should avoid doing anything other than executing the input here so
     // that we don't affect the execution time.
@@ -590,11 +622,46 @@ class CentipedeAdaptorRunnerCallbacks
       return reinterpret_cast<void*>(
           new FuzzTestFuzzerImpl::Input{*std::move(parse_result)});
     }
-    return reinterpret_cast<void*>(
+    void* substitute = reinterpret_cast<void*>(
         new FuzzTestFuzzerImpl::Input{fuzzer_impl_.params_domain_.Init(prng_)});
+    // In the diff mode, the random substitute must not be recorded or
+    // compared, so remember that the input was unparsable.
+    if (runtime_.diff_active()) unparsable_inputs_.insert(substitute);
+    return substitute;
+  }
+
+  // Incremental differential fuzzing: the baseline of an input is exchanged
+  // with the engine as the persistent metadata of the input. The engine
+  // stores what `TakePersistentMetadata` returns and passes it back via
+  // `SetPersistentMetadata` before a later execution of the same input.
+  void SetPersistentMetadata(void* input, ByteSpan metadata) override {
+    if (!runtime_.diff_active()) return;
+    pending_expectations_input_ = input;
+    pending_expectations_ = std::string(
+        reinterpret_cast<const char*>(metadata.data()), metadata.size());
+  }
+
+  ByteArray TakePersistentMetadata(void* input) override {
+    pending_expectations_.reset();
+    pending_expectations_input_ = nullptr;
+    if (!runtime_.diff_active()) return {};
+    const std::optional<RuntimeDiffResult> result = runtime_.TakeDiffResult();
+    // Only the records of the record mode become the new baseline. In the
+    // validate mode, and for inputs that were not recorded, nothing is
+    // returned so that the stored baseline (if any) is left unchanged.
+    if (!result.has_value() ||
+        result->kind != RuntimeDiffResult::Kind::kRecords) {
+      return {};
+    }
+    return ByteArray(result->container.begin(), result->container.end());
   }
 
   void FreeInput(void* input) override {
+    unparsable_inputs_.erase(input);
+    if (pending_expectations_input_ == input) {
+      pending_expectations_.reset();
+      pending_expectations_input_ = nullptr;
+    }
     auto it = cmp_tables_.find(input);
     if (it != cmp_tables_.end()) {
       delete it->second;
@@ -618,7 +685,10 @@ class CentipedeAdaptorRunnerCallbacks
     return mutant;
   }
 
-  ~CentipedeAdaptorRunnerCallbacks() override { runtime_.UnsetCurrentArgs(); }
+  ~CentipedeAdaptorRunnerCallbacks() override {
+    runtime_.UnsetCurrentArgs();
+    runtime_.DisableDiffMode();
+  }
 
  private:
   Runtime& runtime_;
@@ -627,6 +697,11 @@ class CentipedeAdaptorRunnerCallbacks
   absl::BitGen prng_;
   absl::flat_hash_map<void*, fuzztest::internal::TablesOfRecentCompares*>
       cmp_tables_;
+  // Incremental differential fuzzing: inputs that could not be parsed by the
+  // current domains, and the expectations set for the next input to execute.
+  absl::flat_hash_set<void*> unparsable_inputs_;
+  void* pending_expectations_input_ = nullptr;
+  std::optional<std::string> pending_expectations_;
 };
 
 namespace {

@@ -87,6 +87,11 @@ add_executable(
   unit_test_and_fuzz_tests.stripped
   unit_test_and_fuzz_tests.cc
 )
+target_link_libraries(
+  unit_test_and_fuzz_tests.stripped
+  PUBLIC
+  fuzztest::record_or_diff
+)
 link_fuzztest(unit_test_and_fuzz_tests.stripped)
 set_target_properties(
   unit_test_and_fuzz_tests.stripped

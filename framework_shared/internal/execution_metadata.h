@@ -13,7 +13,8 @@
 // limitations under the License.
 
 // Abstraction of metadata collected from executions that does not
-// contribute to coverage but can be useful in mutation.
+// contribute to coverage: hints that can be useful in mutation, and opaque
+// data that the engine persists per input for the test framework.
 //
 // This library is for both engine and runner.
 
@@ -42,6 +43,11 @@ struct ExecutionMetadata {
   //  * `value0` (`size` bytes)
   //  * `value1` (`size` bytes)
   ByteArray cmp_data;
+
+  // Persistent input metadata: opaque bytes that the test framework attaches
+  // to an input, for the engine to store and pass back before a later
+  // execution of the same input. Empty if there is none.
+  ByteArray persistent_data;
 };
 
 }  // namespace fuzztest::internal

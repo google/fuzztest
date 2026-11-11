@@ -81,6 +81,32 @@ FuzzTestBytesSink GetBytesSinkTo(std::vector<uint8_t>& bytes) {
   };
 }
 
+// Returns a sink that appends the emitted input metadata to the field of
+// `metadata` that corresponds to its type.
+FuzzTestInputMetadataSink GetInputMetadataSinkTo(ExecutionMetadata& metadata) {
+  return {
+      /*ctx=*/reinterpret_cast<FuzzTestInputMetadataSinkCtx*>(&metadata),
+      /*Emit=*/
+      [](FuzzTestInputMetadataSinkCtx* ctx,
+         const FuzzTestInputMetadataView* view) {
+        auto* output = reinterpret_cast<ExecutionMetadata*>(ctx);
+        ByteArray* bytes = nullptr;
+        switch (view->type) {
+          case kFuzzTestInputMetadataMutationHints:
+            bytes = &output->cmp_data;
+            break;
+          case kFuzzTestInputMetadataPersistent:
+            bytes = &output->persistent_data;
+            break;
+        }
+        // Ignore metadata of unknown types.
+        if (bytes == nullptr) return;
+        bytes->insert(bytes->end(), view->bytes.data,
+                      view->bytes.data + view->bytes.size);
+      },
+  };
+}
+
 FuzzTestInputSink GetInputSinkTo(std::vector<FuzzTestInputHandle>& inputs) {
   return {
       /*ctx=*/reinterpret_cast<FuzzTestInputSinkCtx*>(&inputs),
@@ -476,8 +502,9 @@ InProcessCentipedeCallbacks::Mutate(absl::Span<const MutationInputRef> inputs,
     FUZZTEST_CHECK_EQ(emitted_inputs.size(), 1)
         << "DeserializeInputContent must emit exactly one input";
     if (adapter_.UpdateInputMetadata != nullptr && input.metadata != nullptr) {
-      const FuzzTestBytesView input_metadata{input.metadata->cmp_data.data(),
-                                             input.metadata->cmp_data.size()};
+      const FuzzTestInputMetadataView input_metadata{
+          kFuzzTestInputMetadataMutationHints,
+          {input.metadata->cmp_data.data(), input.metadata->cmp_data.size()}};
       adapter_.UpdateInputMetadata(adapter_.ctx, &input_metadata,
                                    emitted_inputs[0]);
       if (CheckError()) {
@@ -561,6 +588,21 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI bool InProcessCentipedeCallbacks::Execute(
   };
   const auto input_sink = GetInputSinkTo(emitted_inputs);
 
+  // The persistent input metadata is exchanged with the primary binary only.
+  const bool use_input_metadata_store =
+      input_metadata_store_.enabled() && binary == env_.binary;
+  // Empty if the store is not used.
+  const std::vector<ByteArray> stored_metadata =
+      use_input_metadata_store ? input_metadata_store_.Load(inputs)
+                               : std::vector<ByteArray>();
+  // Stores the persistent metadata of the executed inputs on all return paths,
+  // including those executed before a failure.
+  absl::Cleanup save_persistent_metadata = [&] {
+    if (use_input_metadata_store) {
+      input_metadata_store_.Save(inputs, batch_result);
+    }
+  };
+
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (stop_condition_.ShouldStop()) {
       return true;
@@ -578,6 +620,17 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI bool InProcessCentipedeCallbacks::Execute(
     FUZZTEST_CHECK_EQ(emitted_inputs.size(), 1)
         << "DeserializeInputContent must emit exactly one input";
     const FuzzTestInputHandle input = emitted_inputs[0];
+    if (i < stored_metadata.size() && !stored_metadata[i].empty() &&
+        adapter_.UpdateInputMetadata != nullptr) {
+      const FuzzTestInputMetadataView persistent_metadata{
+          kFuzzTestInputMetadataPersistent,
+          {stored_metadata[i].data(), stored_metadata[i].size()}};
+      adapter_.UpdateInputMetadata(adapter_.ctx, &persistent_metadata, input);
+      if (CheckError()) {
+        CopyErrorOrMoveFindingToBatchResult(batch_result);
+        return false;
+      }
+    }
 
     features.clear();
     FuzzTestFeedbackSink feedback_sink = {
@@ -609,8 +662,7 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI bool InProcessCentipedeCallbacks::Execute(
 
     ExecutionResult& exec_result = batch_result.results()[i];
     if (adapter_.SerializeInputMetadata != nullptr) {
-      const auto metadata_sink =
-          GetBytesSinkTo(exec_result.metadata().cmp_data);
+      const auto metadata_sink = GetInputMetadataSinkTo(exec_result.metadata());
       adapter_.SerializeInputMetadata(adapter_.ctx, input, &metadata_sink);
     }
     // Frees `input`, the only emitted input.

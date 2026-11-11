@@ -31,6 +31,7 @@
 #include "./centipede/command.h"
 #include "./centipede/environment.h"
 #include "./centipede/fuzztest_mutator.h"
+#include "./centipede/input_metadata_store.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
@@ -168,6 +169,9 @@ class CentipedeCallbacks {
   StopCondition& stop_condition_;
   ByteArrayMutator byte_array_mutator_;
   FuzzTestMutator fuzztest_mutator_;
+  // Storage of the persistent input metadata of the test. Disabled unless
+  // `env_.fuzztest_persistent_metadata_root` is set.
+  InputMetadataStore input_metadata_store_{env_};
 
  private:
   class PersistentModeServer;
