@@ -23,6 +23,7 @@
 #include <cstring>
 #include <deque>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <random>
@@ -134,6 +135,45 @@ using CrashMetadataListenerRef = absl::FunctionRef<void(
 // on other platforms. Async-signal-safe.
 uintptr_t GetCurrentThreadIdForCrashHandling();
 
+// A single value recorded by `fuzztest::RecordOrDiff()`: the label (the key,
+// unique within an input) and the serialized value.
+struct DiffRecord {
+  std::string label;
+  std::string payload;
+
+  friend bool operator==(const DiffRecord& a, const DiffRecord& b) {
+    return a.label == b.label && a.payload == b.payload;
+  }
+};
+
+// Encodes `records` as a record container, which is the content of a baseline
+// file and the payload exchanged with the controller: `SerializeIRObject`
+// (binary) of `[uint64 1, [[label, payload], ...]]`, sorted by label so that
+// the encoding is deterministic. REQUIRES: labels are unique.
+std::string EncodeDiffRecordContainer(std::vector<DiffRecord> records);
+
+// Decodes a record container produced by `EncodeDiffRecordContainer`. Returns
+// the records sorted by label, or nullopt if `container` is malformed, has an
+// unsupported version, or has duplicate labels.
+std::optional<std::vector<DiffRecord>> DecodeDiffRecordContainer(
+    absl::string_view container);
+
+// The per-input result of the incremental differential fuzzing.
+struct RuntimeDiffResult {
+  enum class Kind {
+    // Record mode: `container` holds the records of the input.
+    kRecords,
+    // Validate mode: the input was executed and compared (if it had a
+    // baseline). `container` is empty.
+    kAck,
+    // The input could not be parsed by the current domains; nothing was
+    // recorded or compared. `container` is empty.
+    kSkippedUnparsable,
+  };
+  Kind kind;
+  std::string container;
+};
+
 // This class encapsulates the runtime state that is global by necessity.
 // The state is accessed by calling `Runtime::instance()`, which handles the
 // necessary initialization steps.
@@ -204,6 +244,8 @@ class Runtime {
   // REQUIRES: `SetCurrentTest()` has been called with non-null arguments.
   void EnableReporter(const RuntimeStats* stats, absl::Time (*clock_fn)()) {
     reporter_enabled_ = true;
+    re_enable_reporter_on_next_diff_input_.store(false,
+                                                 std::memory_order_relaxed);
     stats_ = stats;
     clock_fn_ = clock_fn;
     // In case we have not installed them yet, do so now.
@@ -211,7 +253,11 @@ class Runtime {
     InstallUnexpectedExitHandler();
     ResetCrashType();
   }
-  void DisableReporter() { reporter_enabled_ = false; }
+  void DisableReporter() {
+    reporter_enabled_ = false;
+    re_enable_reporter_on_next_diff_input_.store(false,
+                                                 std::memory_order_relaxed);
+  }
   bool reporter_enabled() const { return reporter_enabled_; }
 
   struct Args {
@@ -300,6 +346,82 @@ class Runtime {
   // and aborts the process. Otherwise, does nothing.
   void HandleUnexpectedExit();
 
+  // Incremental differential fuzzing (`fuzztest::RecordOrDiff`).
+  //
+  // All state is in memory; the runtime never reads or writes baseline files.
+  // The diff mode is enabled only by the Centipede runner callbacks during
+  // corpus replay. When it is not enabled, `RecordOrDiff` is a no-op.
+
+  // Enables the diff mode `mode` (which must not be `kNone`).
+  void EnableDiffMode(DiffMode mode);
+  // Disables the diff mode and clears the per-input diff state.
+  void DisableDiffMode();
+  bool diff_active() const {
+    return diff_active_.load(std::memory_order_relaxed);
+  }
+  DiffMode diff_mode() const;
+
+  // Starts the diff state of a new input. Must be called before running every
+  // input while the diff mode is active. Resets the per-process failure state
+  // (crash type and external failure flag) so that each input is reported on
+  // its own. `expected_container` is the baseline record container sent by
+  // the controller (validate mode), or nullopt if there is no baseline.
+  // `unparsable` is true if the input could not be parsed by the current
+  // domains, in which case `RecordOrDiff` is a no-op for the input.
+  void BeginDiffInput(std::optional<std::string> expected_container,
+                      bool unparsable);
+
+  // The action `RecordOrDiff` should take for a single call site.
+  struct DiffCallDisposition {
+    enum class Kind {
+      // Nothing to do: input has not begun, is unparsable, or already reported
+      // a finding.
+      kSkip,
+      // `label` was already claimed during this input execution.
+      kDuplicateLabel,
+      // Record mode: serialize and pass to `AppendDiffRecord`.
+      kRecord,
+      // Validate mode without a decodable baseline for this input: no-op.
+      kValidateNoBaseline,
+      // Validate mode with a decodable baseline: compare against
+      // `expected_payload` (nullopt if `label` is not in the baseline).
+      kValidateWithBaseline,
+    };
+    Kind kind = Kind::kSkip;
+    std::optional<std::string> expected_payload;
+  };
+
+  // Call-site helpers used by `fuzztest::RecordOrDiff`.
+  // True iff the current input has not begun, is unparsable, or already
+  // reported a RecordOrDiff finding.
+  bool ShouldSkipDiffCall() const;
+  // Atomically checks per-input preconditions, claims `label`, and returns the
+  // disposition (and expected baseline payload, if applicable) for a single
+  // `RecordOrDiff` call.
+  DiffCallDisposition BeginDiffCall(const std::string& label);
+  // Record mode: stores the payload of `label` for the current input.
+  void AppendDiffRecord(std::string label, std::string payload);
+  // Validate mode: collects a mismatch of `label`, reported at the end of the
+  // input together with all other mismatches of the input.
+  void AddDiffMismatch(std::string label, std::string reason,
+                       std::string expected_text, std::string actual_text);
+  // Reports a RecordOrDiff usage error: prints `message` to stderr and reports
+  // the finding `crash_type`.
+  void ReportDiffUsageError(absl::string_view message, std::string crash_type);
+  // Reports a RecordOrDiff finding of `crash_type` through the crash report.
+  // `is_mismatch` selects the first line of the reproduction hint.
+  void ReportDiffFailure(std::string crash_type, bool is_mismatch);
+
+  // Validate mode, at the end of an input: collects the baseline labels that
+  // were not produced (and an undecodable container), and reports all
+  // collected mismatches of the input as one finding `RecordOrDiff mismatch`.
+  void CheckDiffRecordsAtInputEnd();
+
+  // Returns the diff result of the current input and clears the per-input
+  // state. Returns nullopt if the diff mode is not active or `BeginDiffInput`
+  // was not called for the current input (e.g. the input was not executed).
+  std::optional<RuntimeDiffResult> TakeDiffResult();
+
   class Watchdog;
   // Returns a watchdog that periodically checks the time and memory limits in a
   // separate thread. The watchdog handles the logic of starting and joining the
@@ -315,6 +437,8 @@ class Runtime {
   // Returns the file path of the reproducer.
   // Returns empty string if no reproducer file is dumped.
   std::string DumpReproducer() const;
+
+  void ResetDiffInputState() ABSL_EXCLUSIVE_LOCKS_REQUIRED(diff_spinlock_);
 
   // Some failures are not necessarily detected by signal handlers or by
   // sanitizers. For example, we could have test framework failures like
@@ -466,6 +590,39 @@ class Runtime {
   CrashMetadataBuffer<256> crash_type_;
   // In case of a crash, contains the crash signature.
   CrashMetadataBuffer<1024> crash_signature_;
+
+  // Incremental differential fuzzing state.
+  enum class DiffReportKind { kNone, kMismatch, kError };
+  struct DiffMismatch {
+    std::string label;
+    std::string reason;
+    std::string expected_text;
+    std::string actual_text;
+  };
+  std::atomic<bool> diff_active_ = false;
+  // Set when `PrintReport` consumed `reporter_enabled_` while diff mode was
+  // active, so `BeginDiffInput` can re-arm it on the next input.
+  std::atomic<bool> re_enable_reporter_on_next_diff_input_ = false;
+  // Set while printing the report of a RecordOrDiff finding.
+  std::atomic<DiffReportKind> diff_failure_report_{DiffReportKind::kNone};
+  mutable Spinlock diff_spinlock_;
+  DiffMode diff_mode_ ABSL_GUARDED_BY(diff_spinlock_) = DiffMode::kNone;
+  // True between `BeginDiffInput` and `TakeDiffResult`.
+  bool diff_input_begun_ ABSL_GUARDED_BY(diff_spinlock_) = false;
+  bool diff_input_unparsable_ ABSL_GUARDED_BY(diff_spinlock_) = false;
+  // Labels produced by the current input, with the recorded payloads (the
+  // payloads are only kept in record mode).
+  std::map<std::string, std::string> diff_actual_records_
+      ABSL_GUARDED_BY(diff_spinlock_);
+  // Expected label -> payload of the current input, if a decodable baseline
+  // was received.
+  std::optional<std::map<std::string, std::string>> diff_expected_records_
+      ABSL_GUARDED_BY(diff_spinlock_);
+  // Size of the received baseline container if it could not be decoded.
+  std::optional<size_t> diff_undecodable_container_size_
+      ABSL_GUARDED_BY(diff_spinlock_);
+  std::vector<DiffMismatch> diff_mismatches_ ABSL_GUARDED_BY(diff_spinlock_);
+  bool diff_failure_reported_ ABSL_GUARDED_BY(diff_spinlock_) = false;
 };
 
 struct ReproducerOutputLocation {

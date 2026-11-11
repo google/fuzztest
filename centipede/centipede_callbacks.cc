@@ -37,6 +37,7 @@
 #include <vector>
 
 #include "absl/base/no_destructor.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -49,6 +50,7 @@
 #include "./centipede/binary_info.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
+#include "./centipede/diff_baseline.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
@@ -550,15 +552,37 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   outputs_blobseq_.Reset();
 
   size_t num_inputs_written = 0;
+  // Incremental differential fuzzing (never active with input wildcards).
+  const bool diff_active = diff_store_.active();
+  DiffBatch diff_batch;
 
   if (env_.has_input_wildcards) {
     FUZZTEST_CHECK_EQ(inputs.size(), 1);
     WriteToLocalFile(temp_input_file_path_, inputs[0]);
     num_inputs_written = 1;
+  } else if (diff_active) {
+    // In the validate mode, the baseline of each input (if any) is sent as
+    // metadata before the input. In the record mode, `diff_batch.metadata` is
+    // empty and no metadata blobs are written.
+    diff_batch = diff_store_.PrepareBatch(inputs);
+    if (diff_batch.metadata.empty()) {
+      num_inputs_written = RequestExecution(inputs, inputs_blobseq_);
+    } else {
+      const std::vector<ByteSpan> metadata(diff_batch.metadata.begin(),
+                                           diff_batch.metadata.end());
+      num_inputs_written = RequestExecution(inputs, metadata, inputs_blobseq_);
+    }
   } else {
     // Feed the inputs to inputs_blobseq_.
     num_inputs_written = RequestExecution(inputs, inputs_blobseq_);
   }
+  // Post-processes the diff results on every return path below.
+  absl::Cleanup process_diff_results = [&] {
+    if (diff_active) {
+      diff_store_.ProcessBatchResult(diff_batch, batch_result,
+                                     num_inputs_written);
+    }
+  };
 
   if (num_inputs_written != inputs.size()) {
     FUZZTEST_LOG(INFO) << "Wrote " << num_inputs_written << "/" << inputs.size()

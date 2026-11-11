@@ -459,6 +459,7 @@ cc_test(
     srcs = ["runtime_test.cc"],
     deps = [
         ":configuration",
+        ":flag_name",
         ":runtime",
         ":test_protobuf_cc_proto",
         "@abseil-cpp//absl/base:core_headers",
