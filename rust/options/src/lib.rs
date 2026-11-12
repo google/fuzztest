@@ -21,11 +21,14 @@
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use std::env;
+use std::ffi::OsString;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::iter;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::OnceLock;
 
 /// If a relative path is provided while executing inside a Bazel/Blaze test sandbox
 /// (detected via the `TEST_SRCDIR` environment variable), the path is automatically
@@ -146,6 +149,30 @@ pub struct FuzzTestOptions {
     /// If true, carries out fuzzing without coverage guidance.
     #[arg(env = "FUZZTEST_UNGUIDED", long)]
     pub unguided: bool,
+}
+
+impl FuzzTestOptions {
+    /// Parses [`FuzzTestOptions`] from `FUZZTEST_*` environment variables.
+    pub fn from_env() -> Self {
+        Self::parse_from(iter::empty::<OsString>())
+    }
+}
+
+static OPTIONS: OnceLock<FuzzTestOptions> = OnceLock::new();
+
+/// Sets the global [`FuzzTestOptions`].
+///
+/// # Panics
+///
+/// Panics if [`FuzzTestOptions`] has already been initialized.
+pub fn set_fuzztest_options(options: FuzzTestOptions) {
+    OPTIONS.set(options).expect("FuzzTestOptions has already been initialized");
+}
+
+/// Returns the global [`FuzzTestOptions`], initializing it from `FUZZTEST_*` environment
+/// variables if [`set_fuzztest_options`] has not been called.
+pub fn get_fuzztest_options() -> &'static FuzzTestOptions {
+    OPTIONS.get_or_init(FuzzTestOptions::from_env)
 }
 
 /// Strongly-typed domain execution mode for test runs.

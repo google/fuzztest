@@ -36,7 +36,6 @@ rust_library(
         "@com_google_fuzztest//rust/engine",
         "@com_google_fuzztest//rust/options:fuzztest_options",
         "@crate_index//:anyhow",  # v1
-        "@crate_index//:clap",  # v4
         "@crate_index//:humantime",  # v2
         "@crate_index//:inventory",  # v0_3
         "@crate_index//:num-traits",
@@ -55,6 +54,7 @@ rust_test(
     crate = ":fuzztest",
     edition = "2024",
     deps = [
+        "@crate_index//:clap",  # v4
         "@crate_index//:googletest",
     ],
 )

@@ -15,29 +15,15 @@
 use crate::internal::FuzzTestRegistration;
 use ::engine::engine_ffi;
 use anyhow::Context;
-use clap::Parser;
 use std::env;
 use std::ffi::CString;
-use std::ffi::OsString;
-use std::iter;
 use std::path::Path;
-use std::sync::OnceLock;
 use tempfile::{NamedTempFile, TempDir};
 
 pub use fuzztest_options::{
     ExecutionMode, FuzzOptions, FuzzTestOptions, ReplayCorpusOptions, ReplayCrashOptions,
-    RunDuration, TimeBudgetType,
+    RunDuration, TimeBudgetType, get_fuzztest_options, set_fuzztest_options,
 };
-
-/// Returns a lazily-initialized static reference to the global `FuzzTestOptions`.
-pub fn get_fuzztest_options() -> &'static FuzzTestOptions {
-    static OPTIONS: OnceLock<FuzzTestOptions> = OnceLock::new();
-    // We parse FuzzTestOptions from an empty iterator so that clap would parse the options only
-    // from environment variables (like `FUZZTEST_FUZZ_FOR` etc.). We (currently) do not envisage
-    // support for passing flags on cli as the Rust's libtest harness does not support custom
-    // flags.
-    OPTIONS.get_or_init(|| FuzzTestOptions::parse_from(iter::empty::<OsString>()))
-}
 
 trait ExecutionModeExt {
     /// Prepares the concrete `ExecutionAction` payload for execution by building any required
@@ -402,6 +388,7 @@ fn normalize_binary_identifier(binary_path: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use fuzztest_options::env_vars::*;
     use googletest::prelude::*;
     use std::ffi::OsString;
