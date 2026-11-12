@@ -275,16 +275,21 @@ bool ParseAFLDictionary(std::string_view dictionary_text,
                         std::vector<ByteArray> &dictionary_entries) {
   auto replacements = AFLDictionaryStringReplacements();
   dictionary_entries.clear();
-  // Check if the contents is ASCII.
+  // Check that the contents is text: ASCII control characters mean we are
+  // looking at a Centipede-native (binary) dictionary. Bytes with the high bit
+  // set are allowed, they are just utf-8 in a comment or in an entry.
   for (char ch : dictionary_text) {
-    if (!std::isprint(ch) && !std::isspace(ch)) return false;
+    const unsigned char byte = ch;
+    if (byte < 0x80 && !std::isprint(byte) && !std::isspace(byte)) return false;
   }
   // Iterate over all lines.
   for (auto line : absl::StrSplit(dictionary_text, '\n')) {
     // [start, stop) are the offsets of the dictionary entry.
     size_t start = 0;
     // Skip leading spaces.
-    while (start < line.size() && isspace(line[start])) ++start;
+    while (start < line.size() &&
+           isspace(static_cast<unsigned char>(line[start])))
+      ++start;
     // Skip empty line.
     if (start == line.size()) continue;
     // Skip comment line.
