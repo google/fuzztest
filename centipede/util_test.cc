@@ -33,6 +33,17 @@
 #include "./common/logging.h"
 
 namespace fuzztest::internal {
+namespace {
+
+void SetEnv(const char* name, const char* value) {
+#ifdef _WIN32
+  _putenv_s(name, value);
+#else
+  setenv(name, value, /*overwrite=*/1);
+#endif
+}
+
+}  // namespace
 
 TEST(UtilTest, AsString) {
   EXPECT_EQ(AsPrintableString({'a', 'b', 'c'}, 3), "abc");
@@ -116,7 +127,8 @@ TEST(UtilTest, TemporaryLocalDirPath) {
     auto temp_dir = TemporaryLocalDirPath();
     // Create dir, create a file there, write to file, read from it, remove dir.
     std::filesystem::create_directories(temp_dir);
-    std::string temp_file_path = std::filesystem::path(temp_dir).append("blah");
+    std::string temp_file_path =
+        std::filesystem::path(temp_dir).append("blah").string();
     ByteArray written_data{1, 2, 3};
     WriteToLocalFile(temp_file_path, written_data);
     ByteArray read_data;
@@ -160,10 +172,10 @@ TEST(UtilTest, CreateLocalDirRemovedAtExit) {
   EXPECT_FALSE(std::filesystem::exists(tmpdir));
   CreateLocalDirRemovedAtExit(tmpdir);
   EXPECT_TRUE(std::filesystem::exists(tmpdir));
-  setenv("CENTIPEDE_UTIL_TEST_TEMP_DIR", tmpdir.c_str(), 1);
+  SetEnv("CENTIPEDE_UTIL_TEST_TEMP_DIR", tmpdir.c_str());
   // Create two subdirs via CreateLocalDirRemovedAtExit.
-  std::string subdir1 = std::filesystem::path(tmpdir).append("1");
-  std::string subdir2 = std::filesystem::path(tmpdir).append("2");
+  std::string subdir1 = std::filesystem::path(tmpdir).append("1").string();
+  std::string subdir2 = std::filesystem::path(tmpdir).append("2").string();
   CreateLocalDirRemovedAtExit(subdir1);
   CreateLocalDirRemovedAtExit(subdir2);
   EXPECT_TRUE(std::filesystem::exists(subdir1));
@@ -291,6 +303,17 @@ TEST(UtilTest, RemoveSubset) {
   RemoveSubset({1}, vector_set);
   EXPECT_THAT(vector_set,
               testing::ElementsAre(std::vector<int>{1}, std::vector<int>{3}));
+}
+
+TEST(UtilTest, MmapTest) {
+  static constexpr size_t kBufSize = 1 << 30;  // 1 GiB
+  auto* buf = MmapNoReserve(kBufSize);
+  ASSERT_NE(buf, nullptr);
+  EXPECT_EQ(buf[1234], 0);
+  EXPECT_EQ(buf[567890], 0);
+  buf[kBufSize - 1] = 42;
+  EXPECT_EQ(buf[kBufSize - 1], 42);
+  Munmap(buf, kBufSize);
 }
 
 TEST(UtilTest, PollTimeoutMsWorks) {
