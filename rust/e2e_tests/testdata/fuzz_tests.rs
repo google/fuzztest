@@ -124,27 +124,29 @@ fn find_rarer_bug_3_args_fuzz_test(a: Vec<u8>, b: f32, c: i32) {
         panic!("Bug found!");
     }
 }
+// Triggers a use-after-free on every input, so that tests using it do not depend on the fuzzer
+// generating a particular input. Only run this under ASan.
 #[fuzztest(a = ByteVectorDomain::new())]
 fn use_after_free_asan_death_test(mut a: Vec<u8>) {
-    if !a.is_empty() && a[0] == 123 {
-        let ptr = a.as_mut_ptr();
-        drop(a);
-        // Intentionally trigger a use-after-free bug for ASAN to detect.
-        unsafe {
-            *(std::hint::black_box(ptr)) = 1;
-        }
+    // Push a byte so that the vector always owns a heap allocation.
+    a.push(0);
+    let ptr = a.as_mut_ptr();
+    drop(a);
+    // Intentionally trigger a use-after-free bug for ASAN to detect.
+    unsafe {
+        *(std::hint::black_box(ptr)) = 1;
     }
 }
 
-#[fuzztest(a = ByteVectorDomain::new())]
-fn msan_death_test(a: Vec<u8>) {
-    if !a.is_empty() && a[0] == 123 {
-        // Intentionally trigger an uninitialized memory bug for MSAN to detect.
-        unsafe {
-            let x: MaybeUninit<i32> = MaybeUninit::uninit();
-            let y = std::hint::black_box(x).assume_init();
-            println!("y: {}", y);
-        }
+// Reads uninitialized memory on every input, so that tests using it do not depend on the fuzzer
+// generating a particular input. Only run this under MSan.
+#[fuzztest(_a = ByteVectorDomain::new())]
+fn msan_death_test(_a: Vec<u8>) {
+    // Intentionally trigger an uninitialized memory bug for MSAN to detect.
+    unsafe {
+        let x: MaybeUninit<i32> = MaybeUninit::uninit();
+        let y = std::hint::black_box(x).assume_init();
+        println!("y: {}", y);
     }
 }
 

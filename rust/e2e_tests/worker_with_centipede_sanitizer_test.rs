@@ -54,6 +54,25 @@ fn standalone_mode_reports_use_after_free_with_asan(fixture: &EnvVars) {
     expect_that!(stderr, matchers::contains_regex("Failure[ \t]*: heap-use-after-free"));
 }
 
+#[gtest]
+#[cfg(sanitize = "address")]
+fn smoke_test_mode_reports_use_after_free_with_asan(fixture: &EnvVars) {
+    let args = ["__fuzztest_mod__use_after_free_asan_death_test::use_after_free_asan_death_test"];
+
+    let stderr =
+        test_utils::run_target_binary_with_args_and_env_expect_termination(fixture, &args, &[]);
+
+    expect_that!(stderr, matchers::contains_substring("heap-use-after-free"));
+    expect_that!(stderr, matchers::contains_substring("=== BUG FOUND!"));
+    expect_that!(
+        stderr,
+        matchers::contains_substring(
+            "Counterexample found for fuzztest_main::__fuzztest_mod__use_after_free_asan_death_test::use_after_free_asan_death_test."
+        )
+    );
+    expect_that!(stderr, matchers::contains_substring("The test fails with input:\nargument 0: ["));
+}
+
 // TODO(yamilmorales): Enable this test on presubmit with --config=msan.
 #[gtest]
 #[cfg(sanitize = "memory")]
@@ -84,4 +103,23 @@ fn standalone_mode_reports_uninitialized_value_with_msan(fixture: &EnvVars) {
         test_utils::run_target_binary_with_args_and_env_expect_termination(fixture, &args, &envs);
 
     expect_that!(stderr, matchers::contains_regex("Failure[ \t]*: use-of-uninitialized-value"));
+}
+
+#[gtest]
+#[cfg(sanitize = "memory")]
+fn smoke_test_mode_reports_uninitialized_value_with_msan(fixture: &EnvVars) {
+    let args = ["__fuzztest_mod__msan_death_test::msan_death_test"];
+
+    let stderr =
+        test_utils::run_target_binary_with_args_and_env_expect_termination(fixture, &args, &[]);
+
+    expect_that!(stderr, matchers::contains_substring("use-of-uninitialized-value"));
+    expect_that!(stderr, matchers::contains_substring("=== BUG FOUND!"));
+    expect_that!(
+        stderr,
+        matchers::contains_substring(
+            "Counterexample found for fuzztest_main::__fuzztest_mod__msan_death_test::msan_death_test."
+        )
+    );
+    expect_that!(stderr, matchers::contains_substring("The test fails with input:\nargument 0: ["));
 }

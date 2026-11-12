@@ -58,7 +58,7 @@ pub fn generate_fuzztest_domain<'a, 'b: 'a>(
           parse_quote! {
             for <#user_value_lifetime_generic> #domain_gen: #crate_name::domains::Domain<UserValue<#user_value_lifetime_generic> = #ty >
           });
-        where_clauses.predicates.push(parse_quote! { #domain_gen::CorpusValue: #crate_name::serde::Serialize + #crate_name::serde::de::DeserializeOwned + ::std::clone::Clone });
+        where_clauses.predicates.push(parse_quote! { #domain_gen::CorpusValue: #crate_name::serde::Serialize + #crate_name::serde::de::DeserializeOwned + ::std::clone::Clone + ::std::marker::Send + ::std::marker::Sync });
         field_names.push((*name).clone());
         domain_field_types.push(domain_gen);
     }
@@ -143,9 +143,9 @@ mod tests {
 
             impl<T0, T1> ::fuzztest::domains::Domain for __FuzzTestTestFuzzStateWrapper<T0, T1>
             where for < 'user > T0: ::fuzztest::domains::Domain<UserValue< 'user > = &'user Vec<&'user i32> >,
-                  T0::CorpusValue: ::fuzztest::serde::Serialize + ::fuzztest::serde::de::DeserializeOwned + ::std::clone::Clone,
+                  T0::CorpusValue: ::fuzztest::serde::Serialize + ::fuzztest::serde::de::DeserializeOwned + ::std::clone::Clone + ::std::marker::Send + ::std::marker::Sync,
                   for < 'user > T1: ::fuzztest::domains::Domain<UserValue< 'user > = std::string::String>,
-                  T1::CorpusValue: ::fuzztest::serde::Serialize + ::fuzztest::serde::de::DeserializeOwned + ::std::clone::Clone {
+                  T1::CorpusValue: ::fuzztest::serde::Serialize + ::fuzztest::serde::de::DeserializeOwned + ::std::clone::Clone + ::std::marker::Send + ::std::marker::Sync {
               type UserValue<'user> = __FuzzTestTestFuzzStateWrapper<T0::UserValue<'user>, T1::UserValue<'user> >;
               type CorpusValue = __FuzzTestTestFuzzStateWrapper<T0::CorpusValue, T1::CorpusValue>;
 

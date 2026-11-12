@@ -51,6 +51,12 @@
 #include <sanitizer/tsan_interface.h>
 #endif
 
+#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
+    defined(THREAD_SANITIZER)
+#define FUZZTEST_HAS_SANITIZER
+#include <sanitizer/common_interface_defs.h>
+#endif
+
 namespace fuzztest::internal {
 
 std::atomic<FuzzTestSanitizerErrorSummaryCallback>
@@ -533,6 +539,15 @@ extern "C" void FuzzTestSetSanitizerErrorSummaryCallback(
   (void)hook;
   fuzztest::internal::sanitizer_error_summary_callback.store(
       callback, std::memory_order_relaxed);
+}
+
+extern "C" void FuzzTestSetSanitizerDeathCallback(
+    FuzzTestSanitizerDeathCallback callback) {
+#if defined(FUZZTEST_HAS_SANITIZER)
+  __sanitizer_set_death_callback(callback);
+#else
+  (void)callback;
+#endif
 }
 
 extern "C" size_t FuzzTestFormatCrashDescription(

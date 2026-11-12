@@ -61,8 +61,9 @@ built `libcentipede_engine_static.a` using the `FUZZTEST_LIB_PATH` environment
 variable:
 
 ```bash
-# Run all fuzztests in smoke-test mode.
-FUZZTEST_LIB_PATH="$HOME/.local/lib" cargo test __fuzztest_mod__
+# Run all fuzztests in smoke-test mode, one at a time: FuzzTest keeps
+# process-wide state about the fuzz test that is currently running.
+FUZZTEST_LIB_PATH="$HOME/.local/lib" cargo test __fuzztest_mod__ -- --test-threads=1
 ```
 
 // TODO(the-shank): add example of more commands for fuzzing, along with sample

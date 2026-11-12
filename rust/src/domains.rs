@@ -37,7 +37,7 @@ pub use seeds::ReversibleDomain;
 pub use seeds::SeedableDomainExt;
 pub use seeds::Seeded;
 
-pub trait CloneAny: Any {
+pub trait CloneAny: Any + Send + Sync {
     fn clone_box(&self) -> Box<dyn CloneAny>;
     fn as_any(&self) -> &dyn Any;
     fn as_mut_any(&mut self) -> &mut dyn Any;
@@ -60,7 +60,7 @@ impl dyn CloneAny {
     }
 }
 
-impl<T: Any + Clone> CloneAny for T {
+impl<T: Any + Clone + Send + Sync> CloneAny for T {
     fn clone_box(&self) -> Box<dyn CloneAny> {
         // Prevent infinite recursion if T is a nested Box type.
         if let Some(boxed) = self.as_any().downcast_ref::<Box<dyn CloneAny>>() {
@@ -134,7 +134,7 @@ pub trait Domain {
     /// the CorpusValue could the owned data structured that the `&str` points to (eg: String).
     /// The CorpusValue type should implement `serde::Serialize`, `serde::de::DeserializeOwned` and
     /// `Clone`.
-    type CorpusValue: Serialize + DeserializeOwned + Clone;
+    type CorpusValue: Serialize + DeserializeOwned + Clone + Send + Sync;
 
     /// Initializes a new value drawn from the domain.
     fn init(&mut self, rng: &mut dyn rand::Rng) -> anyhow::Result<Self::CorpusValue>;
