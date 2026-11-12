@@ -33,8 +33,7 @@ use super::TestFnArgument;
 const USER_VALUE_LIFETIME_GENERIC_NAME: &str = "'user";
 
 #[derive(Clone, Debug)]
-pub struct FuzzTestObjectDefinitionAndFactory {
-    pub fuzztest_object_factory_name: Ident,
+pub struct FuzzTestObjectDefinition {
     pub fuzztest_object_tokenstream: TokenStream,
 }
 
@@ -169,7 +168,7 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
     ///  - the property function itself
     ///
     /// The generated test `struct` object will implement the FuzzTest trait.
-    pub fn generate_test_registration(&self) -> syn::Result<FuzzTestObjectDefinitionAndFactory> {
+    pub fn generate_test_registration(&self) -> syn::Result<FuzzTestObjectDefinition> {
         let crate_name = &self.crate_name;
         let user_value_lifetime_generic =
             Lifetime::new(USER_VALUE_LIFETIME_GENERIC_NAME, Span::call_site());
@@ -274,8 +273,7 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
           }
         };
 
-        Ok(FuzzTestObjectDefinitionAndFactory {
-            fuzztest_object_factory_name: fuzz_test_struct_factory_fn_name.clone(),
+        Ok(FuzzTestObjectDefinition {
             fuzztest_object_tokenstream: fuzztest_struct_definition_and_factory,
         })
     }
@@ -295,14 +293,8 @@ mod tests {
         let expr2: Expr =
             parse_quote! { ::fuzztest::domains::arbitrary::Arbitrary::<String>::default() };
         let context = FuzzTestRegistrationCtx::new(&sig, [&expr1, &expr2]).unwrap();
-        let FuzzTestObjectDefinitionAndFactory {
-            fuzztest_object_factory_name,
-            fuzztest_object_tokenstream,
-        } = context.generate_test_registration().unwrap();
-        expect_that!(
-            fuzztest_object_factory_name,
-            eq(&quote::format_ident!("__FuzzTestTestFuzz_factory"))
-        );
+        let FuzzTestObjectDefinition { fuzztest_object_tokenstream } =
+            context.generate_test_registration().unwrap();
         expect_that!(
           fuzztest_object_tokenstream.to_string(), ends_with( quote! {
               struct __FuzzTestTestFuzz<T0, T1> {

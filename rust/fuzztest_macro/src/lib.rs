@@ -23,7 +23,7 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream, Parser};
 use syn::{parse_macro_input, Item};
 
-use helpers::test_registration::FuzzTestObjectDefinitionAndFactory;
+use helpers::test_registration::FuzzTestObjectDefinition;
 use helpers::test_registration::FuzzTestRegistrationCtx;
 use helpers::test_registration::GTestDefinition;
 
@@ -88,13 +88,11 @@ pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
             Err(e) => return e.into_compile_error().into(),
         };
 
-    let FuzzTestObjectDefinitionAndFactory {
-        fuzztest_object_factory_name,
-        fuzztest_object_tokenstream,
-    } = match fuzztest_registration_context.generate_test_registration() {
-        Ok(fuzztest_object) => fuzztest_object,
-        Err(e) => return e.into_compile_error().into(),
-    };
+    let FuzzTestObjectDefinition { fuzztest_object_tokenstream } =
+        match fuzztest_registration_context.generate_test_registration() {
+            Ok(fuzztest_object) => fuzztest_object,
+            Err(e) => return e.into_compile_error().into(),
+        };
 
     let GTestDefinition { gtest_tokens } = match fuzztest_registration_context.generate_gtest() {
         Ok(gtest_tokens) => gtest_tokens,
@@ -129,10 +127,9 @@ pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
 
             const _: () = {
                 ::fuzztest::reexports::inventory::submit! {
-                ::fuzztest::internal::FuzzTestRegistration {
-                    info: &FUZZTEST_INFO,
-                    factory: #fuzztest_object_factory_name
-                }
+                    ::fuzztest::internal::FuzzTestRegistration {
+                        info: &FUZZTEST_INFO,
+                    }
                 }
             };
 

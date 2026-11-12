@@ -14,10 +14,8 @@
 
 use super::domains::GenericCorpusValue;
 use super::domains::GenericDomain;
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::sync::Mutex;
 
 const REPORT_SEPARATOR: &str = "=================================================================";
@@ -105,19 +103,9 @@ pub type BoxedFuzzTest = Box<dyn FuzzTest + Send + Sync>;
 
 pub struct FuzzTestRegistration {
     pub info: &'static FuzzTestInfo,
-    pub factory: fn() -> BoxedFuzzTest,
 }
 
 inventory::collect!(FuzzTestRegistration);
-
-#[allow(clippy::type_complexity)]
-pub static FUZZ_TEST_NAME_TO_FACTORY: LazyLock<HashMap<&str, fn() -> BoxedFuzzTest>> =
-    LazyLock::new(|| {
-        inventory::iter
-            .into_iter()
-            .map(|&FuzzTestRegistration { info, factory }| (info.name, factory))
-            .collect()
-    });
 
 pub struct InputStateAndDomain<I, D> {
     pub input_state: Option<I>,
