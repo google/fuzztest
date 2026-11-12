@@ -19,9 +19,9 @@
 #include <vector>
 
 #include "absl/strings/str_cat.h"
-#include "./centipede/engine_abi.h"
-#include "./centipede/engine_controller_abi.h"
-#include "./centipede/engine_worker_abi.h"
+#include "./rust_cpp_common/engine/engine_abi.h"
+#include "./rust_cpp_common/engine/engine_controller_abi.h"
+#include "./rust_cpp_common/engine/engine_worker_abi.h"
 
 namespace {
 

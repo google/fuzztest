@@ -36,12 +36,12 @@
 #include "./common/logging.h"
 #include "./common/temp_dir.h"
 #include "./e2e_tests/test_binary_util.h"
-#include "./fuzztest/internal/escaping.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/printer.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/subprocess.h"
 #include "./fuzztest/internal/type_support.h"
+#include "./rust_cpp_common/escaping.h"
 #include "re2/re2.h"
 
 #define EXPECT_THAT_LOG(log, matcher)                                  \

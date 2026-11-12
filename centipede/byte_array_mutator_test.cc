@@ -24,11 +24,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 #include "./centipede/mutation_data.h"
-#include "./centipede/runner_cmp_trace.h"
 #include "./common/defs.h"
+#include "./rust_cpp_common/execution_metadata.h"
+#include "./rust_cpp_common/runtime/runner_cmp_trace.h"
 
 namespace fuzztest::internal {
 

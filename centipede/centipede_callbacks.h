@@ -33,11 +33,11 @@
 #include "./centipede/fuzztest_mutator.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
-#include "./centipede/shared_memory_blob_sequence.h"
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
+#include "./rust_cpp_common/shared_memory_blob_sequence.h"
 
 namespace fuzztest::internal {
 

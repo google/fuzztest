@@ -35,6 +35,7 @@ licenses(["notice"])
 exports_files([
     "crash_deduplication.h",
     "crash_deduplication.cc",
+    "pc_info.h",
 ])
 
 ################################################################################
@@ -118,19 +119,6 @@ DISABLE_SANCOV_COPTS = [
     "-fsanitize-coverage=0",
 ]
 
-# This lib must have zero non-trivial dependencies (other than libc).
-cc_library(
-    name = "int_utils",
-    hdrs = ["int_utils.h"],
-    copts = DISABLE_SANCOV_COPTS,
-)
-
-cc_library(
-    name = "rolling_hash",
-    hdrs = ["rolling_hash.h"],
-    copts = DISABLE_SANCOV_COPTS,
-)
-
 cc_library(
     name = "symbol_table",
     srcs = ["symbol_table.cc"],
@@ -148,12 +136,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "foreach_nonzero",
-    hdrs = ["foreach_nonzero.h"],
-    copts = DISABLE_SANCOV_COPTS,
-)
-
 # This lib must have zero non-trivial dependencies (other than libc). See feature.h.
 cc_library(
     name = "feature",
@@ -166,8 +148,8 @@ cc_library(
     ],
     copts = DISABLE_SANCOV_COPTS,
     deps = [
-        ":rolling_hash",
         "@abseil-cpp//absl/base:core_headers",  # exception, ok to depend on here.
+        "@com_google_fuzztest//rust_cpp_common/runtime:rolling_hash",
     ],
 )
 
@@ -191,23 +173,6 @@ cc_library(
     deps = [
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
-    ],
-)
-
-cc_library(
-    name = "reverse_pc_table",
-    hdrs = ["reverse_pc_table.h"],
-    # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
-    deps = [":pc_info"],
-)
-
-cc_library(
-    name = "callstack",
-    hdrs = ["callstack.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
-    deps = [
-        ":rolling_hash",
     ],
 )
 
@@ -412,34 +377,6 @@ cc_library(
 )
 
 cc_library(
-    name = "shared_memory_blob_sequence",
-    srcs = ["shared_memory_blob_sequence.cc"],
-    hdrs = ["shared_memory_blob_sequence.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    linkopts = select({
-        "@platforms//os:macos": [],
-        "//conditions:default": [
-            "-lrt",  # for shm_open
-        ],
-    }),
-    deps = ["@abseil-cpp//absl/base:nullability"],
-    # don't add any dependencies.
-)
-
-cc_library(
-    name = "execution_metadata",
-    srcs = ["execution_metadata.cc"],
-    hdrs = ["execution_metadata.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    deps = [
-        # This target must have a minimal set of dependencies since it is
-        # used in centipede_runner.
-        "@com_google_fuzztest//common:defs",
-        ":shared_memory_blob_sequence",
-    ],
-)
-
-cc_library(
     name = "runner_result",
     srcs = ["runner_result.cc"],
     hdrs = ["runner_result.h"],
@@ -448,26 +385,10 @@ cc_library(
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
         ":feature",
-        ":execution_metadata",
         ":mutation_data",
-        ":shared_memory_blob_sequence",
         "@com_google_fuzztest//common:defs",
-    ],
-)
-
-cc_library(
-    name = "runner_request",
-    srcs = ["runner_request.cc"],
-    hdrs = ["runner_request.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    deps = [
-        # This target must have a minimal set of dependencies since it is
-        # used in centipede_runner.
-        ":shared_memory_blob_sequence",
-        ":execution_metadata",
-        ":mutation_data",
-        "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
+        "@com_google_fuzztest//rust_cpp_common:shared_memory_blob_sequence",
     ],
 )
 
@@ -479,7 +400,7 @@ cc_library(
         # This target must have a minimal set of dependencies since it is
         # used in centipede_runner.
         "@com_google_fuzztest//common:defs",
-        ":execution_metadata",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
     ],
 )
 
@@ -490,12 +411,12 @@ cc_library(
     copts = DISABLE_SANCOV_COPTS,
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
     deps = [
-        ":execution_metadata",
         ":knobs",
         ":mutation_data",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
     ],
 )
 
@@ -576,7 +497,6 @@ cc_library(
         ":binary_info",
         ":control_flow",
         ":coverage",
-        ":execution_metadata",
         ":feature",
         ":feature_set",
         ":runner_result",
@@ -588,6 +508,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
     ],
 )
 
@@ -638,9 +559,7 @@ cc_library(
         ":environment",
         ":fuzztest_mutator",
         ":mutation_data",
-        ":runner_request",
         ":runner_result",
-        ":shared_memory_blob_sequence",
         ":stop",
         ":util",
         ":workdir",
@@ -656,6 +575,8 @@ cc_library(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//rust_cpp_common:shared_memory_blob_sequence",
+        "@com_google_fuzztest//rust_cpp_common/engine:runner_request",
     ],
 )
 
@@ -884,7 +805,6 @@ cc_library(
     hdrs = ["fuzztest_mutator.h"],
     deps = [
         ":byte_array_mutator",
-        ":execution_metadata",
         ":knobs",
         ":mutation_data",
         "@abseil-cpp//absl/random",
@@ -893,6 +813,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest/internal:table_of_recent_compares",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
     ],
 )
 
@@ -969,13 +890,6 @@ cc_library(
     alwayslink = 1,  # Otherwise the linker drops the fork server.
 )
 
-cc_library(
-    name = "runner_cmp_trace",
-    hdrs = ["runner_cmp_trace.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    deps = ["@abseil-cpp//absl/base:core_headers"],
-)
-
 # Library for manipulating centipede runner flags. This is not used by the
 # runner itself but by other tools.
 cc_library(
@@ -998,21 +912,21 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
-    "coverage_interceptors.cc",
     "pc_info.h",
-    "reverse_pc_table.h",
     "runner.cc",
     "runner.h",
-    "runner_dl_info.cc",
-    "runner_dl_info.h",
     "runner_interface.h",
-    "runtime_interceptors.cc",
-    "sancov_callbacks.cc",
-    "sancov_object_array.cc",
-    "sancov_object_array.h",
-    "sancov_runtime.h",
-    "sancov_state.cc",
-    "sancov_state.h",
+    "@com_google_fuzztest//rust_cpp_common/runtime:coverage_interceptors.cc",
+    "@com_google_fuzztest//rust_cpp_common/runtime:reverse_pc_table.h",
+    "@com_google_fuzztest//rust_cpp_common/runtime:runner_dl_info.cc",
+    "@com_google_fuzztest//rust_cpp_common/runtime:runner_dl_info.h",
+    "@com_google_fuzztest//rust_cpp_common/runtime:runtime_interceptors.cc",
+    "@com_google_fuzztest//rust_cpp_common/runtime:sancov_callbacks.cc",
+    "@com_google_fuzztest//rust_cpp_common/runtime:sancov_object_array.cc",
+    "@com_google_fuzztest//rust_cpp_common/runtime:sancov_object_array.h",
+    "@com_google_fuzztest//rust_cpp_common/runtime:sancov_runtime.h",
+    "@com_google_fuzztest//rust_cpp_common/runtime:sancov_state.cc",
+    "@com_google_fuzztest//rust_cpp_common/runtime:sancov_state.h",
 ]
 
 # Disable sancov and sanitizer instrumentation.
@@ -1040,60 +954,32 @@ RUNNER_LINKOPTS = [
     ],
 })
 
-cc_library(
-    name = "interceptor_utils",
-    hdrs = ["interceptor_utils.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    linkopts = ["-ldl"],  # for dlsym
-)
-
 # TODO: b/436308818 - Let the runner depend on sancov_runtime as well.
 # WARNING: be careful with more deps here. Use only the most trivial ones.
 RUNNER_DEPS = [
     ":byte_array_mutator",
-    ":callstack",
-    ":execution_metadata",
     ":feature",
-    ":foreach_nonzero",
-    ":int_utils",
-    ":interceptor_utils",
     ":knobs",
     ":mutation_data",
-    ":rolling_hash",
-    ":runner_cmp_trace",
-    ":runner_request",
     ":runner_result",
-    ":runner_utils",
-    ":engine_abi",
-    ":engine_worker",
-    ":shared_memory_blob_sequence",
-    "@com_google_fuzztest//common:defs",
     "@abseil-cpp//absl/base:core_headers",
     "@abseil-cpp//absl/base:nullability",
     "@abseil-cpp//absl/numeric:bits",
     "@abseil-cpp//absl/types:span",
+    "@com_google_fuzztest//common:defs",
+    "@com_google_fuzztest//rust_cpp_common:execution_metadata",
+    "@com_google_fuzztest//rust_cpp_common:runner_utils",
+    "@com_google_fuzztest//rust_cpp_common:shared_memory_blob_sequence",
+    "@com_google_fuzztest//rust_cpp_common/engine:engine_abi",
+    "@com_google_fuzztest//rust_cpp_common/engine:engine_worker",
+    "@com_google_fuzztest//rust_cpp_common/engine:runner_request",
+    "@com_google_fuzztest//rust_cpp_common/runtime:callstack",
+    "@com_google_fuzztest//rust_cpp_common/runtime:foreach_nonzero",
+    "@com_google_fuzztest//rust_cpp_common/runtime:int_utils",
+    "@com_google_fuzztest//rust_cpp_common/runtime:interceptor_utils",
+    "@com_google_fuzztest//rust_cpp_common/runtime:rolling_hash",
+    "@com_google_fuzztest//rust_cpp_common/runtime:runner_cmp_trace",
 ]
-
-cc_library(
-    name = "engine_worker",
-    srcs = [
-        "engine_worker.cc",
-    ],
-    hdrs = ["engine_worker_abi.h"],
-    copts = RUNNER_COPTS,
-    deps = [
-        ":engine_abi",
-        ":execution_metadata",
-        ":feature",
-        ":runner_fork_server",
-        ":runner_request",
-        ":runner_result",
-        ":runner_utils",
-        ":shared_memory_blob_sequence",
-        "@abseil-cpp//absl/base:nullability",
-        "@com_google_fuzztest//common:defs",
-    ],
-)
 
 bool_flag(
     name = "bundle_controller_binary",
@@ -1103,22 +989,6 @@ bool_flag(
 config_setting(
     name = "is_controller_binary_bundled",
     flag_values = {":bundle_controller_binary": "True"},
-)
-
-cc_library(
-    name = "engine_controller_with_subprocess",
-    srcs = ["engine_controller_with_subprocess.cc"],
-    hdrs = ["engine_controller_abi.h"],
-    data = select({
-        ":is_controller_binary_bundled": [
-            ":centipede_uninstrumented",
-        ],
-        "//conditions:default": [],
-    }),
-    deps = [
-        "@com_google_fuzztest//centipede:engine_abi",
-        "@com_google_fuzztest//fuzztest/internal:escaping",
-    ],
 )
 
 # A fuzz target needs to link with this library in order to run with Centipede.
@@ -1174,11 +1044,11 @@ cc_library(
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     deps = [
         ":centipede_runner_no_main",
-        ":execution_metadata",
         ":mutation_data",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
     ],
 )
 
@@ -1236,43 +1106,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "sancov_runtime",
-    srcs = [
-        "coverage_interceptors.cc",
-        "pc_info.h",
-        "reverse_pc_table.h",
-        "runner_dl_info.cc",
-        "runner_dl_info.h",
-        "runtime_interceptors.cc",
-        "sancov_callbacks.cc",
-        "sancov_object_array.cc",
-        "sancov_object_array.h",
-        "sancov_state.cc",
-        "sancov_state.h",
-        "@com_google_fuzztest//common:defs.h",
-    ],
-    hdrs = [
-        "sancov_runtime.h",
-    ],
-    copts = DISABLE_SANCOV_COPTS,
-    deps = [
-        ":callstack",
-        ":engine_abi",
-        ":execution_metadata",
-        ":feature",
-        ":foreach_nonzero",
-        ":int_utils",
-        ":interceptor_utils",
-        ":runner_cmp_trace",
-        ":runner_utils",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/base:nullability",
-        "@abseil-cpp//absl/numeric:bits",
-        "@abseil-cpp//absl/types:span",
-    ],
-)
-
 # Flags for :seed_corpus_maker.
 cc_library(
     name = "seed_corpus_maker_flags",
@@ -1315,11 +1148,6 @@ cc_library(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
     ],
-)
-
-cc_library(
-    name = "engine_abi",
-    hdrs = ["engine_abi.h"],
 )
 
 sh_library(
@@ -1396,16 +1224,6 @@ cc_test(
     srcs = ["pc_info_test.cc"],
     deps = [
         ":pc_info",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "rolling_hash_test",
-    srcs = ["rolling_hash_test.cc"],
-    deps = [
-        ":feature",
-        ":rolling_hash",
         "@googletest//:gtest_main",
     ],
 )
@@ -1591,36 +1409,16 @@ cc_test(
 )
 
 cc_test(
-    name = "shared_memory_blob_sequence_test",
-    srcs = ["shared_memory_blob_sequence_test.cc"],
-    deps = [
-        ":shared_memory_blob_sequence",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "execution_metadata_test",
-    srcs = ["execution_metadata_test.cc"],
-    deps = [
-        ":execution_metadata",
-        ":shared_memory_blob_sequence",
-        "@com_google_fuzztest//common:defs",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
     name = "runner_result_test",
     srcs = ["runner_result_test.cc"],
     deps = [
-        ":execution_metadata",
         ":feature",
         ":mutation_data",
         ":runner_result",
-        ":shared_memory_blob_sequence",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:test_util",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
+        "@com_google_fuzztest//rust_cpp_common:shared_memory_blob_sequence",
         "@googletest//:gtest_main",
     ],
 )
@@ -1640,12 +1438,12 @@ cc_test(
     srcs = ["byte_array_mutator_test.cc"],
     deps = [
         ":byte_array_mutator",
-        ":execution_metadata",
         ":knobs",
         ":mutation_data",
-        ":runner_cmp_trace",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
+        "@com_google_fuzztest//rust_cpp_common/runtime:runner_cmp_trace",
         "@googletest//:gtest_main",
     ],
 )
@@ -1660,25 +1458,16 @@ cc_test(
 )
 
 cc_test(
-    name = "foreach_nonzero_test",
-    srcs = ["foreach_nonzero_test.cc"],
-    deps = [
-        ":foreach_nonzero",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
     name = "fuzztest_mutator_test",
     srcs = ["fuzztest_mutator_test.cc"],
     deps = [
-        ":execution_metadata",
         ":fuzztest_mutator",
         ":knobs",
         ":mutation_data",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//rust_cpp_common:execution_metadata",
         "@googletest//:gtest_main",
     ],
 )
@@ -1691,28 +1480,6 @@ cc_test(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "reverse_pc_table_test",
-    srcs = ["reverse_pc_table_test.cc"],
-    deps = [
-        ":pc_info",
-        ":reverse_pc_table",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "callstack_test",
-    srcs = ["callstack_test.cc"],
-    deps = [
-        ":callstack",
-        "@abseil-cpp//absl/base:nullability",
-        "@abseil-cpp//absl/container:flat_hash_set",
-        "@com_google_fuzztest//common:defs",
         "@googletest//:gtest_main",
     ],
 )
@@ -1764,15 +1531,6 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "runner_utils_test",
-    srcs = ["runner_utils_test.cc"],
-    deps = [
-        ":runner_utils",
-        "@googletest//:gtest_main",
-    ],
-)
-
 cc_binary(
     name = "command_test_helper",
     srcs = ["command_test_helper.cc"],
@@ -1794,16 +1552,6 @@ cc_test(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:test_util",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "runner_cmp_trace_test",
-    srcs = ["runner_cmp_trace_test.cc"],
-    deps = [
-        ":runner_cmp_trace",
-        "@abseil-cpp//absl/base:nullability",
         "@googletest//:gtest_main",
     ],
 )
@@ -1967,16 +1715,6 @@ cc_test(
 )
 
 cc_test(
-    name = "int_utils_test",
-    srcs = ["int_utils_test.cc"],
-    deps = [
-        ":int_utils",
-        "@abseil-cpp//absl/container:flat_hash_set",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
     name = "crash_deduplication_test",
     srcs = ["crash_deduplication_test.cc"],
     deps = [
@@ -2075,23 +1813,13 @@ sh_test(
     },
 )
 
-cc_library(
-    name = "runner_utils",
-    srcs = ["runner_utils.cc"],
-    hdrs = ["runner_utils.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    deps = [
-        "@abseil-cpp//absl/base:nullability",
-    ],
-)
-
 cc_static_library(
     name = "centipede_engine_static",
     deps = [
-        ":engine_controller_with_subprocess",
-        ":engine_worker",
-        ":sancov_runtime",
         ":weak_sancov_stubs",
-        "@com_google_fuzztest//fuzztest/internal:sanitizer_interface",
+        "@com_google_fuzztest//rust_cpp_common/engine:engine_controller_with_subprocess",
+        "@com_google_fuzztest//rust_cpp_common/engine:engine_worker",
+        "@com_google_fuzztest//rust_cpp_common/runtime:sancov_runtime",
+        "@com_google_fuzztest//rust_cpp_common/runtime:sanitizer_interface",
     ],
 )

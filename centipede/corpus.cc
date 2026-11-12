@@ -30,7 +30,6 @@
 #include "absl/strings/substitute.h"
 #include "./centipede/control_flow.h"
 #include "./centipede/coverage.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/runner_result.h"
@@ -39,6 +38,7 @@
 #include "./common/logging.h"  // IWYU pragma: keep
 #include "./common/remote_file.h"
 #include "./common/status_macros.h"
+#include "./rust_cpp_common/execution_metadata.h"
 
 namespace fuzztest::internal {
 

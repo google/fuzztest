@@ -70,7 +70,6 @@
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
 #include "./centipede/environment.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/fuzztest_mutator.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
@@ -84,7 +83,6 @@
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/domains/domain.h"
-#include "./fuzztest/internal/escaping.h"
 #include "./fuzztest/internal/fixture_driver.h"
 #include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/io.h"
@@ -93,6 +91,8 @@
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/subprocess.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
+#include "./rust_cpp_common/escaping.h"
+#include "./rust_cpp_common/execution_metadata.h"
 
 namespace fuzztest::internal {
 namespace {

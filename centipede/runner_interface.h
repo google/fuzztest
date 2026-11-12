@@ -27,9 +27,9 @@
 
 #include "absl/base/nullability.h"
 #include "absl/types/span.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
+#include "./rust_cpp_common/execution_metadata.h"
 
 // Legacy support for the libFuzzer API, https://llvm.org/docs/LibFuzzer.html
 //

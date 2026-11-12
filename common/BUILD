@@ -29,7 +29,10 @@ licenses(["notice"])
 # requirements and needs to compile the file directly with specific flags.
 exports_files(
     srcs = ["defs.h"],
-    visibility = ["@com_google_fuzztest//centipede:__pkg__"],
+    visibility = [
+        "@com_google_fuzztest//centipede:__pkg__",
+        "@com_google_fuzztest//rust_cpp_common:__subpackages__",
+    ],
 )
 
 ### Libraries

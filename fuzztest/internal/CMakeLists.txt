@@ -140,17 +140,6 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
-    escaping
-  HDRS
-    "escaping.h"
-  SRCS
-    "escaping.cc"
-  DEPS
-    absl::strings
-)
-
-fuzztest_cc_library(
-  NAME
     fixture_driver
   HDRS
     "fixture_driver.h"
@@ -437,43 +426,6 @@ fuzztest_cc_test(
 
 fuzztest_cc_library(
   NAME
-    sanitizer_interface
-  HDRS
-    "sanitizer_interface.h"
-  SRCS
-    "sanitizer_interface.cc"
-  DEPS
-    fuzztest::common_logging
-    fuzztest::symbol_name_utils
-    absl::config
-    absl::core_headers
-    absl::stacktrace
-    absl::status
-    absl::statusor
-    absl::strings
-    absl::symbolize
-    absl::span
-)
-
-fuzztest_cc_test(
-  NAME
-    sanitizer_interface_test
-  SRCS
-    "sanitizer_interface_test.cc"
-  DEPS
-    fuzztest::sanitizer_interface
-    absl::config
-    absl::core_headers
-    absl::span
-    absl::status
-    absl::statusor
-    absl::str_format
-    absl::string_view
-    GTest::gmock_main
-)
-
-fuzztest_cc_library(
-  NAME
     seed_seq
   HDRS
     "seed_seq.h"
@@ -565,15 +517,6 @@ fuzztest_cc_test(
     absl::strings
     absl::time
     GTest::gmock_main
-)
-
-fuzztest_cc_library(
-  NAME
-    symbol_name_utils
-  HDRS
-    "symbol_name_utils.h"
-  DEPS
-    absl::string_view
 )
 
 fuzztest_cc_library(
