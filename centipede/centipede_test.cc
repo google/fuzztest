@@ -56,6 +56,7 @@ using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::ExitedWithCode;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
@@ -1089,6 +1090,92 @@ TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   callbacks.GetSeeds(10, seeds);
   EXPECT_THAT(seeds, IsSupersetOf(std::vector<ByteArray>{
                          {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputsPaddedToMinSeedInputs) {
+  Environment env;
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/seeded_fuzz_target");
+  env.min_seed_inputs = 50;
+  CentipedeDefaultCallbacks callbacks(env, stop_condition);
+
+  std::vector<ByteArray> seeds;
+  EXPECT_EQ(callbacks.GetSeeds(100, seeds), 50);
+  EXPECT_THAT(seeds, SizeIs(50));
+  EXPECT_THAT(seeds, IsSupersetOf(std::vector<ByteArray>{
+                         {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}}));
+}
+
+// A mock that provides a fixed number of seed inputs and records the sizes of
+// the executed batches. If `stop_after_num_batches` is non-zero, requests a
+// stop on `stop_condition` after executing that many batches.
+class SeedBatchingMock : public CentipedeCallbacks {
+ public:
+  SeedBatchingMock(const Environment& env, StopCondition& stop_condition,
+                   size_t num_avail_seeds, size_t stop_after_num_batches = 0)
+      : CentipedeCallbacks(env, stop_condition),
+        num_avail_seeds_(num_avail_seeds),
+        stop_after_num_batches_(stop_after_num_batches) {}
+
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
+               BatchResult& batch_result) override {
+    batch_sizes_.push_back(inputs.size());
+    batch_result.results().clear();
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      batch_result.results().emplace_back(ExecutionResult{FeatureVec{}});
+    }
+    if (stop_after_num_batches_ != 0 &&
+        batch_sizes_.size() == stop_after_num_batches_) {
+      stop_condition_.RequestStop(EXIT_SUCCESS, "Requested by the test");
+    }
+    return true;
+  }
+
+  size_t GetSeeds(size_t num_seeds, std::vector<ByteArray>& seeds) override {
+    seeds.clear();
+    for (size_t i = 0; i < std::min(num_seeds, num_avail_seeds_); ++i) {
+      seeds.push_back({static_cast<uint8_t>(i)});
+    }
+    return num_avail_seeds_;
+  }
+
+  const std::vector<size_t>& batch_sizes() const { return batch_sizes_; }
+
+ private:
+  size_t num_avail_seeds_;
+  size_t stop_after_num_batches_;
+  std::vector<size_t> batch_sizes_;
+};
+
+TEST(Centipede, LoadsAtMostMaxSeedInputsInBatches) {
+  TempCorpusDir tmp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = tmp_dir.path();
+  env.num_runs = 0;
+  env.batch_size = 7;
+  env.max_seed_inputs = 20;
+  env.require_pc_table = false;
+  StopCondition stop_condition;
+  SeedBatchingMock mock(env, stop_condition, /*num_avail_seeds=*/25);
+  NonOwningCallbacksFactory factory(mock);
+  CentipedeMain(env, factory, &stop_condition);
+  EXPECT_THAT(mock.batch_sizes(), ElementsAre(7, 7, 6));
+}
+
+TEST(Centipede, StopsLoadingSeedInputsOnStopCondition) {
+  TempCorpusDir tmp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = tmp_dir.path();
+  env.num_runs = 0;
+  env.batch_size = 7;
+  env.max_seed_inputs = 20;
+  env.require_pc_table = false;
+  StopCondition stop_condition;
+  SeedBatchingMock mock(env, stop_condition, /*num_avail_seeds=*/25,
+                        /*stop_after_num_batches=*/1);
+  NonOwningCallbacksFactory factory(mock);
+  CentipedeMain(env, factory, &stop_condition);
+  EXPECT_THAT(mock.batch_sizes(), ElementsAre(7));
 }
 
 TEST_F(CentipedeWithTemporaryLocalDir, GetsSerializedTargetConfig) {

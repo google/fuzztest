@@ -858,10 +858,11 @@ void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
                                BlobFileWriter *absl_nonnull features_file) {
   std::vector<ByteArray> seed_inputs;
   const size_t num_seeds_available =
-      user_callbacks_.GetSeeds(env_.batch_size, seed_inputs);
-  if (num_seeds_available > env_.batch_size) {
+      user_callbacks_.GetSeeds(env_.max_seed_inputs, seed_inputs);
+  if (num_seeds_available > env_.max_seed_inputs) {
     FUZZTEST_LOG(WARNING) << "More seeds available than requested: "
-                          << num_seeds_available << " > " << env_.batch_size;
+                          << num_seeds_available << " > "
+                          << env_.max_seed_inputs;
   }
   if (seed_inputs.empty()) {
     FUZZTEST_QCHECK(!env_.require_seeds)
@@ -871,9 +872,16 @@ void Centipede::LoadSeedInputs(BlobFileWriter *absl_nonnull corpus_file,
     seed_inputs.push_back({0});
   }
 
-  RunBatch(InputsToMutantRefs({seed_inputs.begin(), seed_inputs.end()}),
-           corpus_file, features_file,
-           /*unconditional_features_file=*/nullptr);
+  // Run the seed inputs in batches of at most env_.batch_size inputs each.
+  for (size_t i = 0; i < seed_inputs.size(); i += env_.batch_size) {
+    if (stop_condition_.ShouldStop()) break;
+    const size_t batch_size = std::min(seed_inputs.size() - i, env_.batch_size);
+    RunBatch(
+        InputsToMutantRefs(std::vector<ByteSpan>(
+            seed_inputs.begin() + i, seed_inputs.begin() + i + batch_size)),
+        corpus_file, features_file,
+        /*unconditional_features_file=*/nullptr);
+  }
   FUZZTEST_LOG(INFO) << "Number of input seeds available: "
                      << num_seeds_available
                      << ", number included in corpus: " << corpus_.NumTotal();
