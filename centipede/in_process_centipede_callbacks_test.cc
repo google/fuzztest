@@ -35,7 +35,6 @@
 #include "./centipede/centipede_interface.h"
 #include "./centipede/engine_abi.h"
 #include "./centipede/environment.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_result.h"
@@ -46,6 +45,7 @@
 #include "./common/defs.h"
 #include "./common/hash.h"
 #include "./common/temp_dir.h"
+#include "./framework_shared/internal/execution_metadata.h"
 
 namespace fuzztest::internal {
 namespace {

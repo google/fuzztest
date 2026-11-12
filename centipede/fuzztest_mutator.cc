@@ -27,12 +27,12 @@
 #include "absl/random/random.h"
 #include "absl/types/span.h"
 #include "./centipede/byte_array_mutator.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 #include "./common/logging.h"
 #include "./fuzztest/domain_core.h"
+#include "./framework_shared/internal/execution_metadata.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
 namespace fuzztest::internal {

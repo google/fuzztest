@@ -58,8 +58,10 @@ bool BlobSequence::Write(Blob blob) {
   memcpy(data_ + offset_, &blob.size, sizeof(blob.size));
   offset_ += sizeof(blob.size);
   // Write data.
-  memcpy(data_ + offset_, blob.data, blob.size);
-  offset_ += blob.size;
+  if (blob.size > 0) {
+    memcpy(data_ + offset_, blob.data, blob.size);
+    offset_ += blob.size;
+  }
   if (offset_ + sizeof(blob.size) + sizeof(blob.tag) <= size_) {
     // Write zero tag/size to data_+offset_ but don't change the offset.
     // This is required to overwrite any stale bits in data_.

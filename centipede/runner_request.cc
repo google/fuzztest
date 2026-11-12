@@ -17,10 +17,10 @@
 #include <cstring>
 
 #include "absl/types/span.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
+#include "./framework_shared/internal/execution_metadata.h"
 
 namespace fuzztest::internal {
 
@@ -52,10 +52,11 @@ static size_t WriteInputs(absl::Span<const ByteSpan> inputs,
 
 static bool WriteMetadataFromRefOrDefault(const ExecutionMetadata *metadata,
                                           BlobSequence &blobseq) {
-  if (metadata != nullptr)
-    return metadata->Write(kTagExecutionMetadata, blobseq);
-  static const ExecutionMetadata *default_metadata = new ExecutionMetadata();
-  return default_metadata->Write(kTagExecutionMetadata, blobseq);
+  if (metadata != nullptr) {
+    return blobseq.Write({kTagExecutionMetadata, metadata->cmp_data.size(),
+                          metadata->cmp_data.data()});
+  }
+  return blobseq.Write({kTagExecutionMetadata, 0, nullptr});
 }
 
 // Similar to above, but for mutation inputs.
@@ -109,7 +110,7 @@ bool IsNumMutants(Blob blob, size_t &num_mutants) {
 
 bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata) {
   if (blob.tag != kTagExecutionMetadata) return false;
-  metadata.Read(blob);
+  metadata.cmp_data.assign(blob.data, blob.data + blob.size);
   return true;
 }
 

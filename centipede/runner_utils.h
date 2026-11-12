@@ -28,14 +28,10 @@
 
 #include "absl/base/nullability.h"
 
-// Use this attribute for functions that must not be instrumented even if
-// the library is built with sanitizers (asan, etc).
-#define FUZZTEST_NO_SANITIZE __attribute__((no_sanitize("all")))
-
 namespace fuzztest::internal {
 
 // If `condition` prints `error` and calls exit(1).
-// TODO(kcc): change all uses of PrintErrorAndExitIf() to RunnerCheck()
+// TODO(b/586537122): Change all uses of PrintErrorAndExitIf() to RunnerCheck()
 // as it is a more common pattern.
 void PrintErrorAndExitIf(bool condition, const char* absl_nonnull error);
 
@@ -43,10 +39,6 @@ void PrintErrorAndExitIf(bool condition, const char* absl_nonnull error);
 inline void RunnerCheck(bool condition, const char* absl_nonnull error) {
   PrintErrorAndExitIf(!condition, error);
 }
-
-// Returns the lower bound of the stack region for the current thread. 0 will be
-// returned on failures.
-uintptr_t GetCurrentThreadStackRegionLow();
 
 template <typename Type>
 std::vector<Type> ReadBytesFromFilePath(const char* input_path) {

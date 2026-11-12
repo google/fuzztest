@@ -24,10 +24,10 @@
 
 #include "absl/base/nullability.h"
 #include "absl/types/span.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
+#include "./framework_shared/internal/execution_metadata.h"
 
 namespace fuzztest::internal {
 

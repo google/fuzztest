@@ -23,7 +23,7 @@
 
 #include "./centipede/engine_abi.h"
 #include "./centipede/engine_controller_abi.h"
-#include "./fuzztest/internal/escaping.h"
+#include "./common/escaping.h"
 
 namespace {
 

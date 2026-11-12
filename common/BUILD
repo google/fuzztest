@@ -29,7 +29,10 @@ licenses(["notice"])
 # requirements and needs to compile the file directly with specific flags.
 exports_files(
     srcs = ["defs.h"],
-    visibility = ["@com_google_fuzztest//centipede:__pkg__"],
+    visibility = [
+        "@com_google_fuzztest//centipede:__pkg__",
+        "@com_google_fuzztest//framework_shared:__pkg__",
+    ],
 )
 
 ### Libraries
@@ -96,6 +99,13 @@ cc_library(
     name = "defs",
     hdrs = ["defs.h"],
     deps = ["@abseil-cpp//absl/types:span"],
+)
+
+cc_library(
+    name = "escaping",
+    srcs = ["escaping.cc"],
+    hdrs = ["escaping.h"],
+    deps = ["@abseil-cpp//absl/strings"],
 )
 
 cc_library(

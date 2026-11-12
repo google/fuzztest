@@ -37,13 +37,13 @@
 #include "absl/base/nullability.h"
 #include "./centipede/engine_abi.h"
 #include "./centipede/engine_worker_abi.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_utils.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
+#include "./framework_shared/internal/execution_metadata.h"
 
 namespace fuzztest::internal {
 
