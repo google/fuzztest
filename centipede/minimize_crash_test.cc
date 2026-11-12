@@ -14,6 +14,7 @@
 
 #include "./centipede/minimize_crash.h"
 
+#include <cstddef>
 #include <cstdlib>
 #include <string>
 #include <string_view>
@@ -40,15 +41,27 @@ using ::testing::UnorderedElementsAre;
 // A mock for CentipedeCallbacks.
 class MinimizerMock : public CentipedeCallbacks {
  public:
-  MinimizerMock(const Environment& env, StopCondition& stop_condition)
-      : CentipedeCallbacks(env, stop_condition) {}
+  MinimizerMock(const Environment& env, StopCondition& stop_condition,
+                size_t crash_on_attempt = 1)
+      : CentipedeCallbacks(env, stop_condition),
+        crash_on_attempt_(crash_on_attempt) {}
 
-  // Runs FuzzMe() on every input, imitates failure if FuzzMe() returns true.
+  // Runs FuzzMe() on every input, imitates failure if FuzzMe() returns true
+  // `crash_on_attempt_` consecutive times on the same input.
   bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
                BatchResult& batch_result) override {
+    EXPECT_LE(inputs.size(), env_.batch_size);
     batch_result.ClearAndResize(inputs.size());
-    for (auto input : inputs) {
-      if (FuzzMe(input)) {
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      const auto& input = inputs[i];
+      if (input.data() == last_input_.data() &&
+          input.size() == last_input_.size()) {
+        ++current_attempts_;
+      } else {
+        last_input_ = input;
+        current_attempts_ = 1;
+      }
+      if (FuzzMe(input) && current_attempts_ >= crash_on_attempt_) {
         batch_result.exit_code() = EXIT_FAILURE;
         // Set signature differently to test signature matching behavior.
         batch_result.failure_signature() =
@@ -73,16 +86,26 @@ class MinimizerMock : public CentipedeCallbacks {
     }
     return true;
   }
+
+  size_t crash_on_attempt_ = 1;
+  ByteSpan last_input_;
+  size_t current_attempts_ = 0;
 };
 
 // Factory that creates/destroys MinimizerMock.
 class MinimizerMockFactory : public CentipedeCallbacksFactory {
  public:
+  explicit MinimizerMockFactory(size_t crash_on_attempt = 1)
+      : crash_on_attempt_(crash_on_attempt) {}
+
   CentipedeCallbacks* absl_nonnull create(
       const Environment& env, StopCondition& stop_condition) override {
-    return new MinimizerMock(env, stop_condition);
+    return new MinimizerMock(env, stop_condition, crash_on_attempt_);
   }
   void destroy(CentipedeCallbacks *cb) override { delete cb; }
+
+ private:
+  size_t crash_on_attempt_ = 1;
 };
 
 TEST(MinimizeTest, FailsWhenCrasherCannotBeMinimized) {
@@ -152,6 +175,28 @@ TEST(MinimizeTest, MinimizesWithSignature) {
     minimized_crashers.insert(std::move(result->input));
   }
   EXPECT_THAT(minimized_crashers, UnorderedElementsAre(ByteArray{'z'}));
+}
+
+TEST(MinimizeTest, MinimizesWithReplayCrashAttempts) {
+  Environment env;
+  env.num_runs = 100000;
+  MinimizerMockFactory factory(/*crash_on_attempt=*/3);
+  StopCondition stop_condition;
+
+  ByteArray original_crasher = {'f', 'f', 'f', 'f', 'f', 'f',
+                                'z', 'z', 'z', 'z', 'z', 'z'};
+  env.replay_crash_attempts = 2;
+  EXPECT_FALSE(MinimizeCrash(original_crasher, env, factory, "signature one",
+                             stop_condition)
+                   .has_value());
+
+  env.replay_crash_attempts = 3;
+  auto result = MinimizeCrash(original_crasher, env, factory, "signature one",
+                              stop_condition);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->input, ByteArray{'f'});
+  EXPECT_EQ(result->description, "description one");
+  EXPECT_FALSE(stop_condition.StopRequested());
 }
 
 }  // namespace
