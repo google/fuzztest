@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>  // IWYU pragma: keep
 #include <optional>
 
 #include "absl/base/attributes.h"
@@ -51,10 +52,18 @@
 #include <sanitizer/tsan_interface.h>
 #endif
 
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER) || \
+    defined(ABSL_HAVE_MEMORY_SANITIZER) || defined(ABSL_HAVE_THREAD_SANITIZER)
+#define FUZZTEST_HAS_SANITIZER
+#include <sanitizer/common_interface_defs.h>
+#endif
+
 namespace fuzztest::internal {
 
 std::atomic<FuzzTestSanitizerErrorSummaryCallback>
     sanitizer_error_summary_callback{nullptr};
+
+std::atomic<FuzzTestSanitizerDeathCallback> sanitizer_death_callback{nullptr};
 
 namespace {
 
@@ -511,6 +520,11 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void InvokeSanitizerErrorSummaryCallback(
   callback(crash_type.data(), crash_type.size());
 }
 
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void InvokeSanitizerDeathCallback(
+    FuzzTestSanitizerDeathCallback callback) {
+  callback();
+}
+
 }  // namespace fuzztest::internal
 
 // clang-format off
@@ -540,6 +554,24 @@ extern "C" void FuzzTestSetSanitizerErrorSummaryCallback(
   (void)hook;
   fuzztest::internal::sanitizer_error_summary_callback.store(
       callback, std::memory_order_relaxed);
+}
+
+extern "C" void FuzzTestSetSanitizerDeathCallback(
+    [[maybe_unused]] FuzzTestSanitizerDeathCallback callback) {
+#if defined(FUZZTEST_HAS_SANITIZER)
+  fuzztest::internal::sanitizer_death_callback.store(callback,
+                                                     std::memory_order_release);
+  static std::once_flag register_once;  // NOLINT(build/c++11)
+  std::call_once(register_once, [] {    // NOLINT(build/c++11)
+    __sanitizer_set_death_callback([] {
+      if (const auto cb = fuzztest::internal::sanitizer_death_callback.load(
+              std::memory_order_acquire);
+          cb != nullptr) {
+        fuzztest::internal::InvokeSanitizerDeathCallback(cb);
+      }
+    });
+  });
+#endif
 }
 
 extern "C" size_t FuzzTestFormatCrashDescription(

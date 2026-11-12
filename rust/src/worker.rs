@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use super::domains::GenericCorpusValue;
-use super::internal::{BoxedFuzzTest, FuzzTest};
+use super::internal::FuzzTest;
 use super::options::{self, CentipedeArgs, ExecutionAction};
 use ::engine::engine_ffi;
 use ::engine::{
@@ -27,6 +27,7 @@ use std::fs;
 use std::path::Path;
 use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
 use std::time::Instant;
@@ -48,6 +49,21 @@ static DIAGNOSTIC_SINK: Mutex<Option<DiagnosticSink>> = Mutex::new(None);
 /// A global is necessary because C callbacks (e.g. sanitizer hooks in `crash_handler.rs`) do
 /// not have access to the adapter instance.
 static EXECUTE_CONTEXT: Mutex<Option<ExecuteContext>> = Mutex::new(None);
+
+/// The fuzz test and corpus input of a property function execution that is in progress.
+struct ActiveExecution {
+    fuzz_test: Arc<dyn FuzzTest + Send + Sync>,
+    input: Arc<GenericCorpusValue>,
+}
+
+/// Global execution context for the currently running fuzz test case in smoke-test mode.
+///
+/// A global (rather than a thread-local) lets the sanitizer death callback find the context
+/// when the sanitizer fires on a thread spawned by the property function. It assumes that at most
+/// one smoke test executes at a time: when tests run in parallel (the `libtest` default),
+/// concurrent smoke tests overwrite each other's context and the report may show another test's
+/// input. Fuzz tests should therefore be run with `--test-threads=1`.
+static ACTIVE_EXECUTION: Mutex<Option<ActiveExecution>> = Mutex::new(None);
 
 /// Sets the global DiagnosticSink.
 pub(crate) fn set_diagnostic_sink(sink: DiagnosticSink) {
@@ -110,6 +126,22 @@ pub(crate) fn try_emit_finding(description: &str, signature: &str) -> bool {
     true
 }
 
+/// Prints the counterexample finding report for the test input currently executing in smoke-test
+/// mode, if any (see `ACTIVE_EXECUTION`).
+///
+/// Uses non-blocking `try_lock` to access the execution context without deadlocking if called from
+/// a sanitizer death callback while `ACTIVE_EXECUTION` is locked; if the lock is contended or no
+/// smoke test is active, this is a no-op.
+pub(crate) fn try_print_finding_report() {
+    let Some(guard) = ACTIVE_EXECUTION.try_lock() else {
+        return;
+    };
+    let Some(active) = guard.as_ref() else {
+        return;
+    };
+    active.fuzz_test.print_finding_report(&active.input);
+}
+
 // We double-box the input because `GenericCorpusValue` is a fat pointer (`Box<dyn Any>`),
 // which cannot be directly represented as a single `usize` in `FuzzTestInputHandle` for FFI.
 // By boxing it again, we get a thin pointer (`Box<Box<dyn Any>>`) that can be safely cast
@@ -121,30 +153,62 @@ fn pack_input(input: GenericCorpusValue) -> engine_ffi::FuzzTestInputHandle {
     engine_ffi::FuzzTestInputHandle(ptr as usize)
 }
 
-/// A guard that manages the global `EXECUTE_CONTEXT` state, setting it to `Some` on creation,
-/// and resetting to `None` on drop.
+/// A guard that manages the global `EXECUTE_CONTEXT` (in worker mode) or the global
+/// `ACTIVE_EXECUTION` (in smoke-test mode), setting it to `Some` on creation and resetting to
+/// `None` on drop.
 #[must_use = "the execution guard must be held for the duration of the test execution to record findings and crashes"]
-struct ExecutionGuard;
+enum ExecutionGuard {
+    Worker,
+    SmokeTest,
+}
 
 impl ExecutionGuard {
-    /// Enters the execution context by setting `EXECUTE_CONTEXT`.
+    /// Enters the adapter execution context by setting `EXECUTE_CONTEXT`.
     ///
     /// # Safety
     /// The caller must ensure we are in a valid state to create an `ExecuteContext`.
     unsafe fn enter() -> Self {
         *EXECUTE_CONTEXT.lock() = Some(unsafe { ExecuteContext::new() });
-        Self
+        Self::Worker
+    }
+
+    /// Enters the smoke-test execution context by setting `ACTIVE_EXECUTION`.
+    fn enter_smoke_test(
+        fuzz_test: Arc<dyn FuzzTest + Send + Sync>,
+        input: Arc<GenericCorpusValue>,
+    ) -> Self {
+        let prev = ACTIVE_EXECUTION.lock().replace(ActiveExecution { fuzz_test, input });
+        drop(prev);
+        Self::SmokeTest
     }
 }
 
 impl Drop for ExecutionGuard {
     fn drop(&mut self) {
-        *EXECUTE_CONTEXT.lock() = None;
+        match self {
+            Self::Worker => {
+                *EXECUTE_CONTEXT.lock() = None;
+            }
+            Self::SmokeTest => {
+                let prev = ACTIVE_EXECUTION.lock().take();
+                drop(prev);
+            }
+        }
     }
 }
 
+#[cfg(test)]
+pub(crate) fn with_active_smoke_test(
+    fuzz_test: Arc<dyn FuzzTest + Send + Sync>,
+    input: Arc<GenericCorpusValue>,
+    f: impl FnOnce(),
+) {
+    let _guard = ExecutionGuard::enter_smoke_test(fuzz_test, input);
+    f();
+}
+
 pub struct RustFuzzTestAdapter {
-    fuzz_test: BoxedFuzzTest,
+    fuzz_test: Arc<dyn FuzzTest + Send + Sync>,
 }
 
 impl RustFuzzTestAdapter {
@@ -265,7 +329,7 @@ impl RustFuzzTestAdapter {
 
 pub struct RustFuzzTestAdapterManager {
     pub test_name: &'static str,
-    pub fuzz_test_factory: fn() -> BoxedFuzzTest,
+    pub fuzz_test_factory: fn() -> Arc<dyn FuzzTest + Send + Sync>,
 }
 
 impl RustFuzzTestAdapterManager {
@@ -295,7 +359,7 @@ impl RustFuzzTestAdapterManager {
         RustFuzzTestAdapter { fuzz_test }
     }
 
-    pub fn construct_fuzz_test(&self) -> BoxedFuzzTest {
+    pub fn construct_fuzz_test(&self) -> Arc<dyn FuzzTest + Send + Sync> {
         (self.fuzz_test_factory)()
     }
 }
@@ -641,7 +705,7 @@ pub unsafe extern "C" fn free_ctx_callback(ctx: *mut engine_ffi::FuzzTestAdapter
     }
 }
 
-pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
+pub fn run_smoke_test(fuzztest: Arc<dyn FuzzTest + Send + Sync>) {
     let start_time = Instant::now();
 
     // TODO(the-shank): these should be configurable externally.
@@ -651,14 +715,22 @@ pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
     // TODO(the-shank): the rng seed should be configurable
     let mut rng = rand::rng();
 
-    let mut generic_corpus_value = fuzztest
-        .domains()
-        .lock()
-        .expect("Failed to lock domains")
-        .init(&mut rng)
-        .expect("domain initialization should succeed to provide an initial corpus value");
+    let mut generic_corpus_value = Arc::new(
+        fuzztest
+            .domains()
+            .lock()
+            .expect("Failed to lock domains")
+            .init(&mut rng)
+            .expect("domain initialization should succeed to provide an initial corpus value"),
+    );
 
-    let result = fuzztest.execute(&generic_corpus_value);
+    let result = {
+        let _guard = ExecutionGuard::enter_smoke_test(
+            Arc::clone(&fuzztest),
+            Arc::clone(&generic_corpus_value),
+        );
+        fuzztest.execute(&generic_corpus_value)
+    };
     // DISCUSS: probably need a more "googletest" approach to handling the result here?
     assert!(result);
 
@@ -667,9 +739,20 @@ pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
             .domains()
             .lock()
             .expect("Failed to lock domains")
-            .mutate(&mut generic_corpus_value, &mut rng, only_shrink)
+            .mutate(
+                Arc::get_mut(&mut generic_corpus_value)
+                    .expect("execution guard should be dropped before mutating corpus value"),
+                &mut rng,
+                only_shrink,
+            )
             .expect("domain mutation should succeed");
-        let result = fuzztest.execute(&generic_corpus_value);
+        let result = {
+            let _guard = ExecutionGuard::enter_smoke_test(
+                Arc::clone(&fuzztest),
+                Arc::clone(&generic_corpus_value),
+            );
+            fuzztest.execute(&generic_corpus_value)
+        };
         // DISCUSS: probably need a more "googletest" approach to handling the result here?
         assert!(result);
     }
@@ -753,7 +836,7 @@ pub fn process(manager: RustFuzzTestAdapterManager) {
         }
         ExecutionAction::SmokeTest => {
             let fuzz_test = manager.construct_fuzz_test();
-            run_smoke_test(fuzz_test.as_ref());
+            run_smoke_test(fuzz_test);
         }
     }
 }
@@ -806,4 +889,145 @@ fn run_standalone_mode(
     // alive until the end of this function, since we have the ownership, ensuring that the
     // pointers passed to `FuzzTestControllerRun` remain valid.
     unsafe { engine_ffi::FuzzTestControllerRun(&ffi_manager, &centipede_args.as_bytes_views()) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domains::GenericDomain;
+    use googletest::prelude::*;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    use std::sync::Mutex as StdMutex;
+    use std::thread;
+
+    struct RecordingFuzzTest {
+        reported_inputs: StdMutex<Vec<i32>>,
+    }
+
+    impl RecordingFuzzTest {
+        fn new() -> Self {
+            Self { reported_inputs: StdMutex::new(Vec::new()) }
+        }
+
+        fn reported_inputs(&self) -> Vec<i32> {
+            self.reported_inputs.lock().unwrap().clone()
+        }
+    }
+
+    impl FuzzTest for RecordingFuzzTest {
+        fn name(&self) -> &'static str {
+            "recording_fuzz_test"
+        }
+        fn activate(&mut self) {
+            unimplemented!()
+        }
+        fn mutate(&mut self) {
+            unimplemented!()
+        }
+        fn execute(&self, _args: &GenericCorpusValue) -> bool {
+            unimplemented!()
+        }
+        fn domains(&self) -> Arc<StdMutex<dyn GenericDomain>> {
+            unimplemented!()
+        }
+        fn print_finding_report(&self, args: &GenericCorpusValue) {
+            let value = *args.downcast_ref::<i32>().expect("expected i32 corpus value");
+            self.reported_inputs.lock().unwrap().push(value);
+        }
+    }
+
+    #[gtest]
+    fn try_print_finding_report_when_empty_is_noop() {
+        expect_true!(ACTIVE_EXECUTION.lock().is_none());
+
+        try_print_finding_report();
+
+        expect_true!(ACTIVE_EXECUTION.lock().is_none());
+    }
+
+    #[gtest]
+    fn try_print_finding_report_when_active_prints_report_and_clears_on_drop() {
+        let fuzz_test = Arc::new(RecordingFuzzTest::new());
+        let input: Arc<GenericCorpusValue> = Arc::new(Box::new(42_i32));
+
+        {
+            let _guard = ExecutionGuard::enter_smoke_test(Arc::clone(&fuzz_test) as _, input);
+            try_print_finding_report();
+        }
+        expect_that!(fuzz_test.reported_inputs(), elements_are![eq(&42)]);
+
+        // Dropping the guard clears `ACTIVE_EXECUTION`, so subsequent calls do not print again.
+        try_print_finding_report();
+        expect_that!(fuzz_test.reported_inputs(), elements_are![eq(&42)]);
+    }
+
+    #[gtest]
+    fn enter_smoke_test_clears_active_execution_on_unwind() {
+        let fuzz_test = Arc::new(RecordingFuzzTest::new());
+        let input: Arc<GenericCorpusValue> = Arc::new(Box::new(7_i32));
+
+        let unwind_result = catch_unwind(AssertUnwindSafe(|| {
+            let _guard = ExecutionGuard::enter_smoke_test(Arc::clone(&fuzz_test) as _, input);
+            panic!("simulated property panic");
+        }));
+        expect_true!(unwind_result.is_err());
+
+        try_print_finding_report();
+        expect_that!(fuzz_test.reported_inputs(), is_empty());
+    }
+
+    #[gtest]
+    fn try_print_finding_report_when_lock_held_is_noop() {
+        let fuzz_test = Arc::new(RecordingFuzzTest::new());
+        let input: Arc<GenericCorpusValue> = Arc::new(Box::new(99_i32));
+
+        let _guard = ExecutionGuard::enter_smoke_test(Arc::clone(&fuzz_test) as _, input);
+        {
+            let _held_lock = ACTIVE_EXECUTION.lock();
+            try_print_finding_report();
+        }
+
+        expect_that!(fuzz_test.reported_inputs(), is_empty());
+    }
+
+    #[gtest]
+    fn try_print_finding_report_from_spawned_thread_prints_active_input() {
+        let fuzz_test = Arc::new(RecordingFuzzTest::new());
+        let input: Arc<GenericCorpusValue> = Arc::new(Box::new(123_i32));
+
+        let _guard = ExecutionGuard::enter_smoke_test(Arc::clone(&fuzz_test) as _, input);
+        thread::spawn(try_print_finding_report).join().unwrap();
+
+        expect_that!(fuzz_test.reported_inputs(), elements_are![eq(&123)]);
+    }
+
+    #[gtest]
+    fn smoke_test_guard_drops_active_execution_outside_lock() {
+        #[derive(Clone)]
+        struct CheckUnlockedOnDrop(Arc<AtomicBool>);
+
+        impl Drop for CheckUnlockedOnDrop {
+            fn drop(&mut self) {
+                self.0.store(ACTIVE_EXECUTION.try_lock().is_some(), Ordering::Relaxed);
+            }
+        }
+
+        let fuzz_test: Arc<dyn FuzzTest + Send + Sync> = Arc::new(RecordingFuzzTest::new());
+        let unlocked_on_replace = Arc::new(AtomicBool::new(false));
+        let unlocked_on_guard_drop = Arc::new(AtomicBool::new(false));
+
+        let guard1 = ExecutionGuard::enter_smoke_test(
+            Arc::clone(&fuzz_test),
+            Arc::new(Box::new(CheckUnlockedOnDrop(Arc::clone(&unlocked_on_replace)))),
+        );
+        let guard2 = ExecutionGuard::enter_smoke_test(
+            fuzz_test,
+            Arc::new(Box::new(CheckUnlockedOnDrop(Arc::clone(&unlocked_on_guard_drop)))),
+        );
+        expect_true!(unlocked_on_replace.load(Ordering::Relaxed));
+
+        drop(guard2);
+        expect_true!(unlocked_on_guard_drop.load(Ordering::Relaxed));
+        drop(guard1);
+    }
 }

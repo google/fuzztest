@@ -88,12 +88,6 @@
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
 
-#if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    defined(THREAD_SANITIZER)
-#define FUZZTEST_HAS_SANITIZER
-#include <sanitizer/common_interface_defs.h>
-#endif
-
 #ifndef TRAP_PERF
 inline constexpr int TRAP_PERF = 6;
 #endif
@@ -800,14 +794,12 @@ void InstallSignalHandlers(FILE* out) {
   }
   signal_out = out;
 
-#if defined(FUZZTEST_HAS_SANITIZER)
   // An ASan failure might come without a signal.
   // Eg a divide by zero is intercepted by ASan and it terminates the process
   // after printing its output. This handler helps us print our output
-  // afterwards.
-  __sanitizer_set_death_callback(
-      [](auto...) { Runtime::instance().PrintReport(&signal_out_sink); });
-#endif
+  // afterwards. Does nothing in builds without a sanitizer.
+  FuzzTestSetSanitizerDeathCallback(
+      [] { Runtime::instance().PrintReport(&signal_out_sink); });
 
   if (const char* disabled = std::getenv("FUZZTEST_DISABLE_SIGNAL_HANDLERS");
       disabled != nullptr) {
