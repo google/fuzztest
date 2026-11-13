@@ -425,6 +425,7 @@ fuzztest_cc_test(
     "runtime_test.cc"
   DEPS
     fuzztest::configuration
+    fuzztest::flag_name
     fuzztest::runtime
     fuzztest::test_protobuf_cc_proto
     GTest::gmock_main

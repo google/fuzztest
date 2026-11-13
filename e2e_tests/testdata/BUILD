@@ -138,6 +138,7 @@ cc_binary(
     deps = [
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:fuzztest_gtest_main",
+        "@com_google_fuzztest//fuzztest:record_or_diff",
     ],
 )
 
