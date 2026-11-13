@@ -20,7 +20,9 @@
 #ifndef THIRD_PARTY_CENTIPEDE_EXECUTION_METADATA_H_
 #define THIRD_PARTY_CENTIPEDE_EXECUTION_METADATA_H_
 
+#include <cstdint>
 #include <functional>
+#include <string_view>
 
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
@@ -54,6 +56,52 @@ struct ExecutionMetadata {
   //  * `value1` (`size` bytes)
   ByteArray cmp_data;
 };
+
+// Incremental differential fuzzing (`fuzztest::RecordOrDiff`) envelope.
+//
+// When the diff mode is active, `ExecutionMetadata::cmp_data` carries this
+// envelope in both directions instead of raw CMP entries:
+//
+//   offset 0 : 8 bytes  magic = kDiffEnvelopeMagic
+//   offset 8 : uint8    kind (DiffEnvelopeKind)
+//   offset 9 : uint64   cmp_size (host byte order, unaligned)
+//   offset 17: cmp_size bytes of CMP entries (the plain `cmp_data` format)
+//   next     : uint64   diff_size
+//   next     : diff_size bytes of payload
+//   (no trailing bytes)
+//
+// The payload of kExpectations/kRecords is a record container, which is opaque
+// to Centipede and owned by the framework. kAck and kSkippedUnparsable have an
+// empty payload. Outside the diff mode, the bytes on the wire are unchanged.
+inline constexpr std::string_view kDiffEnvelopeMagic = "FTDIFF01";
+
+enum class DiffEnvelopeKind : uint8_t {
+  // Controller -> worker (validate): the baseline record container.
+  kExpectations = 0,
+  // Worker -> controller (record): the record container of the execution.
+  kRecords = 1,
+  // Worker -> controller (validate): the input was compared (empty payload).
+  kAck = 2,
+  // Worker -> controller (both modes): the input could not be parsed by the
+  // current domains, so nothing was recorded or compared (empty payload).
+  kSkippedUnparsable = 3,
+};
+
+// The per-input diff result produced by the runner callbacks.
+struct DiffResult {
+  DiffEnvelopeKind kind;
+  ByteArray payload;
+};
+
+// Returns the envelope of `kind` wrapping `cmp_data` and `payload`.
+ByteArray EncodeDiffEnvelope(DiffEnvelopeKind kind, ByteSpan cmp_data,
+                             ByteSpan payload);
+
+// Decodes `bytes` as a diff envelope. Returns false (and leaves the outputs
+// untouched) if `bytes` is not a well-formed envelope. On success, `cmp_data`
+// and `payload` point into `bytes`.
+bool DecodeDiffEnvelope(ByteSpan bytes, DiffEnvelopeKind& kind,
+                        ByteSpan& cmp_data, ByteSpan& payload);
 
 }  // namespace fuzztest::internal
 

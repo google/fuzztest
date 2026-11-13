@@ -251,3 +251,39 @@ fuzztest_cc_library(
     fuzztest::core_domains_impl
     fuzztest::lazy
 )
+
+fuzztest_cc_library(
+  NAME
+    record_or_diff
+  HDRS
+    "record_or_diff.h"
+  SRCS
+    "record_or_diff.cc"
+  DEPS
+    fuzztest::domain
+    absl::core_headers
+    absl::function_ref
+    absl::strings
+    absl::string_view
+    fuzztest::meta
+    fuzztest::printer
+    fuzztest::runtime
+    fuzztest::serialization
+    fuzztest::type_support
+)
+
+fuzztest_cc_test(
+  NAME
+    record_or_diff_test
+  SRCS
+    "record_or_diff_test.cc"
+  DEPS
+    fuzztest::record_or_diff
+    GTest::gmock_main
+    absl::function_ref
+    absl::strings
+    fuzztest::configuration
+    fuzztest::meta
+    fuzztest::runtime
+    fuzztest::serialization
+)
