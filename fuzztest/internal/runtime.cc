@@ -1275,7 +1275,6 @@ bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
     Input mutation{params_domain_.Init(prng)};
     const size_t max_iterations = duration == absl::ZeroDuration() ? 0 : 10000;
     for (int i = 0; i < max_iterations; ++i) {
-      runtime_.SetExternalFailureDetected(false);
       RunOneInput(mutation);
       if (runtime_.external_failure_detected()) {
         break;
@@ -1309,6 +1308,8 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
   // a non-terminating failure on a previous input (e.g., during local
   // minimization of non-fatal failures or in unit-test mode).
   runtime_.ResetCrashType();
+  runtime_.SetExternalFailureDetected(false);
+  const bool reporter_enabled_before_input = runtime_.reporter_enabled();
   auto untyped_args = params_domain_.GetValue(input.args);
   Runtime::Args debug_args{input.args, params_domain_};
   runtime_.SetCurrentArgs(&debug_args);
@@ -1348,6 +1349,14 @@ FuzzTestFuzzerImpl::RunResult FuzzTestFuzzerImpl::RunOneInput(
 
   runtime_.OnTestIterationEnd();
   runtime_.UnsetCurrentArgs();
+  // Reporting a failure disables the reporter for the rest of the input, so
+  // that the input reports at most one failure. A non-fatal failure doesn't
+  // terminate the process, which may run more inputs (e.g., in the next batch
+  // of a persistent-mode Centipede runner), so re-enable the reporter, which
+  // also resets the crash type and signature, to report their failures.
+  if (reporter_enabled_before_input && !runtime_.reporter_enabled()) {
+    runtime_.EnableReporter(&stats_, [] { return absl::Now(); });
+  }
   return {new_coverage, run_time};
 }
 
@@ -1378,7 +1387,6 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
     if (SerializeIRObject(params_domain_.SerializeCorpus(
             minimal_non_fatal_counterexample_->args)) !=
         SerializeIRObject(params_domain_.SerializeCorpus(copy.args))) {
-      runtime_.SetExternalFailureDetected(false);
       RunOneInput(copy);
       if (runtime_.external_failure_detected()) {
         // Found a smaller one, record it and reset the counter.
@@ -1483,7 +1491,6 @@ bool FuzzTestFuzzerImpl::RunInFuzzingMode(int* /*argc*/, char*** /*argv*/,
         // the failing sample to force a crash. Instead, we could store the
         // information from the first failure and generate a report manually.
         runtime_.SetShouldTerminateOnNonFatalFailure(true);
-        runtime_.SetExternalFailureDetected(false);
         RunOneInput(*minimal_non_fatal_counterexample_);
       }
     };

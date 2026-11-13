@@ -446,11 +446,13 @@ TEST_P(UpdateCorpusDatabaseTest, ReplayUpdatesDatabaseWithFlag) {
     }
   }
   ASSERT_FALSE(crash_files.empty());
-  const std::string target_crash = crash_files[0];
 
-  const auto initial_mtime = RemoteFileGetMTime(target_crash);
-  ASSERT_TRUE(initial_mtime.ok());
-  const absl::Time initial_mod_time = *initial_mtime;
+  absl::flat_hash_map<std::string, absl::Time> initial_mtimes;
+  for (const std::string& crash_file : crash_files) {
+    const absl::StatusOr<absl::Time> mtime = RemoteFileGetMTime(crash_file);
+    ASSERT_TRUE(mtime.ok()) << mtime.status();
+    initial_mtimes[crash_file] = *mtime;
+  }
 
   absl::SleepFor(absl::Seconds(2));
 
@@ -458,19 +460,30 @@ TEST_P(UpdateCorpusDatabaseTest, ReplayUpdatesDatabaseWithFlag) {
   run_options.fuzztest_flags = {
       {"corpus_database", db_path},
       {"replay_corpus", "FuzzTest.FailsInTwoWays"},
-      {"replay_corpus_for", "10s"},
+      // A quarter of this time is dedicated to replaying the crashing inputs,
+      // which may require restarting the test binary after a crash, so leave
+      // enough time for sanitizer builds.
+      {"replay_corpus_for", "30s"},
       {"update_corpus_database", "true"},
   };
 
   auto [status, std_out, std_err] = RunBinaryMaybeWithCentipede(
       GetCorpusDatabaseTestingBinaryPath(), run_options);
 
-  const auto final_mtime = RemoteFileGetMTime(target_crash);
-  ASSERT_TRUE(final_mtime.ok());
-  EXPECT_GT(*final_mtime, initial_mod_time)
-      << "target_crash: " << target_crash << "\nstd_err:\n"
-      << std_err << "\nstd_out:\n"
-      << std_out;
+  // All crashes reproduce with their stored signatures, so all crashing inputs
+  // should be touched, regardless of the order in which they are replayed.
+  // TODO(fniksic): Once GoogleTest assertion failures can have distinct
+  // signatures, also test with multiple non-fatal failures, so that some crash
+  // is always replayed after a non-fatal failure in the same process.
+  for (const auto& [crash_file, initial_mtime] : initial_mtimes) {
+    const absl::StatusOr<absl::Time> final_mtime =
+        RemoteFileGetMTime(crash_file);
+    ASSERT_TRUE(final_mtime.ok()) << final_mtime.status();
+    EXPECT_GT(*final_mtime, initial_mtime)
+        << "Crashing input not touched: " << crash_file << "\nstd_err:\n"
+        << std_err << "\nstd_out:\n"
+        << std_out;
+  }
 }
 
 TEST_P(UpdateCorpusDatabaseTest, FuzzingDoesNotUpdateDatabaseWithFlag) {

@@ -580,6 +580,10 @@ class FuzzTestFuzzerImpl : public FuzzTestFuzzer {
 
   void InitializeCorpus(absl::BitGenRef prng);
 
+  // Runs the property function on `input`. Afterwards,
+  // `runtime_.external_failure_detected()` indicates whether running `input`
+  // resulted in a non-fatal failure. If the failure was reported, the reporter
+  // is re-enabled for subsequent inputs.
   RunResult RunOneInput(const Input& input);
 
   bool ShouldStop();
