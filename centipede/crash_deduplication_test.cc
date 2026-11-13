@@ -122,12 +122,14 @@ TEST(GetCrashesFromWorkdirTest, ReturnsOneCrashPerCrashSignature) {
   SetContentsAndGetPath(crashes1, "isig4", "input4");
 
   // `isig5` has empty crash signature and should be ignored.
-  auto input5_path = SetContentsAndGetPath(crashes1, "isig5", "input5");
+  [[maybe_unused]] auto input5_path =
+      SetContentsAndGetPath(crashes1, "isig5", "input5");
   SetContentsAndGetPath(crash_metadata1, "isig5.sig", "");
   SetContentsAndGetPath(crash_metadata1, "isig5.desc", "desc5");
 
   // `isig6` has empty crash description and should be ignored.
-  auto input6_path = SetContentsAndGetPath(crashes1, "isig6", "input6");
+  [[maybe_unused]] auto input6_path =
+      SetContentsAndGetPath(crashes1, "isig6", "input6");
   SetContentsAndGetPath(crash_metadata1, "isig6.sig", "csig6");
   SetContentsAndGetPath(crash_metadata1, "isig6.desc", "");
 
@@ -153,7 +155,8 @@ TEST(GetCrashesFromWorkdirTest, FailsOnEmptyCrashSignatureIfEnvVarSet) {
   std::filesystem::create_directories(crashes);
   std::filesystem::create_directories(crash_metadata);
 
-  auto input_path = SetContentsAndGetPath(crashes, "isig", "input");
+  [[maybe_unused]] auto input_path =
+      SetContentsAndGetPath(crashes, "isig", "input");
   SetContentsAndGetPath(crash_metadata, "isig.sig", "");
   SetContentsAndGetPath(crash_metadata, "isig.desc", "desc");
 
@@ -176,7 +179,8 @@ TEST(GetCrashesFromWorkdirTest, FailsOnEmptyCrashDescriptionIfEnvVarSet) {
   std::filesystem::create_directories(crashes);
   std::filesystem::create_directories(crash_metadata);
 
-  auto input_path = SetContentsAndGetPath(crashes, "isig", "input");
+  [[maybe_unused]] auto input_path =
+      SetContentsAndGetPath(crashes, "isig", "input");
   SetContentsAndGetPath(crash_metadata, "isig.sig", "csig");
   SetContentsAndGetPath(crash_metadata, "isig.desc", "");
 

@@ -195,7 +195,8 @@ static std::string GetTracePCTargetPath() {
 TEST(CFTable, GetCfTable) {
   auto target_path = GetTargetPath();
   std::string tmp_path1 = GetTempFilePath(test_info_->name(), 1);
-  std::string tmp_path2 = GetTempFilePath(test_info_->name(), 2);
+  [[maybe_unused]] std::string tmp_path2 =
+      GetTempFilePath(test_info_->name(), 2);
 
   // Load the cf table.
   BinaryInfo binary_info;
