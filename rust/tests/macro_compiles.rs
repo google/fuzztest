@@ -35,10 +35,14 @@ fn fuzztest_macro_compiles_with_option_of(_a: Option<i32>) {}
 #[fuzztest(_a = InRange::new(1i32, 100).filter(|x| *x % 2 == 0))]
 fn fuzztest_macro_compiles_with_filter(_a: i32) {}
 
+#[fuzztest(_a = InRange::new(1i32, 100).map(|x| x.to_string()))]
+fn fuzztest_macro_compiles_with_map(_a: String) {}
+
 fn main() {
     // The property function is defined in the scope where the macro is
     // invoked, so it can be called directly, e.g. from a regression test.
     fuzztest_macro_compiles(0);
     fuzztest_macro_compiles_with_option_of(Some(0));
     fuzztest_macro_compiles_with_filter(2);
+    fuzztest_macro_compiles_with_map(String::new());
 }
