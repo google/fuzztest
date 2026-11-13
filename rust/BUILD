@@ -35,6 +35,7 @@ rust_library(
         "@com_google_fuzztest//rust/coverage",
         "@com_google_fuzztest//rust/engine",
         "@com_google_fuzztest//rust/options:fuzztest_options",
+        "@com_google_fuzztest//rust/registry:fuzztest_registry",
         "@crate_index//:anyhow",  # v1
         "@crate_index//:humantime",  # v2
         "@crate_index//:inventory",  # v0_3

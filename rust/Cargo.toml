@@ -28,6 +28,7 @@ coverage = { path = "coverage" }
 engine = { path = "engine", package = "engine-ffi" }
 fuzztest-macro = { path = "fuzztest_macro" }
 fuzztest-options = { path = "options" }
+fuzztest-registry = { path = "registry" }
 humantime.workspace = true
 inventory.workspace = true
 num-traits.workspace = true

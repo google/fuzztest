@@ -259,6 +259,7 @@ dependencies = [
  "engine-ffi",
  "fuzztest-macro",
  "fuzztest-options",
+ "fuzztest-registry",
  "googletest",
  "humantime",
  "inventory",
@@ -291,6 +292,14 @@ dependencies = [
  "clap",
  "googletest",
  "humantime",
+]
+
+[[package]]
+name = "fuzztest-registry"
+version = "0.1.0"
+dependencies = [
+ "googletest",
+ "inventory",
 ]
 
 [[package]]

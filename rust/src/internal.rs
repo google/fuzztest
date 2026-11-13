@@ -14,6 +14,8 @@
 
 use super::domains::GenericCorpusValue;
 use super::domains::GenericDomain;
+pub use fuzztest_registry::FuzzTestInfo;
+pub use fuzztest_registry::FuzzTestRegistration;
 use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -43,25 +45,6 @@ pub trait FuzzTest {
     /// Formats and prints the counterexample finding report for `formatted_args` to `stderr`.
     fn print_finding_report(&self, info: &FuzzTestInfo, formatted_args: &[String]) {
         print_finding_report(info, formatted_args);
-    }
-}
-
-/// Identifies the property function of a fuzz test.
-///
-/// `FuzzTestInfo` is instantiated by the `fuzztest` macro which populates the fields with the
-/// appropriate values.
-pub struct FuzzTestInfo {
-    pub name: &'static str,
-    pub module_path: &'static str,
-    pub file: &'static str,
-    pub line: u32,
-}
-
-impl FuzzTestInfo {
-    /// Returns the fully qualified test name (e.g.,
-    /// `escaping_test::__fuzztest_mod__unescaping_never_panics::unescaping_never_panics`).
-    fn full_test_name(&self) -> String {
-        format!("{}::{}", self.module_path, self.name)
     }
 }
 
@@ -101,12 +84,6 @@ fn print_finding_report(info: &FuzzTestInfo, formatted_args: &[String]) {
 
 pub type BoxedFuzzTest = Box<dyn FuzzTest + Send + Sync>;
 
-pub struct FuzzTestRegistration {
-    pub info: &'static FuzzTestInfo,
-}
-
-inventory::collect!(FuzzTestRegistration);
-
 pub struct InputStateAndDomain<I, D> {
     pub input_state: Option<I>,
     pub domain: D,
@@ -116,20 +93,6 @@ pub struct InputStateAndDomain<I, D> {
 mod tests {
     use super::*;
     use googletest::prelude::*;
-
-    #[googletest::test]
-    fn test_full_test_name_includes_crate_and_module_path() {
-        let info = FuzzTestInfo {
-            name: "unescaping_never_panics",
-            module_path: "escaping_test::__fuzztest_mod__unescaping_never_panics",
-            file: "third_party/googlefuzztest/rust/codelab/escaping_test.rs",
-            line: 72,
-        };
-        expect_that!(
-            info.full_test_name(),
-            eq("escaping_test::__fuzztest_mod__unescaping_never_panics::unescaping_never_panics")
-        );
-    }
 
     #[googletest::test]
     fn test_format_finding_report_matches_expected_format() {
