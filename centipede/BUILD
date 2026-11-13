@@ -1604,7 +1604,9 @@ cc_test(
     srcs = ["execution_metadata_test.cc"],
     deps = [
         ":execution_metadata",
+        ":runner_request",
         ":shared_memory_blob_sequence",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
         "@googletest//:gtest_main",
     ],
