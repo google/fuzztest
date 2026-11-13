@@ -15,13 +15,27 @@
 // SAFETY:
 // - `FuzzTestSetSanitizerErrorSummaryCallback` is declared with `extern "C"` linkage in
 //   `internal/sanitizer_interface.h` and defined in `internal/sanitizer_interface.cc`.
-// - The signature matches `void FuzzTestSetSanitizerErrorSummaryCallback(void (*)(const char*, size_t))`:
-//   `*const u8` is layout- and ABI-compatible with `const char*`, and `usize` is ABI-compatible
-//   with `size_t`.
+// - The signature matches `void FuzzTestSetSanitizerErrorSummaryCallback(void (*)(const char*,
+//   size_t))`: `*const u8` is layout- and ABI-compatible with `const char*`, and `usize` is
+//   ABI-compatible with `size_t`.
 unsafe extern "C" {
     fn FuzzTestSetSanitizerErrorSummaryCallback(
         callback: unsafe extern "C" fn(crash_type_data: *const u8, crash_type_size: usize),
     );
+}
+
+// SAFETY:
+// - `FuzzTestSetSanitizerDeathCallback` is declared with `extern "C"` linkage in
+//   `internal/sanitizer_interface.h` and defined in `internal/sanitizer_interface.cc`.
+// - The signature matches `void FuzzTestSetSanitizerDeathCallback(void (*)())`.
+unsafe extern "C" {
+    fn FuzzTestSetSanitizerDeathCallback(callback: unsafe extern "C" fn());
+}
+
+/// Sanitizer death callback, invoked by the sanitizer runtime right before it terminates the
+/// process. Prints the counterexample for the input being executed, if any.
+unsafe extern "C" fn sanitizer_death_callback() {
+    crate::worker::try_print_finding_report();
 }
 
 /// Sanitizer error summary callback invoked by the C++ sanitizer interface.
@@ -54,8 +68,8 @@ unsafe extern "C" fn sanitizer_error_summary_callback(
     crate::worker::try_emit_finding(crash_type, crash_type);
 }
 
-/// Registers the sanitizer error summary callback and ensures the sanitizer crash handler hook is
-/// linked into the binary.
+/// Registers the sanitizer error summary and death callbacks and ensures the sanitizer crash
+/// handler hook is linked into the binary.
 pub fn register_crash_handler() {
     // SAFETY:
     // - `sanitizer_error_summary_callback` is an `unsafe extern "C" fn` matching the C callback
@@ -66,5 +80,8 @@ pub fn register_crash_handler() {
     //   using `memory_order_relaxed`, so concurrent registration is data-race free.
     unsafe {
         FuzzTestSetSanitizerErrorSummaryCallback(sanitizer_error_summary_callback);
+        // `FuzzTestSetSanitizerDeathCallback` does nothing in builds without a sanitizer, and
+        // `sanitizer_death_callback` is a function item that is valid for the whole program.
+        FuzzTestSetSanitizerDeathCallback(sanitizer_death_callback);
     }
 }

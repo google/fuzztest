@@ -38,6 +38,16 @@ using FuzzTestSanitizerErrorSummaryCallback =
 void FuzzTestSetSanitizerErrorSummaryCallback(
     FuzzTestSanitizerErrorSummaryCallback callback);
 
+using FuzzTestSanitizerDeathCallback = void (*)();
+
+// Registers `callback` to be invoked by the sanitizer runtime right before it
+// terminates the process (see `__sanitizer_set_death_callback()`), replacing
+// any previously registered death callback.
+//
+// Does nothing if the binary is not built with ASan, MSan, or TSan, so callers
+// do not need to check for a sanitizer build themselves.
+void FuzzTestSetSanitizerDeathCallback(FuzzTestSanitizerDeathCallback callback);
+
 // Formats a crash description into `(out, out_size)`: writes
 // `<prefix><crash_type>` and, only if `signature_size > 0`, the metadata line
 // `\nCRASH_SIGNATURE=<signature>`. The output is truncated to `out_size` bytes
