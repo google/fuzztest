@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use crate::internal::FuzzTestRegistration;
-use ::engine::engine_ffi;
 use anyhow::Context;
 use std::env;
 use std::ffi::CString;
@@ -21,8 +20,8 @@ use std::path::Path;
 use tempfile::{NamedTempFile, TempDir};
 
 pub use fuzztest_options::{
-    ExecutionMode, FuzzOptions, FuzzTestOptions, ReplayCorpusOptions, ReplayCrashOptions,
-    RunDuration, TimeBudgetType, get_fuzztest_options, set_fuzztest_options,
+    get_fuzztest_options, set_fuzztest_options, ExecutionMode, FuzzOptions, FuzzTestOptions,
+    ReplayCorpusOptions, ReplayCrashOptions, RunDuration, TimeBudgetType,
 };
 
 trait ExecutionModeExt {
@@ -94,28 +93,18 @@ pub enum ExecutionAction {
 /// Encapsulates command-line arguments and lifetime holders for Centipede execution.
 #[derive(Debug)]
 pub struct CentipedeArgs {
-    // Holds the owned C-compatible strings. We must keep these alive because the `views`
-    // field contains pointers into the memory owned by these `CString`s.
+    // Holds the arguments as owned C-compatible strings.
     _c_strings: Vec<CString>,
 
     // The (optional) TempDir instance which is to be used as a workdir by centipede.
     // We keep the ownership here so that it is not cleaned while the centipede execution is still
     // in progress.
     _temp_workdir: Option<TempDir>,
-
-    // FFI-compatible views into the arguments in `_c_strings`. These are passed across
-    // the FFI boundary to Centipede.
-    views: Vec<engine_ffi::FuzzTestBytesView>,
 }
 
 impl CentipedeArgs {
     fn new(args: Vec<CString>, temp_workdir: Option<TempDir>) -> Self {
-        let views = args
-            .iter()
-            .map(|arg| engine_ffi::FuzzTestBytesView::from_bytes(arg.as_bytes()))
-            .collect();
-
-        Self { _c_strings: args, _temp_workdir: temp_workdir, views }
+        Self { _c_strings: args, _temp_workdir: temp_workdir }
     }
 
     /// Decides if Centipede needs to be invoked based on the execution mode,
@@ -312,9 +301,11 @@ impl CentipedeArgs {
         env_diff
     }
 
-    /// Exposes the FFI-compatible argument views vector for C++ Centipede binding.
-    pub fn as_bytes_views(&self) -> engine_ffi::FuzzTestBytesViews {
-        engine_ffi::FuzzTestBytesViews { views: self.views.as_ptr(), count: self.views.len() }
+    /// Returns the arguments as byte strings without their NUL terminators, which is how the
+    /// `engine` crate takes them.
+    #[must_use]
+    pub fn to_byte_slices(&self) -> Vec<&[u8]> {
+        self._c_strings.iter().map(|arg| arg.as_bytes()).collect()
     }
 }
 
@@ -464,7 +455,7 @@ mod tests {
             panic!("Expected Standalone action");
         };
 
-        expect_that!(args._c_strings.len(), eq(args.views.len()));
+        expect_that!(args.to_byte_slices().len(), eq(args._c_strings.len()));
 
         let args_str: Vec<&str> =
             args._c_strings.iter().map(|s| s.to_str().expect("invalid utf8")).collect();

@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_rust//rust:defs.bzl", "rust_library")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 
 licenses(["notice"])
 
 rust_library(
     name = "engine",
     srcs = [
+        "src/adapter.rs",
+        "src/diagnostics.rs",
         "src/engine_ffi.rs",
         "src/lib.rs",
+        "src/worker.rs",
     ],
     edition = "2024",
     visibility = ["@com_google_fuzztest//rust:__subpackages__"],
@@ -28,5 +31,15 @@ rust_library(
         "@com_google_fuzztest//centipede:engine_abi",
         "@com_google_fuzztest//centipede:engine_controller_with_subprocess",
         "@com_google_fuzztest//centipede:engine_worker",
+        "@crate_index//:spin",  # v0_10
+    ],
+)
+
+rust_test(
+    name = "engine_test",
+    crate = ":engine",
+    edition = "2024",
+    deps = [
+        "@crate_index//:googletest",
     ],
 )

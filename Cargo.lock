@@ -226,6 +226,10 @@ checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 [[package]]
 name = "engine-ffi"
 version = "0.1.0"
+dependencies = [
+ "googletest",
+ "spin 0.10.1",
+]
 
 [[package]]
 name = "equivalent"
@@ -267,7 +271,6 @@ dependencies = [
  "postcard",
  "rand",
  "serde",
- "spin 0.10.1",
  "tempfile",
  "trybuild",
 ]
