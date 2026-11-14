@@ -24,8 +24,12 @@ use core::marker::PhantomData;
 use core::marker::PhantomPinned;
 use core::ptr;
 
-// Opaque handles for in-memory input objects used by the test, which
-// may be serialized/deserialized by the engine.
+/// Opaque handles for in-memory input objects used by the test, which
+/// may be serialized/deserialized by the engine.
+///
+/// The engine never inspects or fabricates handle values. It only passes back
+/// handles that the adapter emitted through a `FuzzTestInputSink` and that the
+/// engine has not yet passed to `FuzzTestAdapter::FreeInput`.
 #[repr(transparent)]
 pub struct FuzzTestInputHandle(pub usize);
 
@@ -192,12 +196,10 @@ impl FuzzTestUint64sView {
 /// Constants for the layout of the coverage feature as a 64-bit unsigned
 /// integer:
 ///
-///   - Bits 63..59: 5-bit domain ID of the feature. Each domain is a
-///     logically independent feature namespace registered in
-///     `FuzzTestAdapter::SetUpCoverageDomains`.
+///   - Bits 63..59: 5-bit domain ID of the feature. Each domain is a logically independent feature
+///     namespace registered in `FuzzTestAdapter::SetUpCoverageDomains`.
 ///   - Bits 58..32: 27-bit feature ID within the domain.
 ///   - Bits 31..0:  32-bit counter value of the feature.
-///
 pub struct FuzzTestCoverageFeatureLayout;
 
 impl FuzzTestCoverageFeatureLayout {
@@ -276,6 +278,21 @@ pub struct FuzzTestAdapterCtx {
     _not_unpin: PhantomPinned,
 }
 
+/// Test adapter callbacks.
+///
+/// The engine upholds the following when it invokes the callbacks of a
+/// `FuzzTestAdapter` and of its `FuzzTestAdapterManager`:
+///
+///   - Callbacks are invoked sequentially, on the thread that called into the engine with the
+///     manager (e.g. `FuzzTestWorkerMaybeRun`). A callback is never invoked while another one is
+///     running.
+///   - Pointer arguments (sinks, views and registries) are non-null and remain valid until the
+///     callback returns. Calling a method of a sink or registry passed to a callback never invokes
+///     an adapter or manager callback.
+///   - Before `FreeCtx` is called, every input emitted by the adapter has been passed to
+///     `FreeInput` exactly once. An input is not used after that.
+///   - A callback is invoked with the `ctx` of the struct that holds it. Once `FreeCtx` is called,
+///     no callback is invoked with that `ctx` again.
 #[repr(C)]
 pub struct FuzzTestAdapter {
     pub ctx: *mut FuzzTestAdapterCtx,
@@ -314,7 +331,7 @@ pub struct FuzzTestAdapter {
     >,
 
     /// [Optional] Performs cross-over mutation using `origin` and `other`, and
-    /// emits the mutant using `sink`.
+    /// emits the mutant using `sink`. `origin` and `other` may be the same input.
     ///
     /// It should not change the content/metadata of `origin` or `other`.
     pub cross_over: Option<
@@ -438,6 +455,9 @@ pub enum FuzzTestControllerStatus {
 #[allow(improper_ctypes)]
 unsafe extern "C" {
     /// Try to run as a FuzzTest worker with `manager` if needed.
+    ///
+    /// `manager` and its context are only used during the call: the engine does not
+    /// retain them after this function returns.
     pub fn FuzzTestWorkerMaybeRun(manager: *const FuzzTestAdapterManager) -> FuzzTestWorkerStatus;
 
     /// Returns whether the current process is running as a FuzzTest worker -
@@ -445,6 +465,9 @@ unsafe extern "C" {
     pub fn FuzzTestWorkerIsRequired() -> c_int;
 
     /// Run the FuzzTest controller with `flags` and `manager`.
+    ///
+    /// `manager` and `flags` are only used during the call: the engine does not
+    /// retain them after this function returns.
     pub fn FuzzTestControllerRun(
         manager: *const FuzzTestAdapterManager,
         flags: *const FuzzTestBytesViews,
