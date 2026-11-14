@@ -13,9 +13,9 @@
 // limitations under the License.
 
 // The source of truth for the FFI definitions in this file are these C++ header files:
-// - engine_abi.h
-// - engine_worker_abi.h
-// - engine_controller_abi.h
+// - rust_cpp_common/engine/engine_abi.h
+// - rust_cpp_common/engine/engine_worker_abi.h
+// - rust_cpp_common/engine/engine_controller_abi.h
 // TODO(b/540347807): use crubit
 
 use core::ffi::c_int;

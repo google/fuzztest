@@ -22,10 +22,10 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_join.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
+#include "./rust_cpp_common/execution_metadata.h"
 
 namespace fuzztest::internal {
 

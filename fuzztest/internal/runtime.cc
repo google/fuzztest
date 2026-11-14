@@ -84,9 +84,9 @@
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
-#include "./fuzztest/internal/sanitizer_interface.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
+#include "./rust_cpp_common/runtime/sanitizer_interface.h"
 
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
     defined(THREAD_SANITIZER)

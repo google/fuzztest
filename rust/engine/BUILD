@@ -25,8 +25,8 @@ rust_library(
     edition = "2024",
     visibility = ["@com_google_fuzztest//rust:__subpackages__"],
     deps = [
-        "@com_google_fuzztest//centipede:engine_abi",
-        "@com_google_fuzztest//centipede:engine_controller_with_subprocess",
-        "@com_google_fuzztest//centipede:engine_worker",
+        "@com_google_fuzztest//rust_cpp_common/engine:engine_abi",
+        "@com_google_fuzztest//rust_cpp_common/engine:engine_controller_with_subprocess",
+        "@com_google_fuzztest//rust_cpp_common/engine:engine_worker",
     ],
 )

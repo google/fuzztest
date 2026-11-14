@@ -21,11 +21,11 @@
 #include <vector>
 
 #include "absl/types/span.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/knobs.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
+#include "./rust_cpp_common/execution_metadata.h"
 
 namespace fuzztest::internal {
 

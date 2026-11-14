@@ -23,11 +23,11 @@
 #include <cstdint>
 
 #include "./centipede/byte_array_mutator.h"
-#include "./centipede/engine_abi.h"
 #include "./centipede/knobs.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
-#include "./centipede/runner_utils.h"
+#include "./rust_cpp_common/engine/engine_abi.h"
+#include "./rust_cpp_common/runner_utils.h"
 
 namespace fuzztest::internal {
 

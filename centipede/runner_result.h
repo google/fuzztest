@@ -23,11 +23,11 @@
 #include <utility>
 #include <vector>
 
-#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/mutation_data.h"
-#include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
+#include "./rust_cpp_common/execution_metadata.h"
+#include "./rust_cpp_common/shared_memory_blob_sequence.h"
 
 namespace fuzztest::internal {
 

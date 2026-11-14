@@ -44,7 +44,7 @@
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
-#include "./fuzztest/internal/symbol_name_utils.h"
+#include "./rust_cpp_common/runtime/symbol_name_utils.h"
 
 namespace google::protobuf {
 class EnumDescriptor;

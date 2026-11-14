@@ -22,8 +22,8 @@
 #include <cstddef>
 #include <vector>
 
-#include "./centipede/execution_metadata.h"
 #include "./common/defs.h"
+#include "./rust_cpp_common/execution_metadata.h"
 
 namespace fuzztest::internal {
 

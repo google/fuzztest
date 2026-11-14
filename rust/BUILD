@@ -31,11 +31,11 @@ rust_library(
         "@com_google_fuzztest//rust:__subpackages__",
     ],
     deps = [
-        "@com_google_fuzztest//fuzztest/internal:sanitizer_interface",
         "@com_google_fuzztest//rust/coverage",
         "@com_google_fuzztest//rust/engine",
         "@com_google_fuzztest//rust/options:fuzztest_options",
         "@com_google_fuzztest//rust/registry:fuzztest_registry",
+        "@com_google_fuzztest//rust_cpp_common/runtime:sanitizer_interface",
         "@crate_index//:anyhow",  # v1
         "@crate_index//:humantime",  # v2
         "@crate_index//:inventory",  # v0_3

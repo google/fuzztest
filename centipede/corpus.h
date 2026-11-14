@@ -26,12 +26,12 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "./centipede/binary_info.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/util.h"
 #include "./common/defs.h"
+#include "./rust_cpp_common/execution_metadata.h"
 
 namespace fuzztest::internal {
 

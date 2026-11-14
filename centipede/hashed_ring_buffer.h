@@ -38,7 +38,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "./centipede/rolling_hash.h"
+#include "./rust_cpp_common/runtime/rolling_hash.h"
 
 namespace fuzztest::internal {
 
