@@ -186,7 +186,8 @@ void DumpCoverageReport(const CoverageResults &coverage_results,
 
   fuzztest::internal::SymbolTable coverage_symbol_table;
   for (const PCIndex pc : coverage_results.pcs) {
-    FUZZTEST_CHECK_LE(pc, symbols.size());
+    // PC indices come from feature files and may be outside of the tables.
+    if (pc >= pc_table.size() || pc >= symbols.size()) continue;
     if (!pc_table[pc].has_flag(fuzztest::internal::PCInfo::kFuncEntry))
       continue;
     const SymbolTable::Entry entry = symbols.entry(pc);
@@ -243,6 +244,7 @@ void AnalyzeCorporaToLog(std::string_view binary_name,
   FUZZTEST_LOG(INFO) << "B-only new functions:";
   absl::flat_hash_set<std::string_view> b_only_new_functions;
   for (const auto pc : results.b_only_pcs) {
+    if (pc >= pc_table.size() || pc >= symbols.size()) continue;
     if (!pc_table[pc].has_flag(PCInfo::kFuncEntry)) continue;
     auto str = coverage_logger.ObserveAndDescribeIfNew(pc);
     if (!str.empty()) FUZZTEST_LOG(INFO).NoPrefix() << str;
@@ -252,7 +254,8 @@ void AnalyzeCorporaToLog(std::string_view binary_name,
   // Now, print newly covered edges in functions that were covered in `a`.
   FUZZTEST_LOG(INFO) << "B-only new edges:";
   for (const auto pc : results.b_only_pcs) {
-    if (b_only_new_functions.contains(symbols.func(pc))) continue;
+    if (pc < symbols.size() && b_only_new_functions.contains(symbols.func(pc)))
+      continue;
     auto str = coverage_logger.ObserveAndDescribeIfNew(pc);
     if (!str.empty()) FUZZTEST_LOG(INFO).NoPrefix() << str;
   }

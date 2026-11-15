@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "./centipede/binary_info.h"
 #include "./centipede/environment.h"
+#include "./centipede/pc_info.h"
 #include "./centipede/symbol_table.h"
 #include "./centipede/test_coverage_util.h"
 #include "./common/logging.h"
@@ -118,6 +119,29 @@ TEST(DumpCoverageReport, SimpleCoverageResults) {
   EXPECT_THAT(functions,
               AllOf(IsSupersetOf({"LLVMFuzzerTestOneInput", "SingleEdgeFunc"}),
                     Not(Contains("MultiEdgeFunc"))));
+}
+
+TEST(DumpCoverageReport, SkipsPcIndicesOutsideOfPcTable) {
+  CoverageResults coverage_results;
+  coverage_results.binary_info.pc_table = {{0x10, PCInfo::kFuncEntry},
+                                           {0x20, 0}};
+  coverage_results.binary_info.symbols.AddEntry("Func", "file.cc:1:1");
+  coverage_results.binary_info.symbols.AddEntry("Func", "file.cc:2:1");
+  // PC indices come from feature files and may be outside of the PC table.
+  coverage_results.pcs = {0, 2, 1000};
+
+  const std::string coverage_report_path =
+      std::filesystem::path{GetTestTempDir(test_info_->name())} /
+      "covered_symbol_table";
+  DumpCoverageReport(coverage_results, coverage_report_path);
+  std::string symbol_table_contents;
+  ASSERT_OK(RemoteFileGetContents(coverage_report_path, symbol_table_contents));
+
+  std::istringstream symbol_table_stream(symbol_table_contents);
+  SymbolTable symbols;
+  symbols.ReadFromLLVMSymbolizer(symbol_table_stream);
+  ASSERT_EQ(symbols.size(), 1);
+  EXPECT_EQ(symbols.func(0), "Func");
 }
 
 }  // namespace
