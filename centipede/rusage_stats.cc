@@ -14,14 +14,22 @@
 
 #include "./centipede/rusage_stats.h"
 
+#ifdef _WIN32
+#include "./common/windows_includes.h"
+#else  // _WIN32
+
+#include <sys/resource.h>
 #ifdef __APPLE__
 #include <libproc.h>
 #include <sys/proc.h>
 #include <sys/sysctl.h>
-#endif  // __APPLE__
+#else  // __APPLE__
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif  // __APPLE__
+
+#endif  // _WIN32
 
 #include <array>
 #include <cinttypes>
@@ -47,41 +55,84 @@
 
 namespace fuzztest::internal {
 
+namespace {
+
+void GetTimeUsage(double& user, double& sys) {
+#ifdef _WIN32
+  FILETIME creation_time, exit_time, kernel_time, user_time;
+  FUZZTEST_CHECK(GetProcessTimes(GetCurrentProcess(), &creation_time,
+                                 &exit_time, &kernel_time, &user_time) != 0)
+      << "Failed to get time usage by GetProcessTimes()";
+  uint64_t user_100ns =
+      (static_cast<uint64_t>(user_time.dwHighDateTime) << 32) |
+      user_time.dwLowDateTime;
+  uint64_t sys_100ns =
+      (static_cast<uint64_t>(kernel_time.dwHighDateTime) << 32) |
+      kernel_time.dwLowDateTime;
+  static constexpr double kSecondTo100ns = 1000 * 1000 * 10;
+  user = user_100ns / kSecondTo100ns;
+  sys = sys_100ns / kSecondTo100ns;
+#else
+  struct rusage rusage;
+  FUZZTEST_CHECK(getrusage(RUSAGE_SELF, &rusage) == 0)
+      << "Failed to get time usage by getrusage()";
+  user = absl::ToDoubleSeconds(absl::DurationFromTimeval(rusage.ru_utime));
+  sys = absl::ToDoubleSeconds(absl::DurationFromTimeval(rusage.ru_stime));
+#endif
+}
+
+}  // namespace
+
 //------------------------------------------------------------------------------
 //                               ProcessTimer
 //------------------------------------------------------------------------------
 
-ProcessTimer::ProcessTimer() : start_time_{absl::Now()}, start_rusage_{} {
-  getrusage(RUSAGE_SELF, &start_rusage_);
+ProcessTimer::ProcessTimer()
+    : start_time_{absl::Now()}, usage_user_{0}, usage_sys_{0} {
+  GetTimeUsage(usage_user_, usage_sys_);
 }
 
 void ProcessTimer::Get(double& user, double& sys, double& wall) const {
-  struct rusage curr_rusage = {};
-  getrusage(RUSAGE_SELF, &curr_rusage);
-  // clang-format off
-  user = absl::ToDoubleSeconds(
-      absl::DurationFromTimeval(curr_rusage.ru_utime) -
-      absl::DurationFromTimeval(start_rusage_.ru_utime));
-  sys = absl::ToDoubleSeconds(
-      absl::DurationFromTimeval(curr_rusage.ru_stime) -
-      absl::DurationFromTimeval(start_rusage_.ru_stime));
+  double cur_usage_user = 0;
+  double cur_usage_sys = 0;
+  GetTimeUsage(cur_usage_user, cur_usage_sys);
+  user = cur_usage_user - usage_user_;
+  sys = cur_usage_sys - usage_sys_;
   wall = absl::ToDoubleSeconds(absl::Now() - start_time_);
-  // clang-format on
 }
 
 //------------------------------------------------------------------------------
 //                               RUsageScope
 //------------------------------------------------------------------------------
 
-#ifdef __APPLE__
+#if defined(_WIN32)
 class RUsageScope::PlatformInfo {
  public:
-  PlatformInfo(pid_t pid) : pid_(pid) {}
-
-  pid_t pid() const { return pid_; }
+  enum ProcFile : size_t {
+    kSched = 0,
+    kStatm = 1,
+    kStatus = 2,
+    kNumDoNotUseDirectly = 3
+  };
+  PlatformInfo(ProcessId pid) : pid_(pid) {}
+  ProcessId pid() const { return pid_; }
+  const std::string& GetProcFilePath(ProcFile file) const {
+    static const std::string empty;
+    return empty;
+  }
 
  private:
-  pid_t pid_;
+  ProcessId pid_;
+};
+#elif defined(__APPLE__)
+class RUsageScope::PlatformInfo {
+ public:
+  PlatformInfo(ProcessId pid) : pid_(pid) {}
+
+  ProcessId pid() const { return pid_; }
+
+ private:
+  ProcessId pid_;
 };
 #else
 class RUsageScope::PlatformInfo {
@@ -93,7 +144,7 @@ class RUsageScope::PlatformInfo {
     kNumDoNotUseDirectly = 3
   };
 
-  PlatformInfo(pid_t pid)
+  PlatformInfo(ProcessId pid)
       : proc_file_paths_{
             absl::StrFormat("/proc/%d/sched", pid),
             absl::StrFormat("/proc/%d/statm", pid),
@@ -112,15 +163,19 @@ class RUsageScope::PlatformInfo {
 #endif
 
 RUsageScope RUsageScope::ThisProcess() {  //
+#if defined(_WIN32)
+  return RUsageScope{GetCurrentProcessId()};
+#else
   return RUsageScope{getpid()};
+#endif
 }
 
-RUsageScope RUsageScope::Process(pid_t pid) {  //
+RUsageScope RUsageScope::Process(ProcessId pid) {  //
   return RUsageScope{pid};
 }
 
-RUsageScope::RUsageScope(pid_t pid)
-    : description_{absl::StrFormat("PID=%d", pid)},
+RUsageScope::RUsageScope(ProcessId pid)
+    : description_{absl::StrCat("PID=", pid)},
       info_(std::make_shared<PlatformInfo>(pid)) {}
 
 namespace detail {
@@ -362,7 +417,9 @@ RUsageTiming RUsageTiming::Snapshot(  //
   // TODO(b/265480321): This does not honor `scope`.
   timer.Get(user_time, sys_time, wall_time);
   double cpu_utilization = 0;
-#ifdef __APPLE__
+#if defined(_WIN32)
+  // Not supported on Windows
+#elif defined(__APPLE__)
   int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, scope.info().pid()};
   struct kinfo_proc info = {};
   size_t size = sizeof(info);
@@ -517,7 +574,30 @@ RUsageMemory RUsageMemory::Max() {
 RUsageMemory RUsageMemory::Snapshot(const RUsageScope& scope) {
   [[maybe_unused]] MemSize vsize = 0, rss = 0, shared = 0, code = 0, unused = 0,
                            data = 0, vpeak = 0;
-#ifdef __APPLE__
+#if defined(_WIN32)
+  HANDLE h_process = NULL;
+  if (scope.info().pid() == static_cast<ProcessId>(GetCurrentProcessId())) {
+    h_process = GetCurrentProcess();
+  } else {
+    h_process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE,
+                            scope.info().pid());
+  }
+  if (h_process != NULL) {
+    PROCESS_MEMORY_COUNTERS_EX pmc;
+    if (GetProcessMemoryInfo(h_process,
+                             reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc),
+                             sizeof(pmc))) {
+      // Getting proper v{size,peak} is too hard. Use rss for now.
+      vsize = static_cast<MemSize>(pmc.WorkingSetSize);
+      vpeak = static_cast<MemSize>(pmc.PeakWorkingSetSize);
+      rss = static_cast<MemSize>(pmc.WorkingSetSize);
+      data = static_cast<MemSize>(pmc.PrivateUsage);
+    }
+    if (h_process != GetCurrentProcess()) {
+      CloseHandle(h_process);
+    }
+  }
+#elif defined(__APPLE__)
   if (scope.info().pid() != getpid()) return {};
   struct proc_taskinfo pti = {};
   FUZZTEST_CHECK(proc_pidinfo(scope.info().pid(), PROC_PIDTASKINFO, 0, &pti,

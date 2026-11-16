@@ -175,12 +175,14 @@ TEST(Coverage, CoverageLogger) {
 
 // Returns path to test_fuzz_target.
 static std::string GetTargetPath() {
-  return GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
+  return GetDataDependencyFilepath("centipede/testing/test_fuzz_target")
+      .string();
 }
 
 // Returns path to threaded_fuzz_target.
 static std::string GetThreadedTargetPath() {
-  return GetDataDependencyFilepath("centipede/testing/threaded_fuzz_target");
+  return GetDataDependencyFilepath("centipede/testing/threaded_fuzz_target")
+      .string();
 }
 
 // Tests coverage collection on test_fuzz_target

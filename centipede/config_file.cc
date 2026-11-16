@@ -162,7 +162,7 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
   if (!path.empty() && !std::filesystem::exists(path)) {  // assume remote
     // Read the remote file.
     std::string contents;
-    FUZZTEST_CHECK_OK(RemoteFileGetContents(path.c_str(), contents));
+    FUZZTEST_CHECK_OK(RemoteFileGetContents(path.string(), contents));
 
     // Save a temporary local copy.
     const std::filesystem::path tmp_dir = TemporaryLocalDirPath();
@@ -170,11 +170,11 @@ AugmentedArgvWithCleanup LocalizeConfigFilesInArgv(
     FUZZTEST_LOG(INFO) << "Localizing remote config: " << VV(path)
                        << VV(local_path);
     // NOTE: Ignore "Remote" in the API names here: the paths are always local.
-    FUZZTEST_CHECK_OK(RemoteMkdir(tmp_dir.c_str()));
-    FUZZTEST_CHECK_OK(RemoteFileSetContents(local_path.c_str(), contents));
+    FUZZTEST_CHECK_OK(RemoteMkdir(tmp_dir.string()));
+    FUZZTEST_CHECK_OK(RemoteFileSetContents(local_path.string(), contents));
 
     // Augment the argv to point at the local copy and ensure it is cleaned up.
-    replacements.emplace_back(path.c_str(), local_path.c_str());
+    replacements.emplace_back(path.string(), local_path.string());
     cleanup = [local_path]() { std::filesystem::remove(local_path); };
   }
 
@@ -245,7 +245,7 @@ $2 "$${flags[@]}"
     } else {
       file_contents = flags_str;
     }
-    FUZZTEST_CHECK_OK(RemoteFileSetContents(path.c_str(), file_contents));
+    FUZZTEST_CHECK_OK(RemoteFileSetContents(path.string(), file_contents));
   }
 
   return path;

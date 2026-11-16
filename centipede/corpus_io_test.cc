@@ -51,7 +51,7 @@ std::vector<ByteArray> ReadInputsFromFiles(std::string_view dir) {
   std::vector<ByteArray> inputs;
   for (const auto& file : std::filesystem::directory_iterator(dir)) {
     ByteArray input;
-    ReadFromLocalFile(file.path().c_str(), input);
+    ReadFromLocalFile(file.path().string(), input);
     inputs.push_back(std::move(input));
   }
   return inputs;
@@ -110,16 +110,16 @@ TEST(ExportCorpusTest, ExportsCorpusToIndividualFiles) {
   const std::filesystem::path temp_dir = GetTestTempDir(test_info_->name());
   const std::filesystem::path out_dir = temp_dir / "out_dir";
   FUZZTEST_CHECK(std::filesystem::create_directory(out_dir));
-  const WorkDir workdir{temp_dir.c_str(), "fake_binary_name",
+  const WorkDir workdir{temp_dir.string(), "fake_binary_name",
                         "fake_binary_hash", /*my_shard_index=*/0};
   const auto corpus_file_paths = workdir.CorpusFilePaths();
   WriteBlobsToFile(corpus_file_paths.Shard(0), {ByteArray{1, 2}, ByteArray{3}});
   WriteBlobsToFile(corpus_file_paths.Shard(1), {ByteArray{4}, ByteArray{5, 6}});
 
   ExportCorpus({corpus_file_paths.Shard(0), corpus_file_paths.Shard(1)},
-               out_dir.c_str());
+               out_dir.string());
 
-  EXPECT_THAT(ReadInputsFromFiles(out_dir.c_str()),
+  EXPECT_THAT(ReadInputsFromFiles(out_dir.string()),
               UnorderedElementsAre(ByteArray{1, 2}, ByteArray{3}, ByteArray{4},
                                    ByteArray{5, 6}));
 }

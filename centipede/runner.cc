@@ -689,10 +689,10 @@ void GlobalRunnerState::OnTermination() {
   if (!state->centipede_runner_main_executed &&
       state->run_time_flags.shmem_size_mb != 0) {
     PostProcessSancov();  // TODO(xinhaoyuan): do we know our exit status?
-    SharedMemoryBlobSequence outputs_blobseq(
+    auto outputs_blobseq = OpenSharedMemoryBlobSequence(
         sancov_state->arg2, state->run_time_flags.shmem_size_mb << 20);
-    StartSendingOutputsToEngine(outputs_blobseq);
-    FinishSendingOutputsToEngine(outputs_blobseq);
+    StartSendingOutputsToEngine(*outputs_blobseq);
+    FinishSendingOutputsToEngine(*outputs_blobseq);
   }
   {
     LockGuard lock(state->execution_result_override_mu);
@@ -745,10 +745,10 @@ void NotifyControllerAndExitIfNoCustomMutator(RunnerCallbacks& callbacks) {
     // needed by the LLVM fuzzer runners (used by some engine tests). We
     // cannot remove it until the LLVM fuzzers can be migrated to use
     // the FuzzTest LLVM fuzzer wrapper.
-    SharedMemoryBlobSequence outputs_blobseq(
+    auto outputs_blobseq = OpenSharedMemoryBlobSequence(
         sancov_state->arg2,
         sancov_state->flag_helper.GetIntFlag("shmem_size_mb=", 0) << 20);
-    RunnerCheck(MutationResult::WriteHasCustomMutator(false, outputs_blobseq),
+    RunnerCheck(MutationResult::WriteHasCustomMutator(false, *outputs_blobseq),
                 "Failed to write the indicator for no custom mutator");
     std::_Exit(0);
   }
