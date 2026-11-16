@@ -241,4 +241,49 @@ TEST(Environment, PreservesReplayAttemptsWhenExplicitlySet) {
   EXPECT_EQ(env.replay_crash_attempts, 10);
 }
 
+TEST(Environment, UpdatesDiffModeAndRecordExitOnCrashFromTargetConfig) {
+  Environment env;
+  env.exit_on_crash = true;
+  fuzztest::internal::Configuration config;
+  config.only_replay = true;
+  config.diff_mode = DiffMode::kRecord;
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.fuzztest_diff_mode, "record");
+  EXPECT_FALSE(env.exit_on_crash);
+}
+
+TEST(Environment, PreservesExplicitFuzzTestDiffModeWhenTargetConfigIsNone) {
+  Environment env;
+  env.exit_on_crash = true;
+  env.fuzztest_diff_mode = "record";
+  fuzztest::internal::Configuration config;
+  config.only_replay = true;
+  config.diff_mode = DiffMode::kNone;
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.fuzztest_diff_mode, "record");
+  EXPECT_FALSE(env.exit_on_crash);
+}
+
+TEST(Environment, PreservesExitOnCrashWhenOnlyReplayIsFalse) {
+  Environment env;
+  env.exit_on_crash = true;
+  fuzztest::internal::Configuration config;
+  config.only_replay = false;
+  config.diff_mode = DiffMode::kRecord;
+  env.UpdateWithTargetConfig(config);
+  EXPECT_EQ(env.fuzztest_diff_mode, "record");
+  EXPECT_TRUE(env.exit_on_crash);
+}
+
+TEST(Environment, DiesOnInconsistentFuzzTestDiffModeAndTargetConfigDiffMode) {
+  Environment env;
+  env.fuzztest_diff_mode = "validate";
+  fuzztest::internal::Configuration config;
+  config.diff_mode = DiffMode::kRecord;
+  EXPECT_DEATH(
+      env.UpdateWithTargetConfig(config),
+      "Value for --fuzztest_diff_mode is inconsistent with the value for "
+      "diff_mode in the target binary");
+}
+
 }  // namespace fuzztest::internal

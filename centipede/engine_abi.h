@@ -200,6 +200,9 @@ typedef struct FuzzTestAdapter {
                                  const FuzzTestBytesSink* sink);
 
   // [Optional] Updates the test `input` metadata from serialized `metadata`.
+  // Called for mutation origins before `Mutate`/`CrossOver`, and for inputs of
+  // execution requests that carry metadata (e.g. the expected values of the
+  // incremental differential fuzzing validate mode) before `Execute`.
   void (*UpdateInputMetadata)(FuzzTestAdapterCtx* ctx,
                               const FuzzTestBytesView* metadata,
                               FuzzTestInputHandle input);
