@@ -55,20 +55,25 @@ static constexpr absl::string_view kUnspecified = "<unspecified>";
 
 FUZZTEST_DEFINE_FLAG(
     std::string, fuzz, std::string(kUnspecified),
-    "Runs a single FUZZ_TEST in continuous fuzzing mode. E.g., "
-    "`--" FUZZTEST_FLAG_PREFIX
+    "Runs a single FUZZ_TEST, or all FUZZ_TESTs when set to `*`, in continuous "
+    "fuzzing mode. E.g., `--" FUZZTEST_FLAG_PREFIX
     "fuzz=MySuite.MyFuzzTest` runs the given FUZZ_TEST in fuzzing mode. You "
     "can also provide just a part of the name, e.g., "
     "`--" FUZZTEST_FLAG_PREFIX
     "fuzz=MyFuzz`, if it matches only a single FUZZ_TEST. If you have only one "
     "fuzz test in your binary, you can also use `--" FUZZTEST_FLAG_PREFIX
     "fuzz=` to run it in fuzzing mode (i.e., by setting the flag to empty "
-    "string). In fuzzing mode the selected test runs until a bug is found or "
-    "until manually stopped. Fuzzing mode uses coverage feedback to "
-    "iteratively build up a corpus of inputs that maximize coverage and to "
-    "reach deep bugs. Note that the binary must be compiled with "
-    "`--config=fuzztest` for this to work, as it needs coverage "
-    "instrumentation.");
+    "string). Setting `--" FUZZTEST_FLAG_PREFIX
+    "fuzz=*` runs all FUZZ_TESTs in the binary (or those matching "
+    "`--" GTEST_FLAG_PREFIX_
+    "filter`). Can be combined with "
+    "`--" FUZZTEST_FLAG_PREFIX
+    "for=<duration>` to bound the fuzzing time; otherwise the selected "
+    "FUZZ_TEST(s) run until a bug is found or until manually stopped. Fuzzing "
+    "mode uses coverage feedback to iteratively build up a corpus of inputs "
+    "that maximize coverage and to reach deep bugs. Note that the binary must "
+    "be compiled with `--config=fuzztest` for this to work, as it needs "
+    "coverage instrumentation.");
 
 FUZZTEST_DEFINE_FLAG(
     absl::Duration, fuzz_for, absl::InfiniteDuration(),
@@ -105,8 +110,8 @@ FUZZTEST_DEFINE_FLAG(bool, reproduce_findings_as_separate_tests, false,
 
 FUZZTEST_DEFINE_FLAG(
     std::string, replay_corpus, std::string(kUnspecified),
-    "Runs a single FUZZ_TEST in corpus replay mode. E.g., "
-    "`--" FUZZTEST_FLAG_PREFIX
+    "Runs a single FUZZ_TEST, or all FUZZ_TESTs when set to `*`, in corpus "
+    "replay mode. E.g., `--" FUZZTEST_FLAG_PREFIX
     "replay_corpus=MySuite.MyFuzzTest` replays the corpus from the corpus "
     "database for the given FUZZ_TEST. You can also provide just a part of the "
     "name, e.g., `--" FUZZTEST_FLAG_PREFIX
@@ -114,19 +119,24 @@ FUZZTEST_DEFINE_FLAG(
     "only one fuzz test in your binary, you can also use "
     "`--" FUZZTEST_FLAG_PREFIX
     "replay_corpus=` to run it in the corpus replay mode (i.e., by setting the "
-    "flag to empty string). In corpus replay mode the selected test replays "
-    "the inputs that exercise unique coverage (corpus) from the corpus "
-    "database. Note that this does not include crashing inputs (counterexample "
-    "findings). Replaying coverage (non-crashing) inputs is useful for "
-    "measuring the coverage of the corpus built up during previously ran "
-    "fuzzing sessions, or to catch newly introduced regressions at presubmit "
-    "time in CI.");
+    "flag to empty string). Setting `--" FUZZTEST_FLAG_PREFIX
+    "replay_corpus=*` replays all FUZZ_TESTs in the binary (or those matching "
+    "`--" GTEST_FLAG_PREFIX_
+    "filter`). Can be combined with "
+    "`--" FUZZTEST_FLAG_PREFIX
+    "for=<duration>` to bound the replay time; otherwise the entire corpus is "
+    "replayed. In corpus replay mode the selected test replays the inputs that "
+    "exercise unique coverage (corpus) from the corpus database. Note that "
+    "this does not include crashing inputs (counterexample findings). "
+    "Replaying coverage (non-crashing) inputs is useful for measuring the "
+    "coverage of the corpus built up during previously ran fuzzing sessions, "
+    "or to catch newly introduced regressions at presubmit time in CI.");
 
 FUZZTEST_DEFINE_FLAG(
     absl::Duration, replay_corpus_for, absl::ZeroDuration(),
     "Runs all fuzz tests in corpus replay mode up to the specified duration. "
     "Can be combined with --" FUZZTEST_FLAG_PREFIX
-    "fuzz to select a single fuzz test, or with --" GTEST_FLAG_PREFIX_
+    "replay_corpus to select a single fuzz test, or with --" GTEST_FLAG_PREFIX_
     "filter to select a subset of fuzz tests. To replay the entire corpus for "
     "each FUZZ_TEST in the binary, set this flag to `inf` (infinite time "
     "budget). It's recommended to run the tests in the binary in parallel "
@@ -136,13 +146,22 @@ FUZZTEST_DEFINE_FLAG(
     "value of --" FUZZTEST_FLAG_PREFIX "time_budget_type.");
 
 FUZZTEST_DEFINE_FLAG(
+    std::optional<absl::Duration>, for, std::nullopt,
+    "The maximum duration for `--" FUZZTEST_FLAG_PREFIX "fuzz` or `--"
+    FUZZTEST_FLAG_PREFIX
+    "replay_corpus`. Defaults to `inf` (infinite time budget) when omitted. "
+    "Whether the time budget applies per FUZZ_TEST or across all running "
+    "FUZZ_TESTs is controlled by `--" FUZZTEST_FLAG_PREFIX
+    "time_budget_type`.");
+
+FUZZTEST_DEFINE_FLAG(
     fuzztest::internal::TimeBudgetType, time_budget_type,
     fuzztest::internal::TimeBudgetType::kPerTest,
     "Determines whether the time budget specified by --" FUZZTEST_FLAG_PREFIX
-    "fuzz_for or --" FUZZTEST_FLAG_PREFIX
-    "replay_corpus_for is for each FUZZ_TEST or for all 'N' running FUZZ_TESTs "
-    ". In the latter case, each FUZZ_TEST will run for at most (1/N)th of the "
-    "time budget.");
+    "for, --" FUZZTEST_FLAG_PREFIX "fuzz_for, or --" FUZZTEST_FLAG_PREFIX
+    "replay_corpus_for is for each FUZZ_TEST or for all 'N' running "
+    "FUZZ_TESTs. In the latter case, each FUZZ_TEST will run for at most "
+    "(1/N)th of the time budget.");
 
 FUZZTEST_DEFINE_FLAG(
     std::optional<bool>, update_corpus_database, std::nullopt,
@@ -241,7 +260,8 @@ FUZZTEST_DEFINE_FLAG(
     absl::InfiniteDuration(),
     "Internal-only flag - do not use directly. If --" FUZZTEST_FLAG_PREFIX
     "internal_override_fuzz_test is set, override the time limit set by "
-    "--" FUZZTEST_FLAG_PREFIX "fuzz_for / --" FUZZTEST_FLAG_PREFIX
+    "--" FUZZTEST_FLAG_PREFIX "for / --" FUZZTEST_FLAG_PREFIX
+    "fuzz_for / --" FUZZTEST_FLAG_PREFIX
     "replay_corpus_for with --time_budget_type set to total.")
     .OnUpdate([] {
       FUZZTEST_PRECONDITION(
@@ -316,36 +336,74 @@ std::string GetMatchingFuzzTestOrExit(std::string_view name) {
 namespace {
 
 std::optional<absl::Duration> GetFuzzingTime() {
+  const bool has_fuzz_target =
+      absl::GetFlag(FUZZTEST_FLAG(fuzz)) != kUnspecified;
+  if (const std::optional<absl::Duration> for_duration =
+          absl::GetFlag(FUZZTEST_FLAG(for));
+      for_duration.has_value()) {
+    return has_fuzz_target ? for_duration : std::nullopt;
+  }
   absl::Duration fuzz_time_limit = absl::GetFlag(FUZZTEST_FLAG(fuzz_for));
   if (fuzz_time_limit <= absl::ZeroDuration()) {
     fuzz_time_limit = absl::InfiniteDuration();
   }
-  if (absl::GetFlag(FUZZTEST_FLAG(fuzz)) == kUnspecified &&
-      fuzz_time_limit == absl::InfiniteDuration()) {
+  if (!has_fuzz_target && fuzz_time_limit == absl::InfiniteDuration()) {
     return std::nullopt;
   }
   return fuzz_time_limit;
 }
 
 std::optional<absl::Duration> GetReplayCorpusTime() {
-  absl::Duration replay_corpus_time_limit =
-      absl::GetFlag(FUZZTEST_FLAG(replay_corpus_for));
-  if (absl::GetFlag(FUZZTEST_FLAG(replay_corpus)) == kUnspecified &&
-      replay_corpus_time_limit <= absl::ZeroDuration()) {
-    return std::nullopt;
+  const bool has_replay_target =
+      absl::GetFlag(FUZZTEST_FLAG(replay_corpus)) != kUnspecified;
+  if (const std::optional<absl::Duration> for_duration =
+          absl::GetFlag(FUZZTEST_FLAG(for));
+      for_duration.has_value()) {
+    return has_replay_target ? for_duration : std::nullopt;
   }
-  if (absl::GetFlag(FUZZTEST_FLAG(replay_corpus)) != kUnspecified &&
-      replay_corpus_time_limit <= absl::ZeroDuration()) {
-    replay_corpus_time_limit = absl::InfiniteDuration();
+  const absl::Duration replay_corpus_time_limit =
+      absl::GetFlag(FUZZTEST_FLAG(replay_corpus_for));
+  if (replay_corpus_time_limit <= absl::ZeroDuration()) {
+    return has_replay_target
+               ? std::optional<absl::Duration>(absl::InfiniteDuration())
+               : std::nullopt;
   }
   return replay_corpus_time_limit;
 }
 
-bool GetDefaultUpdateCorpusDatabase() {
-  const std::string test_to_fuzz = absl::GetFlag(FUZZTEST_FLAG(fuzz));
-  const bool is_fuzzing =
-      test_to_fuzz != kUnspecified || GetFuzzingTime().has_value();
-  return is_fuzzing && !GetReplayCorpusTime().has_value();
+void ValidateModeAndDurationFlags() {
+  const bool has_fuzz_target =
+      absl::GetFlag(FUZZTEST_FLAG(fuzz)) != kUnspecified;
+  const bool has_replay_target =
+      absl::GetFlag(FUZZTEST_FLAG(replay_corpus)) != kUnspecified;
+  if (const std::optional<absl::Duration> for_duration =
+          absl::GetFlag(FUZZTEST_FLAG(for));
+      for_duration.has_value()) {
+    FUZZTEST_CHECK(has_fuzz_target || has_replay_target)
+        << "--" FUZZTEST_FLAG_PREFIX "for requires one of --"
+        << FUZZTEST_FLAG_PREFIX "fuzz or --" FUZZTEST_FLAG_PREFIX
+        << "replay_corpus.";
+    FUZZTEST_CHECK(*for_duration > absl::ZeroDuration())
+        << "--" FUZZTEST_FLAG_PREFIX "for must be positive (got "
+        << absl::FormatDuration(*for_duration) << ").";
+    const bool legacy_fuzz_for_specified =
+        FUZZTEST_FLAG(fuzz_for).IsSpecifiedOnCommandLine() ||
+        absl::GetFlag(FUZZTEST_FLAG(fuzz_for)) != absl::InfiniteDuration();
+    const bool legacy_replay_for_specified =
+        FUZZTEST_FLAG(replay_corpus_for).IsSpecifiedOnCommandLine() ||
+        absl::GetFlag(FUZZTEST_FLAG(replay_corpus_for)) != absl::ZeroDuration();
+    FUZZTEST_CHECK(!legacy_fuzz_for_specified && !legacy_replay_for_specified)
+        << "--" FUZZTEST_FLAG_PREFIX "for cannot be combined with --"
+        << FUZZTEST_FLAG_PREFIX "fuzz_for or --" FUZZTEST_FLAG_PREFIX
+        << "replay_corpus_for.";
+  }
+
+  FUZZTEST_CHECK(!GetFuzzingTime().has_value() ||
+                 !GetReplayCorpusTime().has_value())
+      << "At most one of --" FUZZTEST_FLAG_PREFIX "fuzz / --"
+      << FUZZTEST_FLAG_PREFIX "fuzz_for and --" FUZZTEST_FLAG_PREFIX
+      << "replay_corpus / --" FUZZTEST_FLAG_PREFIX
+      << "replay_corpus_for may be specified at the same time.";
 }
 
 // Expands a leading `~/` to $HOME and, when running under a test, makes a
@@ -365,6 +423,7 @@ std::string NormalizeCorpusDatabasePath(std::string path) {
 
 internal::Configuration CreateConfigurationsFromFlags(
     absl::string_view binary_identifier) {
+  ValidateModeAndDurationFlags();
   const bool reproduce_findings_as_separate_tests =
       absl::GetFlag(FUZZTEST_FLAG(reproduce_findings_as_separate_tests));
   const std::optional<absl::Duration> fuzzing_time_limit = GetFuzzingTime();
@@ -376,7 +435,8 @@ internal::Configuration CreateConfigurationsFromFlags(
       fuzzing_time_limit.has_value() || replay_corpus_time_limit.has_value();
   const bool update_corpus_database =
       absl::GetFlag(FUZZTEST_FLAG(update_corpus_database))
-          .value_or(GetDefaultUpdateCorpusDatabase());
+          .value_or(fuzzing_time_limit.has_value() &&
+                    !replay_corpus_time_limit.has_value());
 
   const absl::Duration time_limit =
       override_fuzz_test.has_value()
@@ -464,28 +524,21 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
     std::cout << std::flush;
     std::exit(0);
   }
+  ValidateModeAndDurationFlags();
   std::optional<absl::Duration> fuzzing_time_limit = GetFuzzingTime();
   std::optional<absl::Duration> replay_corpus_time_limit =
       GetReplayCorpusTime();
-  FUZZTEST_CHECK(!fuzzing_time_limit || !replay_corpus_time_limit)
-      << "Cannot run in fuzzing and corpus replay mode at the same time.";
-  const auto specified_test = []() -> std::optional<std::string> {
-    if (auto internal_selected_test =
-            absl::GetFlag(FUZZTEST_FLAG(internal_override_fuzz_test));
-        internal_selected_test.has_value()) {
-      return internal_selected_test;
+  std::optional<std::string> specified_test =
+      absl::GetFlag(FUZZTEST_FLAG(internal_override_fuzz_test));
+  if (!specified_test.has_value()) {
+    std::string target = absl::GetFlag(FUZZTEST_FLAG(fuzz));
+    if (target == kUnspecified) {
+      target = absl::GetFlag(FUZZTEST_FLAG(replay_corpus));
     }
-    if (auto test_to_fuzz = absl::GetFlag(FUZZTEST_FLAG(fuzz));
-        test_to_fuzz != kUnspecified) {
-      return test_to_fuzz;
+    if (target != kUnspecified && target != "*") {
+      specified_test = std::move(target);
     }
-    if (auto test_to_replay_corpus =
-            absl::GetFlag(FUZZTEST_FLAG(replay_corpus));
-        test_to_replay_corpus != kUnspecified) {
-      return test_to_replay_corpus;
-    }
-    return std::nullopt;
-  }();
+  }
   if (specified_test.has_value()) {
     const std::string matching_fuzz_test =
         GetMatchingFuzzTestOrExit(*specified_test);
