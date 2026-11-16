@@ -150,6 +150,13 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
+    windows_includes
+  HDRS
+    "windows_includes.h"
+)
+
+fuzztest_cc_library(
+  NAME
     test_util
   HDRS
     "test_util.h"
@@ -159,6 +166,7 @@ fuzztest_cc_library(
     fuzztest::common_logging
     fuzztest::blob_file
     fuzztest::defs
+    fuzztest::windows_includes
     absl::strings
     absl::str_format
     GTest::gtest
@@ -176,13 +184,6 @@ fuzztest_cc_library(
     fuzztest::common_logging
     absl::string_view
     absl::strings
-)
-
-fuzztest_cc_library(
-  NAME
-    windows_includes
-  HDRS
-    "windows_includes.h"
 )
 
 ### Tests

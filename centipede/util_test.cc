@@ -31,19 +31,9 @@
 #include "./common/defs.h"
 #include "./common/hash.h"
 #include "./common/logging.h"
+#include "./common/test_util.h"
 
 namespace fuzztest::internal {
-namespace {
-
-void SetEnv(const char* name, const char* value) {
-#ifdef _WIN32
-  _putenv_s(name, value);
-#else
-  setenv(name, value, /*overwrite=*/1);
-#endif
-}
-
-}  // namespace
 
 TEST(UtilTest, AsString) {
   EXPECT_EQ(AsPrintableString({'a', 'b', 'c'}, 3), "abc");
