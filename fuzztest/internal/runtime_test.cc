@@ -41,6 +41,7 @@
 #include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/configuration.h"
+#include "./fuzztest/internal/flag_name.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 extern "C" void __sanitizer_report_error_summary(const char* error_summary);
@@ -446,6 +447,130 @@ TEST(CrashMetadataTest, ConcurrentFailuresKeepCrashTypeAndSignatureConsistent) {
       << "Crash type: " << *crash_type
       << ", crash signature: " << *crash_signature;
   runtime.ResetCrashType();
+}
+
+TEST(OnFailureTest, RecordOrDiffReproductionOutput) {
+  auto& runtime = Runtime::instance();
+  FuzzTest test({"SUITE_NAME", "TEST_NAME", "FILE", 123}, nullptr);
+  Configuration configuration;
+  configuration.corpus_database = "/path/to/corpus_db";
+  configuration.workdir_root = "/path/to/workdir";
+  std::tuple args(17, std::string("ABC"));
+  const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4, 5};
+  UntypedDomain domain = TupleOf(Arbitrary<int>(), Arbitrary<std::string>());
+  GenericDomainCorpusType generic_args(
+      std::in_place_type<std::tuple<int, std::string>>, args);
+  Runtime::Args debug_args{generic_args, domain};
+
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  runtime.SetRunMode(RunMode::kFuzz);
+  runtime.SetCurrentTest(&test, &configuration);
+  runtime.SetCurrentArgs(&debug_args);
+
+  // Validate-mode mismatch report.
+  runtime.EnableDiffMode(DiffMode::kValidate);
+  runtime.BeginDiffInput(/*expected_container=*/std::nullopt,
+                         /*unparsable=*/false);
+  ::testing::internal::CaptureStderr();
+  runtime.ReportDiffFailure("RecordOrDiff mismatch", /*is_mismatch=*/true);
+  const std::string validate_report = ::testing::internal::GetCapturedStderr();
+  EXPECT_TRUE(
+      absl::StrContains(validate_report, "=== RecordOrDiff reproduction"))
+      << validate_report;
+  EXPECT_TRUE(absl::StrContains(
+      validate_report,
+      absl::StrCat("This finding is a RecordOrDiff mismatch. It reproduces "
+                   "only with\n--",
+                   FUZZTEST_FLAG_PREFIX, "diff against the same baseline.")))
+      << validate_report;
+  EXPECT_TRUE(absl::StrContains(
+      validate_report,
+      absl::StrCat("Re-run with: --", FUZZTEST_FLAG_PREFIX,
+                   "diff=SUITE_NAME.TEST_NAME --", FUZZTEST_FLAG_PREFIX,
+                   "corpus_database=/path/to/corpus_db --",
+                   FUZZTEST_FLAG_PREFIX, "workdir_root=/path/to/workdir\n")))
+      << validate_report;
+  EXPECT_FALSE(absl::StrContains(validate_report, "=== Regression test draft"))
+      << validate_report;
+
+  // Record-mode usage error report (re-enable reporter since DisableDiffMode
+  // clears per-session diff state).
+  runtime.DisableDiffMode();
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  runtime.EnableDiffMode(DiffMode::kRecord);
+  runtime.BeginDiffInput(/*expected_container=*/std::nullopt,
+                         /*unparsable=*/false);
+  ::testing::internal::CaptureStderr();
+  runtime.ReportDiffFailure("RecordOrDiff usage error", /*is_mismatch=*/false);
+  const std::string record_report = ::testing::internal::GetCapturedStderr();
+  EXPECT_TRUE(absl::StrContains(
+      record_report,
+      absl::StrCat("This finding is a RecordOrDiff error. It reproduces only "
+                   "with\n--",
+                   FUZZTEST_FLAG_PREFIX, "record.")))
+      << record_report;
+  EXPECT_TRUE(absl::StrContains(
+      record_report,
+      absl::StrCat("Re-run with: --", FUZZTEST_FLAG_PREFIX,
+                   "record=SUITE_NAME.TEST_NAME --", FUZZTEST_FLAG_PREFIX,
+                   "corpus_database=/path/to/corpus_db --",
+                   FUZZTEST_FLAG_PREFIX, "workdir_root=/path/to/workdir\n")))
+      << record_report;
+
+  runtime.DisableDiffMode();
+  runtime.DisableReporter();
+  runtime.ResetCrashType();
+  runtime.SetExternalFailureDetected(false);
+  runtime.UnsetCurrentArgs();
+  runtime.SetCurrentTest(nullptr, nullptr);
+  runtime.SetRunMode(RunMode::kUnitTest);
+}
+
+TEST(OnFailureTest, BeginDiffInputReEnablesReporterAcrossInputs) {
+  auto& runtime = Runtime::instance();
+  FuzzTest test({"SUITE_NAME", "TEST_NAME", "FILE", 123}, nullptr);
+  Configuration configuration;
+  std::tuple args(17, std::string("ABC"));
+  const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4, 5};
+  UntypedDomain domain = TupleOf(Arbitrary<int>(), Arbitrary<std::string>());
+  GenericDomainCorpusType generic_args(
+      std::in_place_type<std::tuple<int, std::string>>, args);
+  Runtime::Args debug_args{generic_args, domain};
+
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  runtime.SetCurrentTest(&test, &configuration);
+  runtime.SetCurrentArgs(&debug_args);
+  runtime.EnableDiffMode(DiffMode::kValidate);
+
+  // Input 1 fails via a non-diff PrintReport (e.g., GTest assertion failure),
+  // which consumes reporter_enabled().
+  runtime.BeginDiffInput(/*expected_container=*/std::nullopt,
+                         /*unparsable=*/false);
+  ASSERT_TRUE(runtime.reporter_enabled());
+  std::string report1;
+  runtime.PrintReport(&report1);
+  EXPECT_FALSE(report1.empty());
+  EXPECT_FALSE(runtime.reporter_enabled());
+
+  // Input 2 re-arms the reporter so subsequent findings are still reported.
+  runtime.BeginDiffInput(/*expected_container=*/std::nullopt,
+                         /*unparsable=*/false);
+  EXPECT_TRUE(runtime.reporter_enabled());
+  std::string report2;
+  runtime.PrintReport(&report2);
+  EXPECT_FALSE(report2.empty());
+
+  // DisableDiffMode clears any pending re-arming.
+  runtime.DisableDiffMode();
+  runtime.BeginDiffInput(/*expected_container=*/std::nullopt,
+                         /*unparsable=*/false);
+  EXPECT_FALSE(runtime.reporter_enabled());
+
+  runtime.DisableReporter();
+  runtime.ResetCrashType();
+  runtime.SetExternalFailureDetected(false);
+  runtime.UnsetCurrentArgs();
+  runtime.SetCurrentTest(nullptr, nullptr);
 }
 
 TEST(RegressionTestNameForCrashingInputTest,

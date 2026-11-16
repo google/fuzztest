@@ -43,6 +43,7 @@
 #include <ctime>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -380,6 +381,13 @@ void* RunnerCallbacks::CrossOver(void* origin,
                                  void* other,
                                  const ExecutionMetadata& other_metadata) {
   return Mutate(origin, origin_metadata);
+}
+
+void RunnerCallbacks::SetDiffExpectations(void* input,
+                                          ByteSpan expected_container) {}
+
+std::optional<DiffResult> RunnerCallbacks::TakeDiffResult(void* input) {
+  return std::nullopt;
 }
 
 class LegacyRunnerCallbacks : public RunnerCallbacks {
@@ -792,12 +800,27 @@ void Execute(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
   if (runner_ctx->need_full_cleanup) {
     runner_ctx->need_full_cleanup = false;
   }
+  // Incremental differential fuzzing: the controller may have sent the
+  // expected values of this input as a diff envelope in the metadata (see
+  // `UpdateInputMetadata`). The metadata is overwritten below, so the callbacks
+  // must copy the expectations.
+  if (!input->metadata.cmp_data.empty()) {
+    DiffEnvelopeKind kind;
+    ByteSpan cmp_data;
+    ByteSpan payload;
+    if (DecodeDiffEnvelope(input->metadata.cmp_data, kind, cmp_data, payload) &&
+        kind == DiffEnvelopeKind::kExpectations) {
+      runner_ctx->callbacks.SetDiffExpectations(input->content, payload);
+    }
+  }
   const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/1);
   RunOneInput(input->content, runner_ctx->callbacks);
   CentipedeSetCurrentThreadTraced(old_traced);
+  const std::optional<DiffResult> diff_result =
+      runner_ctx->callbacks.TakeDiffResult(input->content);
+  bool has_overridden_execution_result = false;
   {
     LockGuard lock(state->execution_result_override_mu);
-    bool has_overridden_execution_result = false;
     if (state->execution_result_override != nullptr) {
       RunnerCheck(state->execution_result_override->results().size() <= 1,
                   "unexpected number of overridden execution results");
@@ -814,11 +837,17 @@ void Execute(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
       };
       sink->EmitCoverageFeatures(sink->ctx, &features);
       input->metadata = result.metadata();
-      return;
     }
   }
-  SanCovRuntimeEmitFeatures(sink);
-  input->metadata = SanCovRuntimeGetExecutionMetadata();
+  if (!has_overridden_execution_result) {
+    SanCovRuntimeEmitFeatures(sink);
+    input->metadata = SanCovRuntimeGetExecutionMetadata();
+  }
+  // Merge the diff result (if any) with the CMP metadata into an envelope.
+  if (diff_result.has_value()) {
+    input->metadata.cmp_data = EncodeDiffEnvelope(
+        diff_result->kind, input->metadata.cmp_data, diff_result->payload);
+  }
 }
 
 void DeserializeInputContent(FuzzTestAdapterCtx* ctx,
@@ -836,7 +865,7 @@ void DeserializeInputContent(FuzzTestAdapterCtx* ctx,
 void UpdateInputMetadata(FuzzTestAdapterCtx* ctx, const FuzzTestBytesView* view,
                          FuzzTestInputHandle handle) {
   auto* input = reinterpret_cast<Input*>(handle);
-  input->metadata.cmp_data = {view->data, view->data + view->size};
+  input->metadata.cmp_data.assign(view->data, view->data + view->size);
 }
 
 void SerializeInputContent(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,

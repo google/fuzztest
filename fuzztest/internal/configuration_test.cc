@@ -43,7 +43,8 @@ MATCHER_P(IsOkAndEquals, config, "") {
              other->crashing_input_to_reproduce &&
          config.replay_crash_attempts == other->replay_crash_attempts &&
          config.reproduction_command_template ==
-             other->reproduction_command_template;
+             other->reproduction_command_template &&
+         config.diff_mode == other->diff_mode;
 }
 
 TEST(ConfigurationTest,
@@ -73,7 +74,8 @@ TEST(ConfigurationTest,
                               /*centipede_command=*/std::nullopt,
                               /*crashing_input_to_reproduce=*/std::nullopt,
                               /*replay_crash_attempts=*/5,
-                              /*reproduction_command_template=*/std::nullopt};
+                              /*reproduction_command_template=*/std::nullopt,
+                              /*diff_mode=*/DiffMode::kNone};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
               IsOkAndEquals(configuration));
@@ -106,10 +108,24 @@ TEST(ConfigurationTest,
                               "centipede_command",
                               "crashing_input_to_reproduce",
                               /*replay_crash_attempts=*/20,
-                              "reproduction_command_template"};
+                              "reproduction_command_template",
+                              /*diff_mode=*/DiffMode::kRecord};
 
   EXPECT_THAT(Configuration::Deserialize(configuration.Serialize()),
               IsOkAndEquals(configuration));
+}
+
+TEST(ConfigurationTest, ParseAndUnparseDiffMode) {
+  EXPECT_EQ(ParseDiffMode(""), absl::StatusOr<DiffMode>(DiffMode::kNone));
+  EXPECT_EQ(ParseDiffMode("none"), absl::StatusOr<DiffMode>(DiffMode::kNone));
+  EXPECT_EQ(ParseDiffMode("record"),
+            absl::StatusOr<DiffMode>(DiffMode::kRecord));
+  EXPECT_EQ(ParseDiffMode("validate"),
+            absl::StatusOr<DiffMode>(DiffMode::kValidate));
+  EXPECT_FALSE(ParseDiffMode("invalid").ok());
+  EXPECT_EQ(AbslUnparseFlag(DiffMode::kNone), "none");
+  EXPECT_EQ(AbslUnparseFlag(DiffMode::kRecord), "record");
+  EXPECT_EQ(AbslUnparseFlag(DiffMode::kValidate), "validate");
 }
 
 TEST(ConfigurationTest, DeserializeFailsOnNonsenseInput) {
