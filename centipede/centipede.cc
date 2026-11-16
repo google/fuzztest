@@ -80,6 +80,7 @@
 #include "./centipede/corpus.h"
 #include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
+#include "./centipede/diff_baseline.h"
 #include "./centipede/environment.h"
 #include "./centipede/feature.h"
 #include "./centipede/feature_set.h"
@@ -496,6 +497,59 @@ bool Centipede::RunBatch(
   bool success = ExecuteAndReportCrash(env_.binary, inputs, batch_result);
   FUZZTEST_CHECK_EQ(mutants.size(), batch_result.results().size());
 
+  const size_t initial_read =
+      std::min(batch_result.num_outputs_read(), inputs.size());
+  size_t total_outputs_read = initial_read;
+  uint64_t batch_peak_rss_mb =
+      initial_read > 0
+          ? batch_result.results()[initial_read - 1].stats().peak_rss_mb
+          : 0;
+
+  // Incremental differential fuzzing: when continuing after crashes, re-run the
+  // inputs after a single-input failure or shared-memory batch truncation so
+  // that every input in the batch is recorded or compared.
+  if (IsDiffActive(env_) && !env_.exit_on_crash) {
+    const auto next_tail_offset = [](bool sub_success,
+                                     const BatchResult& sub_result,
+                                     size_t sub_size) -> size_t {
+      const size_t read = sub_result.num_outputs_read();
+      if (!sub_success) {
+        return IsSingleInputFailure(sub_result) && read + 1 < sub_size
+                   ? read + 1
+                   : sub_size;
+      }
+      if (sub_result.exit_code() == EXIT_SUCCESS && read < sub_size) {
+        if (read == 0) {
+          DiffStats::Global().AddIncompleteBatch();
+          return sub_size;
+        }
+        return read;
+      }
+      return sub_size;
+    };
+
+    for (size_t next = next_tail_offset(success, batch_result, inputs.size());
+         next < inputs.size() && !stop_condition_.ShouldStop();) {
+      const auto sub_inputs = absl::MakeConstSpan(inputs).subspan(next);
+      BatchResult tail_result;
+      const bool tail_success =
+          ExecuteAndReportCrash(env_.binary, sub_inputs, tail_result);
+      success = success && tail_success;
+      const size_t tail_read =
+          std::min(tail_result.num_outputs_read(), sub_inputs.size());
+      total_outputs_read += tail_read;
+      if (tail_read > 0) {
+        batch_peak_rss_mb =
+            std::max(batch_peak_rss_mb,
+                     tail_result.results()[tail_read - 1].stats().peak_rss_mb);
+      }
+      for (size_t j = 0; j < tail_read; ++j) {
+        batch_result.results()[next + j] = std::move(tail_result.results()[j]);
+      }
+      next += next_tail_offset(tail_success, tail_result, sub_inputs.size());
+    }
+  }
+
   for (const auto &extra_binary : env_.extra_binaries) {
     if (stop_condition_.ShouldStop()) break;
     BatchResult extra_batch_result;
@@ -570,16 +624,8 @@ bool Centipede::RunBatch(
       }
     }
   }
-  num_runs_ += batch_result.num_outputs_read();
-  if (batch_result.num_outputs_read() > 0) {
-    // The reported values increase monotonically within a batch. So it suffices
-    // to look at the last value.
-    execution_peak_rss_mb_ =
-        std::max(execution_peak_rss_mb_,
-                 batch_result.results()[batch_result.num_outputs_read() - 1]
-                     .stats()
-                     .peak_rss_mb);
-  }
+  num_runs_ += total_outputs_read;
+  execution_peak_rss_mb_ = std::max(execution_peak_rss_mb_, batch_peak_rss_mb);
   corpus_.UpdateWeights(fs_, coverage_frontier_, env_.exec_time_weight_scaling);
   return batch_gained_new_coverage;
 }

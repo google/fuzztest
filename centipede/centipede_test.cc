@@ -29,6 +29,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
@@ -63,7 +64,9 @@ using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
 using ::testing::Le;
 using ::testing::Not;
+using ::testing::Pair;
 using ::testing::SizeIs;
+using ::testing::UnorderedElementsAre;
 
 inline std::vector<ByteSpan> AsByteSpans(const std::vector<ByteArray>& inputs) {
   std::vector<ByteSpan> results;
@@ -1278,6 +1281,163 @@ TEST_F(CentipedeWithTemporaryLocalDir, DetectsStackOverflow) {
       callbacks.Execute(env.binary, AsByteSpans(inputs), batch_result));
   EXPECT_THAT(batch_result.log(), HasSubstr("Stack limit exceeded"));
   EXPECT_EQ(batch_result.failure_description(), "stack-limit-exceeded");
+}
+
+// Fails the batch at every input whose only byte is in `crashing_values` (or
+// truncates cleanly after `max_inputs_per_call` inputs when > 0), and counts
+// the successful executions of every input value.
+class FakeTailRerunCallbacks : public CentipedeCallbacks {
+ public:
+  FakeTailRerunCallbacks(const Environment& env,
+                         absl::flat_hash_set<uint8_t> crashing,
+                         size_t max_inputs_per_call = 0,
+                         std::string failure_description = "crash")
+      : CentipedeCallbacks(env, internal_stop_condition_),
+        crashing_values_(std::move(crashing)),
+        max_inputs_per_call_(max_inputs_per_call),
+        failure_description_(std::move(failure_description)) {}
+
+  bool Execute(std::string_view binary, absl::Span<const ByteSpan> inputs,
+               BatchResult& batch_result) override {
+    ++execute_calls_;
+    batch_result.ClearAndResize(inputs.size());
+    const size_t limit = max_inputs_per_call_ > 0
+                             ? std::min(inputs.size(), max_inputs_per_call_)
+                             : inputs.size();
+    for (size_t i = 0; i < limit; ++i) {
+      FUZZTEST_CHECK_EQ(inputs[i].size(), 1);
+      if (crashing_values_.contains(inputs[i][0])) {
+        batch_result.num_outputs_read() = i;
+        batch_result.exit_code() = EXIT_FAILURE;
+        batch_result.failure_description() = failure_description_;
+        return false;
+      }
+      ++num_executions_[inputs[i][0]];
+    }
+    batch_result.num_outputs_read() = limit;
+    return true;
+  }
+
+  // Generates the 1-byte mutants 100, 101, ... (distinct from the seed {0}).
+  std::vector<Mutant> Mutate(absl::Span<const MutationInputRef> inputs,
+                             size_t num_mutants) override {
+    std::vector<Mutant> mutants;
+    mutants.reserve(num_mutants);
+    for (size_t i = 0; i < num_mutants; ++i) {
+      mutants.push_back({/*data=*/{static_cast<uint8_t>(next_value_++)},
+                         Mutant::kOriginNone});
+    }
+    return mutants;
+  }
+
+  const absl::flat_hash_map<uint8_t, int>& num_executions() const {
+    return num_executions_;
+  }
+  int execute_calls() const { return execute_calls_; }
+
+ private:
+  absl::flat_hash_set<uint8_t> crashing_values_;
+  size_t max_inputs_per_call_;
+  std::string failure_description_;
+  absl::flat_hash_map<uint8_t, int> num_executions_;
+  int execute_calls_ = 0;
+  size_t next_value_ = 100;
+  StopCondition internal_stop_condition_;
+};
+
+Environment TailRerunEnv(std::string_view workdir) {
+  Environment env;
+  env.log_level = 0;
+  env.workdir = workdir;
+  env.batch_size = 10;
+  // Seed {0} runs before `num_runs_` is reset, so `num_runs = 10` runs exactly
+  // one mutant batch of 10 inputs (100..109).
+  env.num_runs = 10;
+  env.require_pc_table = false;
+  env.exit_on_crash = false;
+  // Only re-execute the suspect when reporting a crash, so that the counts
+  // below reflect the batch executions.
+  env.batch_triage_suspect_only = true;
+  return env;
+}
+
+TEST(Centipede, DiffModeReRunsTheTailOfAFailedBatch) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env = TailRerunEnv(temp_dir.path().string());
+  env.fuzztest_diff_mode = "record";
+  env.fuzztest_only_replay = true;
+  FakeTailRerunCallbacks fake(env, /*crashing=*/{103, 106});
+  NonOwningCallbacksFactory factory(fake);
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
+  // Seed {0} plus all 8 non-crashing inputs of the mutant batch (100..109 \
+  // {103, 106}).
+  EXPECT_THAT(fake.num_executions(),
+              UnorderedElementsAre(Pair(0, 1), Pair(100, 1), Pair(101, 1),
+                                   Pair(102, 1), Pair(104, 1), Pair(105, 1),
+                                   Pair(107, 1), Pair(108, 1), Pair(109, 1)));
+}
+
+TEST(Centipede, DiffModeCrashOnFinalElementDoesNotIssueEmptyTailBatch) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env = TailRerunEnv(temp_dir.path().string());
+  env.fuzztest_diff_mode = "record";
+  env.fuzztest_only_replay = true;
+  FakeTailRerunCallbacks fake(env, /*crashing=*/{109});
+  NonOwningCallbacksFactory factory(fake);
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
+  // 1 seed batch ({0}) + 1 mutant batch (100..109) + 1 suspect triage ({109}) =
+  // 3 Execute calls (no empty subspan tail call after 109).
+  EXPECT_EQ(fake.execute_calls(), 3);
+  EXPECT_THAT(
+      fake.num_executions(),
+      UnorderedElementsAre(Pair(0, 1), Pair(100, 1), Pair(101, 1), Pair(102, 1),
+                           Pair(103, 1), Pair(104, 1), Pair(105, 1),
+                           Pair(106, 1), Pair(107, 1), Pair(108, 1)));
+}
+
+TEST(Centipede, DiffModeReRunsShmemTruncatedSubBatches) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env = TailRerunEnv(temp_dir.path().string());
+  env.fuzztest_diff_mode = "validate";
+  env.fuzztest_only_replay = true;
+  FakeTailRerunCallbacks fake(env, /*crashing=*/{},
+                              /*max_inputs_per_call=*/4);
+  NonOwningCallbacksFactory factory(fake);
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
+  // 1 seed batch ({0}) + 3 sub-batches (4 + 4 + 2) for 100..109 = 4 calls.
+  EXPECT_EQ(fake.execute_calls(), 4);
+  EXPECT_THAT(fake.num_executions(),
+              UnorderedElementsAre(Pair(0, 1), Pair(100, 1), Pair(101, 1),
+                                   Pair(102, 1), Pair(103, 1), Pair(104, 1),
+                                   Pair(105, 1), Pair(106, 1), Pair(107, 1),
+                                   Pair(108, 1), Pair(109, 1)));
+}
+
+TEST(Centipede, DiffModeDoesNotReRunTailOnPerBatchTimeout) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env = TailRerunEnv(temp_dir.path().string());
+  env.fuzztest_diff_mode = "validate";
+  env.fuzztest_only_replay = true;
+  FakeTailRerunCallbacks fake(env, /*crashing=*/{102},
+                              /*max_inputs_per_call=*/0,
+                              std::string(kExecutionFailurePerBatchTimeout));
+  NonOwningCallbacksFactory factory(fake);
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
+  // Seed {0} + inputs 100, 101 ran; inputs 103..109 in the batch were NOT
+  // re-run because per-batch timeout is not a single-input failure.
+  EXPECT_THAT(fake.num_executions(),
+              UnorderedElementsAre(Pair(0, 1), Pair(100, 1), Pair(101, 1)));
+}
+
+TEST(Centipede, WithoutDiffModeTheTailOfAFailedBatchIsNotReRun) {
+  TempDir temp_dir{test_info_->name()};
+  Environment env = TailRerunEnv(temp_dir.path().string());
+  FakeTailRerunCallbacks fake(env, /*crashing=*/{103, 106});
+  NonOwningCallbacksFactory factory(fake);
+  EXPECT_EQ(CentipedeMain(env, factory), EXIT_SUCCESS);
+  EXPECT_THAT(fake.num_executions(),
+              UnorderedElementsAre(Pair(0, 1), Pair(100, 1), Pair(101, 1),
+                                   Pair(102, 1)));
 }
 
 class SetupFailureCallbacks : public CentipedeCallbacks {

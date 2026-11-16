@@ -65,6 +65,45 @@ std::string AbslUnparseFlag(TimeBudgetType mode) {
   }
 }
 
+bool AbslParseFlag(absl::string_view text, DiffMode* mode, std::string* error) {
+  if (text.empty() || text == "none") {
+    *mode = DiffMode::kNone;
+    return true;
+  }
+  if (text == "record") {
+    *mode = DiffMode::kRecord;
+    return true;
+  }
+  if (text == "validate") {
+    *mode = DiffMode::kValidate;
+    return true;
+  }
+  *error = "must be one of: none, record, validate";
+  return false;
+}
+
+absl::StatusOr<DiffMode> ParseDiffMode(absl::string_view text) {
+  DiffMode mode;
+  std::string error;
+  if (!AbslParseFlag(text, &mode, &error)) {
+    return absl::InvalidArgumentError(error);
+  }
+  return mode;
+}
+
+std::string AbslUnparseFlag(DiffMode mode) {
+  switch (mode) {
+    case DiffMode::kNone:
+      return "none";
+    case DiffMode::kRecord:
+      return "record";
+    case DiffMode::kValidate:
+      return "validate";
+    default:
+      return absl::StrCat(static_cast<int>(mode));
+  }
+}
+
 namespace {
 
 template <typename T>
@@ -203,6 +242,7 @@ std::string Configuration::Serialize() const {
       absl::FormatDuration(time_limit_per_input);
   std::string time_limit_str = absl::FormatDuration(time_limit);
   std::string time_budget_type_str = AbslUnparseFlag(time_budget_type);
+  std::string diff_mode_str = AbslUnparseFlag(diff_mode);
   std::string out;
   out.resize(
       SpaceFor(corpus_database) + SpaceFor(stats_root) +
@@ -218,7 +258,7 @@ std::string Configuration::Serialize() const {
       SpaceFor(time_limit_str) + SpaceFor(time_budget_type_str) +
       SpaceFor(jobs) + SpaceFor(centipede_command) +
       SpaceFor(crashing_input_to_reproduce) + SpaceFor(replay_crash_attempts) +
-      SpaceFor(reproduction_command_template));
+      SpaceFor(reproduction_command_template) + SpaceFor(diff_mode_str));
   size_t offset = 0;
   offset = WriteString(out, offset, corpus_database);
   offset = WriteString(out, offset, stats_root);
@@ -246,6 +286,7 @@ std::string Configuration::Serialize() const {
   offset = WriteOptionalString(out, offset, crashing_input_to_reproduce);
   offset = WriteIntegral(out, offset, replay_crash_attempts);
   offset = WriteOptionalString(out, offset, reproduction_command_template);
+  offset = WriteString(out, offset, diff_mode_str);
   FUZZTEST_CHECK_EQ(offset, out.size());
   return out;
 }
@@ -283,6 +324,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(replay_crash_attempts, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(reproduction_command_template,
                      ConsumeOptionalString(serialized));
+    ASSIGN_OR_RETURN(diff_mode_str, ConsumeString(serialized));
     if (!serialized.empty()) {
       return absl::InvalidArgumentError(
           "Buffer is not empty after consuming a serialized configuration.");
@@ -294,6 +336,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(time_limit, ParseDuration(*time_limit_str));
     ASSIGN_OR_RETURN(time_budget_type,
                      ParseTimeBudgetType(*time_budget_type_str));
+    ASSIGN_OR_RETURN(diff_mode, ParseDiffMode(*diff_mode_str));
     return Configuration{*std::move(corpus_database),
                          *std::move(stats_root),
                          *std::move(workdir_root),
@@ -319,7 +362,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *std::move(centipede_command),
                          *std::move(crashing_input_to_reproduce),
                          *replay_crash_attempts,
-                         *std::move(reproduction_command_template)};
+                         *std::move(reproduction_command_template),
+                         *diff_mode};
   }();
 }
 

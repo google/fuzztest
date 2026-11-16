@@ -40,6 +40,20 @@ std::string AbslUnparseFlag(TimeBudgetType mode);
 // string is not representing a valid TimeBudgetType.
 absl::StatusOr<TimeBudgetType> ParseTimeBudgetType(absl::string_view text);
 
+// Incremental differential fuzzing mode (see `fuzztest::RecordOrDiff`).
+enum class DiffMode { kNone, kRecord, kValidate };
+
+// To be used by ABSL_FLAG for parsing DiffMode. Accepts "none", "record",
+// "validate", and the empty string (= "none").
+bool AbslParseFlag(absl::string_view text, DiffMode* mode, std::string* error);
+
+// To be used by ABSL_FLAG for stringifying DiffMode.
+std::string AbslUnparseFlag(DiffMode mode);
+
+// Returns the DiffMode from flag string values. Returns an error if the string
+// does not represent a valid DiffMode.
+absl::StatusOr<DiffMode> ParseDiffMode(absl::string_view text);
+
 // The configuration of a fuzz test.
 struct Configuration {
   // The location of the database that contains coverage, regression, and
@@ -121,6 +135,10 @@ struct Configuration {
   // The reproduction command template must have the following place holders:
   // - $TEST_FILTER: for replaying only a subset of the tests in a binary.
   std::optional<std::string> reproduction_command_template;
+
+  // Incremental differential fuzzing mode for corpus replay. Only takes effect
+  // together with `only_replay` in the Centipede runner.
+  DiffMode diff_mode = DiffMode::kNone;
 
   // Preprocessing step for reproducing crashing input.
   // Note: This field is not serialized and deserialized.

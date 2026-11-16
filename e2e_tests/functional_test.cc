@@ -856,6 +856,71 @@ TEST_F(GenericCommandLineInterfaceTest, IgnoresInvalidJobsLimitInEnvVar) {
   EXPECT_THAT_LOG(std_err, HasSubstr("will not limit jobs"));
 }
 
+TEST_F(GenericCommandLineInterfaceTest, RejectsInvalidForFlagUsage) {
+  {
+    auto [status, std_out, std_err] =
+        RunWith(/*flags=*/{{"for", "1s"}}, /*env=*/{},
+                /*timeout=*/absl::Seconds(10),
+                /*binary=*/"testdata/unit_test_and_fuzz_tests");
+    EXPECT_THAT(status, Ne(ExitCode(0)));
+    EXPECT_THAT_LOG(std_err,
+                    AllOf(HasSubstr("for requires one of"), HasSubstr("fuzz"),
+                          HasSubstr("replay_corpus"), HasSubstr("record"),
+                          HasSubstr("diff")));
+  }
+  for (const auto& flags :
+       std::vector<absl::flat_hash_map<std::string, std::string>>{
+           {{"fuzz", "*"}, {"for", "0s"}},
+           {{"record", "*"}, {"for", "-1s"}},
+       }) {
+    auto [status, std_out, std_err] =
+        RunWith(flags, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+                /*binary=*/"testdata/unit_test_and_fuzz_tests");
+    EXPECT_THAT(status, Ne(ExitCode(0)));
+    EXPECT_THAT_LOG(std_err, HasSubstr("for must be positive"));
+  }
+}
+
+TEST_F(GenericCommandLineInterfaceTest, RejectsMutuallyExclusiveModeFlags) {
+  for (const auto& flags :
+       std::vector<absl::flat_hash_map<std::string, std::string>>{
+           {{"record", "*"}, {"diff", "*"}},
+           {{"fuzz", "*"}, {"record", "*"}},
+           {{"replay_corpus", "*"}, {"diff", "*"}},
+           {{"fuzz", "*"}, {"replay_corpus", "*"}},
+           {{"fuzz_for", "1s"}, {"replay_corpus", "*"}},
+           {{"fuzz", "*"}, {"replay_corpus_for", "1s"}},
+           {{"fuzz_for", "1s"}, {"replay_corpus_for", "1s"}},
+           {{"fuzz_for", "1s"}, {"record", "*"}},
+           {{"replay_corpus_for", "1s"}, {"diff", "*"}},
+       }) {
+    auto [status, std_out, std_err] =
+        RunWith(flags, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+                /*binary=*/"testdata/unit_test_and_fuzz_tests");
+    EXPECT_THAT(status, Ne(ExitCode(0)));
+    EXPECT_THAT_LOG(std_err, HasSubstr("At most one of"));
+  }
+}
+
+TEST_F(GenericCommandLineInterfaceTest,
+       RejectsCombiningForOrDiffFlagsWithLegacyDurationFlags) {
+  for (const auto& flags :
+       std::vector<absl::flat_hash_map<std::string, std::string>>{
+           {{"fuzz", "*"}, {"for", "1s"}, {"fuzz_for", "1s"}},
+           {{"fuzz", "*"}, {"for", "1s"}, {"fuzz_for", "inf"}},
+           {{"replay_corpus", "*"}, {"for", "1s"}, {"replay_corpus_for", "1s"}},
+           {{"replay_corpus", "*"}, {"for", "1s"}, {"replay_corpus_for", "0s"}},
+           {{"record", "*"}, {"fuzz_for", "0s"}},
+           {{"diff", "*"}, {"replay_corpus_for", "0s"}},
+       }) {
+    auto [status, std_out, std_err] =
+        RunWith(flags, /*env=*/{}, /*timeout=*/absl::Seconds(10),
+                /*binary=*/"testdata/unit_test_and_fuzz_tests");
+    EXPECT_THAT(status, Ne(ExitCode(0)));
+    EXPECT_THAT_LOG(std_err, HasSubstr("cannot be combined with"));
+  }
+}
+
 // Tests for the FuzzTest command line interface in fuzzing mode, which can only
 // run with coverage instrumentation enabled.
 class FuzzingModeCommandLineInterfaceTest
@@ -1402,6 +1467,56 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   EXPECT_THAT_LOG(std_out,
                   Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
   EXPECT_THAT_LOG(std_out, HasSubstr("1 test from 1 test suite ran."));
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       FuzzWildcardWithForRunsOnlyFuzzTestsAndRespectsFilter) {
+  {
+    auto [status, std_out, std_err] = RunWith(
+        {{"fuzz", "*"}, {"for", "1s"}}, /*env=*/{},
+        /*timeout=*/absl::Seconds(15), "testdata/unit_test_and_fuzz_tests");
+    EXPECT_THAT_LOG(std_out,
+                    Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
+    EXPECT_THAT_LOG(std_out, HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses"));
+    EXPECT_THAT_LOG(std_out,
+                    HasSubstr("[ RUN      ] FuzzTest.AlsoAlwaysPasses"));
+    EXPECT_THAT_LOG(std_out, HasSubstr("2 tests from 1 test suite ran."));
+    EXPECT_THAT(status, Eq(ExitCode(0)));
+  }
+  {
+    auto [status, std_out, std_err] = RunWith(
+        {{"fuzz", "*"}, {"for", "1s"}}, /*env=*/{},
+        /*timeout=*/absl::Seconds(15), "testdata/unit_test_and_fuzz_tests",
+        {{GTEST_FLAG_PREFIX_ "filter",
+          "UnitTest.AlwaysPasses:FuzzTest.AlsoAlwaysPasses"}});
+    EXPECT_THAT_LOG(std_out,
+                    Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
+    EXPECT_THAT_LOG(std_out,
+                    Not(HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses")));
+    EXPECT_THAT_LOG(std_out,
+                    HasSubstr("[ RUN      ] FuzzTest.AlsoAlwaysPasses"));
+    EXPECT_THAT_LOG(std_out, HasSubstr("1 test from 1 test suite ran."));
+    EXPECT_THAT(status, Eq(ExitCode(0)));
+  }
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       ReplayCorpusWildcardWithForRunsOnlyFuzzTests) {
+  TempDir temp_dir;
+  const std::string corpus_database = temp_dir.path() / "corpus_database";
+  auto [status, std_out, std_err] = RunWith(
+      {{"replay_corpus", "*"},
+       {"for", "1s"},
+       {"corpus_database", corpus_database}},
+      // Needed for the legacy runtime to skip fuzzing.
+      /*env=*/{{"FUZZTEST_FUZZ_FOR", "0s"}},
+      /*timeout=*/absl::Seconds(15), "testdata/unit_test_and_fuzz_tests");
+  EXPECT_THAT_LOG(std_out,
+                  Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[ RUN      ] FuzzTest.AlwaysPasses"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[ RUN      ] FuzzTest.AlsoAlwaysPasses"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("2 tests from 1 test suite ran."));
   EXPECT_THAT(status, Eq(ExitCode(0)));
 }
 

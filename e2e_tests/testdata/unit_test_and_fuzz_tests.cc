@@ -12,17 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdlib>
+
 #include "gtest/gtest.h"
 #include "./fuzztest/fuzztest.h"
+#include "./fuzztest/record_or_diff.h"
 
 namespace {
 
 TEST(UnitTest, AlwaysPasses) {}
 
-void AlwaysPasses(int) {}
+void AlwaysPasses(int x) {
+  const int mask =
+      std::getenv("FUZZTEST_TEST_DIFF_PERTURB_FIRST") != nullptr ? 1 : 0;
+  fuzztest::RecordOrDiff(x ^ mask, "first_value");
+}
 FUZZ_TEST(FuzzTest, AlwaysPasses);
 
-void AlsoAlwaysPasses(int) {}
+void AlsoAlwaysPasses(int x) {
+  const int mask =
+      std::getenv("FUZZTEST_TEST_DIFF_PERTURB_SECOND") != nullptr ? 1 : 0;
+  fuzztest::RecordOrDiff(x ^ mask, "second_value");
+}
 FUZZ_TEST(FuzzTest, AlsoAlwaysPasses);
 
 }  // namespace

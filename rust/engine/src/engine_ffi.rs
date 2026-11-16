@@ -192,12 +192,10 @@ impl FuzzTestUint64sView {
 /// Constants for the layout of the coverage feature as a 64-bit unsigned
 /// integer:
 ///
-///   - Bits 63..59: 5-bit domain ID of the feature. Each domain is a
-///     logically independent feature namespace registered in
-///     `FuzzTestAdapter::SetUpCoverageDomains`.
+///   - Bits 63..59: 5-bit domain ID of the feature. Each domain is a logically independent feature
+///     namespace registered in `FuzzTestAdapter::SetUpCoverageDomains`.
 ///   - Bits 58..32: 27-bit feature ID within the domain.
 ///   - Bits 31..0:  32-bit counter value of the feature.
-///
 pub struct FuzzTestCoverageFeatureLayout;
 
 impl FuzzTestCoverageFeatureLayout {
@@ -368,6 +366,9 @@ pub struct FuzzTestAdapter {
     >,
 
     /// [Optional] Updates the test `input` metadata from serialized `metadata`.
+    /// Called for mutation origins before `Mutate`/`CrossOver`, and for inputs
+    /// of execution requests that carry metadata (e.g. the expected values of
+    /// the incremental differential fuzzing validate mode) before `Execute`.
     pub update_input_metadata: Option<
         unsafe extern "C" fn(
             ctx: *mut FuzzTestAdapterCtx,

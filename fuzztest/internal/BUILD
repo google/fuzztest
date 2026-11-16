@@ -82,6 +82,7 @@ cc_library(
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/random",
@@ -459,6 +460,7 @@ cc_test(
     srcs = ["runtime_test.cc"],
     deps = [
         ":configuration",
+        ":flag_name",
         ":runtime",
         ":test_protobuf_cc_proto",
         "@abseil-cpp//absl/base:core_headers",

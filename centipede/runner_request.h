@@ -39,6 +39,16 @@ enum class PersistentModeRequest : char {
 size_t RequestExecution(absl::Span<const ByteSpan> inputs,
                         BlobSequence& blobseq);
 
+// Same as above, but `metadata[i]`, if non-empty, is sent as an execution
+// metadata blob immediately before `inputs[i]` (used to deliver the baseline
+// to the runner in the incremental differential fuzzing validate mode).
+// `metadata` must have the same size as `inputs`. With all-empty `metadata`,
+// the request is byte-identical to the overload above. Returns the number of
+// inputs whose data blob was sent.
+size_t RequestExecution(absl::Span<const ByteSpan> inputs,
+                        absl::Span<const ByteSpan> metadata,
+                        BlobSequence& blobseq);
+
 // Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestMutation(size_t num_mutants,
