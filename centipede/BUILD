@@ -1090,6 +1090,7 @@ cc_library(
         ":runner_result",
         ":runner_utils",
         ":shared_memory_blob_sequence",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//common:defs",
     ],

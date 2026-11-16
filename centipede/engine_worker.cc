@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/nullability.h"
 #include "./centipede/engine_abi.h"
 #include "./centipede/engine_worker_abi.h"
@@ -405,7 +406,8 @@ FuzzTestInputSink GetInputSinkTo(std::vector<FuzzTestInputHandle>& inputs) {
           }};
 }
 
-void WorkerDoGetBinaryId(const FuzzTestAdapterManager& manager) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoGetBinaryId(
+    const FuzzTestAdapterManager& manager) {
   if (GetWorkerState().saved_binary_id.exchange(true)) return;
   const char* binary_id_output_path =
       GetWorkerFlags().GetStringFlag(kWorkerBinaryIdOutputFlagHeader);
@@ -428,7 +430,8 @@ void WorkerDoListCurrentTest(std::string_view test_name) {
                      /*append=*/true, test_name, "\n");
 }
 
-void WorkerDoGetSeeds(const FuzzTestAdapter& adapter) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoGetSeeds(
+    const FuzzTestAdapter& adapter) {
   std::vector<FuzzTestInputHandle> seed_handles;
   const auto sink = GetInputSinkTo(seed_handles);
   if (adapter.GetPresetSeedInputs != nullptr) {
@@ -475,7 +478,8 @@ uint64_t TimeInUsec() {
   return tv.tv_sec * kUsecInSec + tv.tv_usec;
 }
 
-void WorkerDoMutate(const FuzzTestAdapter& adapter) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoMutate(
+    const FuzzTestAdapter& adapter) {
   auto* inputs_blobseq = GetInputsBlobSequence();
   auto* outputs_blobseq = GetOutputsBlobSequence();
   WorkerCheck(inputs_blobseq != nullptr && outputs_blobseq != nullptr,
@@ -574,7 +578,14 @@ struct CoverageDomainConfiguration {
 std::array<CoverageDomainConfiguration, 1 << kFuzzTestCoverageDomainIdBitSize>
     coverage_domains;
 
-void WorkerDoExecute(const FuzzTestAdapter& adapter) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void SetUpCoverageDomains(
+    const FuzzTestAdapter& adapter,
+    const FuzzTestCoverageDomainRegistry* registry) {
+  adapter.SetUpCoverageDomains(adapter.ctx, registry);
+}
+
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
+    const FuzzTestAdapter& adapter) {
   auto* inputs_blobseq = GetInputsBlobSequence();
   auto* outputs_blobseq = GetOutputsBlobSequence();
   WorkerCheck(inputs_blobseq != nullptr && outputs_blobseq != nullptr,
@@ -610,7 +621,7 @@ void WorkerDoExecute(const FuzzTestAdapter& adapter) {
           coverage_domains[domain->domain_id].counter_bit_size =
               domain->counter_bit_size;
         }};
-    adapter.SetUpCoverageDomains(adapter.ctx, &registry);
+    SetUpCoverageDomains(adapter, &registry);
     return true;
   }();
 
@@ -822,7 +833,8 @@ void HandlePersistentMode(const FuzzTestAdapter& adapter) {
   }
 }
 
-FuzzTestWorkerStatus WorkerRun(const FuzzTestAdapterManager& manager) {
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI FuzzTestWorkerStatus
+WorkerRun(const FuzzTestAdapterManager& manager) {
   WorkerCheck(GetWorkerFlagsEnv() != nullptr, "worker flags must present");
 
   if (GetWorkerFlags().HasSwitchFlag("dump_configuration")) {

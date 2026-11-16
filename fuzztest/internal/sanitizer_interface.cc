@@ -505,6 +505,12 @@ absl::string_view FormatTwoThreadCrashSignature(absl::string_view crash_type,
   return absl::string_view(out_buffer.data(), offset);
 }
 
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI void InvokeSanitizerErrorSummaryCallback(
+    FuzzTestSanitizerErrorSummaryCallback callback,
+    absl::string_view crash_type) {
+  callback(crash_type.data(), crash_type.size());
+}
+
 }  // namespace fuzztest::internal
 
 // clang-format off
@@ -521,7 +527,8 @@ __sanitizer_report_error_summary(const char* error_summary) {
       << "Failed to extract sanitizer crash type: " << crash_type.status();
   const absl::string_view resolved_crash_type =
       crash_type.value_or("Sanitizer crash");
-  callback(resolved_crash_type.data(), resolved_crash_type.size());
+  fuzztest::internal::InvokeSanitizerErrorSummaryCallback(callback,
+                                                          resolved_crash_type);
 }
 // clang-format on
 
