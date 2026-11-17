@@ -26,6 +26,7 @@ rust_library(
     visibility = ["@com_google_fuzztest//rust:__subpackages__"],
     deps = [
         "@com_google_fuzztest//centipede:sancov_runtime",
+        "@com_google_fuzztest//rust/engine",
     ],
 )
 

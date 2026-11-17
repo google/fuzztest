@@ -40,6 +40,9 @@ typedef enum {
 } FuzzTestWorkerStatus;
 
 // Try to run as a FuzzTest worker with `manager` if needed.
+//
+// `manager` and its context are only used during the call: the engine does not
+// retain them after this function returns.
 FuzzTestWorkerStatus FuzzTestWorkerMaybeRun(
     const FuzzTestAdapterManager* manager);
 

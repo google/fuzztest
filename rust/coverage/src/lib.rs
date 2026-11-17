@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![deny(clippy::absolute_paths)]
+#![deny(unused_imports)]
+#![deny(unsafe_op_in_unsafe_fn)]
+
 mod coverage;
 
 pub use coverage::SanCovRuntimeRawFeatureParts;
+use engine::{CoverageDomainRegistry, FeedbackSink};
 
 pub fn prepare_coverage(full_clear: bool) {
     coverage::SanCovRuntimeClearCoverage(full_clear)
@@ -26,4 +31,14 @@ pub fn get_coverage(reject_input: bool) -> SanCovRuntimeRawFeatureParts {
 
 pub fn post_process_coverage(reject_input: bool) {
     coverage::SanCovRuntimePostProcessCoverage(reject_input)
+}
+
+/// Registers the SanitizerCoverage feature domains with `registry`.
+pub fn set_up_coverage_domains(registry: &CoverageDomainRegistry) {
+    coverage::set_up_coverage_domains(registry);
+}
+
+/// Emits post-processed SanitizerCoverage features into `feedback`.
+pub fn emit_coverage_features(feedback: &FeedbackSink) {
+    coverage::emit_coverage_features(feedback);
 }
