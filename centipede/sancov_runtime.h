@@ -57,6 +57,12 @@ void SanCovRuntimeClearCoverage(bool full_clear);
 struct SanCovRuntimeRawFeatureParts SanCovRuntimeGetCoverage(bool reject_input);
 
 // Registers the SanCov coverage domains. Returns next available domain ID.
+//
+// `registry` and `registry->Register` must not be null. `Register` is called
+// on the calling thread, before this function returns, with `registry->ctx`
+// and a domain that is valid for that call and follows the limits documented
+// on `FuzzTestCoverageDomain`. `registry` is not used after this function
+// returns.
 size_t SanCovRuntimeSetUpCoverageDomains(
     const FuzzTestCoverageDomainRegistry* registry);
 
@@ -70,6 +76,11 @@ void SanCovRuntimePostProcessCoverage(bool reject_input);
 //
 // Should be called at most once after `SanCovPostProcessCoverage` - later calls
 // will emit empty coverage.
+//
+// `sink` and `sink->EmitCoverageFeatures` must not be null.
+// `EmitCoverageFeatures` is called once on the calling thread, before this
+// function returns, with `sink->ctx` and a view that is valid for that call.
+// `sink` is not used after this function returns.
 void SanCovRuntimeEmitFeatures(const FuzzTestFeedbackSink* sink);
 
 #ifdef __cplusplus

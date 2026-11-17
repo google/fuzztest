@@ -21,3 +21,4 @@ edition = "2024"
 test = false
 
 [dependencies]
+engine = { path = "../engine", package = "engine-ffi" }

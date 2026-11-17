@@ -29,6 +29,7 @@ proc-macro-crate = "3.4.0"
 proc-macro2 = "1.0.106"
 quote = "1.0.45"
 rand = { version = "0.10.1", features = ["std_rng"] }
+safer_cffi = "0.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 spin = "0.10.0"

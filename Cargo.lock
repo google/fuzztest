@@ -189,6 +189,9 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 [[package]]
 name = "coverage"
 version = "0.1.0"
+dependencies = [
+ "engine-ffi",
+]
 
 [[package]]
 name = "cpufeatures"
@@ -226,6 +229,11 @@ checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 [[package]]
 name = "engine-ffi"
 version = "0.1.0"
+dependencies = [
+ "googletest",
+ "safer_cffi",
+ "spin 0.10.1",
+]
 
 [[package]]
 name = "equivalent"
@@ -267,7 +275,6 @@ dependencies = [
  "postcard",
  "rand",
  "serde",
- "spin 0.10.1",
  "tempfile",
  "trybuild",
 ]
@@ -437,6 +444,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "log"
+version = "0.4.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -582,6 +595,16 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "safer_cffi"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea91e79102f6312d849fe25711039cd02c0d6143c605c29807a7de32ab70e9f"
+dependencies = [
+ "libc",
+ "log",
+]
 
 [[package]]
 name = "scopeguard"

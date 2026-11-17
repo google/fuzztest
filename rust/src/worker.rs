@@ -12,744 +12,222 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::domains::GenericCorpusValue;
+//! Runs a fuzz test: as a worker of the FuzzTest engine, as its controller, or as a smoke test.
+//!
+//! The FFI with the engine lives in the `engine` crate. This module implements the traits of
+//! that crate for a fuzz test, and needs no `unsafe` code.
+
+#![forbid(unsafe_code)]
+
+use super::domains::{GenericCorpusValue, GenericDomain};
 use super::internal::{BoxedFuzzTest, FuzzTest};
 use super::options::{self, CentipedeArgs, ExecutionAction};
-use ::engine::engine_ffi;
 use ::engine::{
-    BytesSink, CoverageDomainRegistry, DiagnosticSink, ExecuteContext, FeedbackSink, InputSink,
+    Adapter, AdapterManager, CoverageDomainRegistry, ExecuteContext, FeedbackSink, RunOutcome,
 };
-use spin::Mutex;
 use std::env;
-use std::ffi::c_int;
-use std::ffi::CString;
+use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::LazyLock;
 use std::time::Duration;
 use std::time::Instant;
 
-/// The DiagnosticSink provided by the engine while creating the adapter.
-///
-/// Storing the `DiagnosticSink` in this global is necessary because C callbacks (e.g.,
-/// sanitizer hooks in `crash_handler.rs`) do not have access to the adapter instance and must rely
-/// on a global lookup to report crashes.
-static DIAGNOSTIC_SINK: Mutex<Option<DiagnosticSink>> = Mutex::new(None);
-
-/// A global execution context token.
-///
-/// This is set to `Some(ExecuteContext)` when the fuzz test is currently executing
-/// (inside the `execute` method of `RustFuzzTestAdapter`) and `None` otherwise.
-///
-/// The inner ExecuteContext is used as a witness token to prove to the fuzzing engine that findings
-/// are being emitted during the execution of a test case.
-/// A global is necessary because C callbacks (e.g. sanitizer hooks in `crash_handler.rs`) do
-/// not have access to the adapter instance.
-static EXECUTE_CONTEXT: Mutex<Option<ExecuteContext>> = Mutex::new(None);
-
-/// Sets the global DiagnosticSink.
-pub(crate) fn set_diagnostic_sink(sink: DiagnosticSink) {
-    let mut guard = DIAGNOSTIC_SINK.lock();
-    *guard = Some(sink);
-}
-
-/// Clears the global DiagnosticSink, setting it to None.
-pub(crate) fn clear_diagnostic_sink() {
-    let mut guard = DIAGNOSTIC_SINK.lock();
-    *guard = None;
-}
-
-/// Emits an error into the DiagnosticSink if the DiagnosticSink is set.
-/// This function blocks till it can get the lock on the global DiagnosticSink and is not
-/// signal-safe.
-pub(crate) fn emit_error(message: &str) {
-    if let Some(sink) = DIAGNOSTIC_SINK.lock().as_ref() {
-        sink.emit_error(message)
-    }
-}
-
-/// Emits a finding into the DiagnosticSink if the DiagnosticSink is set.
-/// This function blocks till it can get the lock on the global DiagnosticSink and is not
-/// signal-safe. Call `try_emit_finding` from a signal handler instead.
-pub(crate) fn emit_finding(description: &str, signature: &str) {
-    let guard = EXECUTE_CONTEXT.lock();
-    let token =
-        guard.as_ref().expect("emit_finding should only be called when a test is executing");
-    DIAGNOSTIC_SINK
-        .lock()
-        .as_ref()
-        .expect("diagnostic sink should be present when a test is executing")
-        .emit_finding(token, description, signature);
-}
-
-/// Emits a finding into the DiagnosticSink if the DiagnosticSink is set, and we are in the Execute
-/// callback context. It only tries once to get the lock. The return value indicates if the finding
-/// was successfully emitted.
-///
-/// This function return false if:
-/// - it could not get the lock on DiagnosticSink.
-/// - it got the lock but the global DiagnosticSink was not set.
-/// - diagnostic sink was set but the test was not executing.
-#[allow(dead_code)]
-pub(crate) fn try_emit_finding(description: &str, signature: &str) -> bool {
-    let Some(diagnostic_guard) = DIAGNOSTIC_SINK.try_lock() else {
-        return false;
-    };
-    let Some(sink) = diagnostic_guard.as_ref() else {
-        return false;
-    };
-    let Some(execution_guard) = EXECUTE_CONTEXT.try_lock() else {
-        return false;
-    };
-    let Some(token) = execution_guard.as_ref() else {
-        return false;
-    };
-    sink.emit_finding(token, description, signature);
-    true
-}
-
-// We double-box the input because `GenericCorpusValue` is a fat pointer (`Box<dyn Any>`),
-// which cannot be directly represented as a single `usize` in `FuzzTestInputHandle` for FFI.
-// By boxing it again, we get a thin pointer (`Box<Box<dyn Any>>`) that can be safely cast
-// to `usize`.
-// The memory is reclaimed when the engine calls `free_input`, which reconstructs the outer
-// box using `Box::from_raw` and drops it, thereby dropping the inner box and the value.
-fn pack_input(input: GenericCorpusValue) -> engine_ffi::FuzzTestInputHandle {
-    let ptr = Box::into_raw(Box::new(input));
-    engine_ffi::FuzzTestInputHandle(ptr as usize)
-}
-
-/// A guard that manages the global `EXECUTE_CONTEXT` state, setting it to `Some` on creation,
-/// and resetting to `None` on drop.
-#[must_use = "the execution guard must be held for the duration of the test execution to record findings and crashes"]
-struct ExecutionGuard;
-
-impl ExecutionGuard {
-    /// Enters the execution context by setting `EXECUTE_CONTEXT`.
-    ///
-    /// # Safety
-    /// The caller must ensure we are in a valid state to create an `ExecuteContext`.
-    unsafe fn enter() -> Self {
-        *EXECUTE_CONTEXT.lock() = Some(unsafe { ExecuteContext::new() });
-        Self
-    }
-}
-
-impl Drop for ExecutionGuard {
-    fn drop(&mut self) {
-        *EXECUTE_CONTEXT.lock() = None;
-    }
-}
-
+/// Drives one [`FuzzTest`] instance for the fuzzing engine.
 pub struct RustFuzzTestAdapter {
     fuzz_test: BoxedFuzzTest,
 }
 
 impl RustFuzzTestAdapter {
-    pub fn set_up_coverage_domains(&self, registry: &mut CoverageDomainRegistry) {
-        registry.set_up_sancov_domains();
-    }
-
-    pub fn get_preset_seed_inputs(&self, _sink: &mut InputSink) {
-        // TODO(the-shank): implement this once the macro has support for specifying preset seed
-        // inputs
-    }
-
-    pub fn get_random_seed_input(&self, sink: &mut InputSink) {
+    /// Runs `f` with the domains of the fuzz test locked.
+    ///
+    /// The lock is released before this returns, so callers never hold it while they call back
+    /// into the engine.
+    fn with_domains<R>(&self, f: impl FnOnce(&mut dyn GenericDomain) -> R) -> R {
         let domains = self.fuzz_test.domains();
-        let mut domains_guard = domains.lock().expect("Failed to lock domains");
-        match domains_guard.init(&mut rand::rng()) {
-            Ok(val) => {
-                sink.emit(pack_input(val));
-            }
-            Err(e) => {
-                emit_error(&format!("Failed to initialize random seed: {:?}", e));
-            }
-        }
+        // The lock is only poisoned if a `Domain` method panicked while holding it. In worker
+        // mode that panic already aborted the process, because it unwound into an `extern "C"`
+        // callback.
+        let mut guard = domains.lock().expect("a Domain method panicked while holding the lock");
+        f(&mut *guard)
+    }
+}
+
+impl Adapter for RustFuzzTestAdapter {
+    type Input = GenericCorpusValue;
+    // Reported to the engine in its `Debug` format, which for `anyhow::Error` is the message
+    // followed by the chain of causes.
+    type Error = anyhow::Error;
+
+    fn set_up_coverage_domains(&self, registry: &CoverageDomainRegistry) {
+        coverage::set_up_coverage_domains(registry);
     }
 
-    pub fn mutate(&self, origin: &GenericCorpusValue, shrink: bool, sink: &mut InputSink) {
-        let mut mutant = origin.clone();
-        let domains = self.fuzz_test.domains();
-        let mut domains_guard = domains.lock().expect("Failed to lock domains");
-
-        if let Err(e) = domains_guard.mutate(&mut mutant, &mut rand::rng(), shrink) {
-            emit_error(&format!("Failed to mutate: {:?}", e));
-            return;
-        }
-
-        sink.emit(pack_input(mutant));
+    fn random_seed_input(&self) -> anyhow::Result<GenericCorpusValue> {
+        self.with_domains(|domains| domains.init(&mut rand::rng()))
     }
 
-    pub fn cross_over(
+    fn mutate(
         &self,
         origin: &GenericCorpusValue,
-        _other: &GenericCorpusValue,
-        sink: &mut InputSink,
-    ) {
-        // TODO(the-shank): implement cross_over. Currently we are just calling mutate.
-        self.mutate(origin, false, sink);
+        shrink: bool,
+    ) -> anyhow::Result<GenericCorpusValue> {
+        let mut mutant = origin.clone();
+        self.with_domains(|domains| domains.mutate(&mut mutant, &mut rand::rng(), shrink))?;
+        Ok(mutant)
     }
 
-    pub fn execute(&self, input: &GenericCorpusValue, sink: &mut FeedbackSink) {
+    fn execute(
+        &self,
+        cx: &ExecuteContext<'_>,
+        input: &GenericCorpusValue,
+        feedback: &FeedbackSink,
+    ) {
         // TODO(the-shank): modify this in order to support persistent mode and batch execution.
         static CLEAR_STARTUP_COVERAGE: AtomicBool = AtomicBool::new(true);
         // Called even in unguided mode: besides clearing coverage, this frees the SanCov state of
         // threads that exited during the previous execution, which would otherwise accumulate.
         coverage::prepare_coverage(CLEAR_STARTUP_COVERAGE.swap(false, Ordering::AcqRel));
 
-        // SAFETY: We are currently in the `execute` callback of `RustFuzzTestAdapter`.
-        let _guard = unsafe { ExecutionGuard::enter() };
-
         let result = self.fuzz_test.execute(input);
 
         if !options::get_fuzztest_options().unguided {
             coverage::post_process_coverage(false);
-            sink.emit_sancov_features();
+            coverage::emit_coverage_features(feedback);
         }
 
         if !result {
             // TODO(the-shank): the signature should be different for different panics. Currently,
             // all test failures due to panics are reported with the same signature.
-            emit_finding("Property function ran but crashed.", "Unwinding panic");
+            cx.emit_finding("Property function ran but crashed.", "Unwinding panic");
         }
     }
 
-    pub fn serialize_input_content(&self, input: &GenericCorpusValue, sink: &mut BytesSink) {
-        let domains = self.fuzz_test.domains();
-        let domains_guard = domains.lock().expect("Failed to lock domains");
-        match domains_guard.serialize_corpus(input) {
-            Ok(serialized) => {
-                sink.emit(&serialized);
-            }
-            Err(e) => {
-                emit_error(&format!("Failed to serialize input: {:?}", e));
-            }
-        }
+    fn serialize_input(&self, input: &GenericCorpusValue) -> anyhow::Result<Vec<u8>> {
+        self.with_domains(|domains| domains.serialize_corpus(input))
     }
 
-    pub fn deserialize_input_content(&self, content: &[u8], sink: &mut InputSink) {
-        let domains = self.fuzz_test.domains();
-        let domains_guard = domains.lock().expect("Failed to lock domains");
-        match domains_guard.parse_corpus(content) {
-            Ok(val) => {
-                sink.emit(pack_input(val));
-            }
-            Err(e) => {
-                emit_error(&format!("Failed to deserialize input: {:?}", e));
-            }
-        }
-    }
-
-    pub fn serialize_input_metadata(&self, _input: &GenericCorpusValue, _sink: &mut BytesSink) {
-        // TODO(the-shank): to be implemented
-    }
-
-    pub fn update_input_metadata(&self, _metadata: &[u8], _input: &mut GenericCorpusValue) {
-        // TODO(the-shank): to be implemented
-    }
-
-    pub fn free_input(&self, input: engine_ffi::FuzzTestInputHandle) {
-        if input.0 != 0 {
-            // SAFETY: The engine guarantees `input` was created by
-            // `deserialize_input_content_callback` (or `emit` in `InputSink`) and has
-            // not been freed yet.
-            unsafe {
-                let _ = Box::from_raw(input.0 as *mut GenericCorpusValue);
-            }
-        }
+    fn deserialize_input(&self, content: &[u8]) -> anyhow::Result<GenericCorpusValue> {
+        self.with_domains(|domains| domains.parse_corpus(content))
     }
 }
 
+/// Identifies a registered fuzz test and constructs its [`FuzzTest`] instances.
 pub struct RustFuzzTestAdapterManager {
+    /// Rust module-qualified name of the fuzz test.
     pub test_name: &'static str,
+    /// Factory that constructs a fresh [`BoxedFuzzTest`] for the test.
     pub fuzz_test_factory: fn() -> BoxedFuzzTest,
 }
 
 impl RustFuzzTestAdapterManager {
-    pub fn get_binary_id(&self, sink: &mut BytesSink) {
-        static ARGV0: LazyLock<CString> = LazyLock::new(|| {
-            CString::new(
-                Path::new(&env::args().next().unwrap())
-                    .file_name()
-                    .and_then(|f| f.to_str())
-                    .unwrap_or(""),
-            )
-            .expect("argv[0] should not contain null bytes")
-        });
-        sink.emit(ARGV0.as_bytes());
-    }
-
-    // Replaces "::" with "." to avoid parsing issues in Centipede. Centipede uses ":" as a
-    // separator in CENTIPEDE_RUNNER_FLAGS and its parser replaces all ":" with "\0", which would
-    // truncate Rust paths.
-    pub fn get_test_name(&self, sink: &mut BytesSink) {
-        let name = self.test_name.replace("::", ".");
-        sink.emit(name.as_bytes());
-    }
-
-    pub fn construct_adapter(&self) -> RustFuzzTestAdapter {
-        let fuzz_test = (self.fuzz_test_factory)();
-        RustFuzzTestAdapter { fuzz_test }
-    }
-
+    /// Constructs a new [`BoxedFuzzTest`] instance for this test.
     pub fn construct_fuzz_test(&self) -> BoxedFuzzTest {
         (self.fuzz_test_factory)()
     }
 }
 
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapterManager` passed during initialization.
-/// * `sink` is a valid pointer to a `FuzzTestBytesSink` whose lifetime extends for the duration of
-///   this call.
-pub unsafe extern "C" fn get_binary_id_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterManagerCtx,
-    sink: *const engine_ffi::FuzzTestBytesSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapterManager`
-    // passed during initialization.
-    let manager = unsafe { &*(ctx as *const RustFuzzTestAdapterManager) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to a `FuzzTestBytesSink`
-    // whose lifetime extends for the duration of this call.
-    let mut safe_sink = unsafe { BytesSink::from_raw(sink) };
-    manager.get_binary_id(&mut safe_sink);
+fn binary_id_from_arg(argv0: Option<OsString>) -> Vec<u8> {
+    let argv0 = argv0.unwrap_or_default();
+    let file_name = Path::new(&argv0).file_name().unwrap_or_default();
+    file_name.as_encoded_bytes().to_vec()
 }
 
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapterManager` passed during initialization.
-/// * `sink` is a valid pointer to a `FuzzTestBytesSink` whose lifetime extends for the duration of
-///   this call.
-pub unsafe extern "C" fn get_test_name_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterManagerCtx,
-    sink: *const engine_ffi::FuzzTestBytesSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapterManager`
-    // passed during initialization.
-    let manager = unsafe { &*(ctx as *const RustFuzzTestAdapterManager) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to a `FuzzTestBytesSink`
-    // whose lifetime extends for the duration of this call.
-    let mut safe_sink = unsafe { BytesSink::from_raw(sink) };
-    manager.get_test_name(&mut safe_sink);
-}
+impl AdapterManager for RustFuzzTestAdapterManager {
+    type Adapter = RustFuzzTestAdapter;
 
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapterManager` passed during initialization.
-/// * `diagnostic_sink` is a valid pointer to a `FuzzTestDiagnosticSink` whose lifetime extends
-///   until `FreeCtx` is called on the adapter.
-/// * `adapter_out` is a valid pointer to write the output `FuzzTestAdapter`.
-pub unsafe extern "C" fn construct_adapter_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterManagerCtx,
-    diagnostic_sink: *const engine_ffi::FuzzTestDiagnosticSink,
-    adapter_out: *mut engine_ffi::FuzzTestAdapter,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapterManager`
-    // passed during initialization.
-    let manager = unsafe { &*(ctx as *const RustFuzzTestAdapterManager) };
+    fn binary_id(&self) -> Vec<u8> {
+        // The engine asks for the binary ID at most once per process, so nothing is cached. A
+        // missing `argv[0]` yields an empty ID and a non-UTF-8 one is emitted as is: this runs
+        // inside an `extern "C"` callback and must not panic.
+        binary_id_from_arg(env::args_os().next())
+    }
 
-    // SAFETY: The engine guarantees `diagnostic_sink` is a valid pointer to a
-    // `FuzzTestDiagnosticSink` whose lifetime extends until `FreeCtx` is called on the adapter.
-    let safe_sink = unsafe { DiagnosticSink::from_raw(diagnostic_sink) };
+    // Replaces "::" with "." to avoid parsing issues in Centipede. Centipede uses ":" as a
+    // separator in CENTIPEDE_RUNNER_FLAGS and its parser replaces all ":" with "\0", which would
+    // truncate Rust paths.
+    fn test_name(&self) -> String {
+        self.test_name.replace("::", ".")
+    }
 
-    set_diagnostic_sink(safe_sink);
-
-    // NOTE: `safe_sink` is not passed to `construct_adapter` or stored in `RustFuzzTestAdapter`.
-    // Instead, it is maintained in the global `DIAGNOSTIC_SINK` mutex via `set_diagnostic_sink`.
-    // This is necessary because C callbacks (e.g., sanitizer hooks in `crash_handler.rs`) do not
-    // have access to the adapter `self` pointer and must rely on a global lookup to report crashes.
-    let adapter = manager.construct_adapter();
-    let boxed_adapter = Box::new(adapter);
-    // SAFETY: The engine guarantees `adapter_out` is a valid pointer to write the output adapter.
-    // The returned raw pointer `ctx` will be managed and eventually freed by `free_ctx_callback`.
-    unsafe {
-        *adapter_out = engine_ffi::FuzzTestAdapter {
-            ctx: Box::into_raw(boxed_adapter) as *mut engine_ffi::FuzzTestAdapterCtx,
-            set_up_coverage_domains: Some(set_up_coverage_domains_callback),
-            get_preset_seed_inputs: Some(get_preset_seed_inputs_callback),
-            get_random_seed_input: Some(get_random_seed_input_callback),
-            mutate: Some(mutate_callback),
-            cross_over: Some(cross_over_callback),
-            execute: Some(execute_callback),
-            serialize_input_content: Some(serialize_input_content_callback),
-            deserialize_input_content: Some(deserialize_input_content_callback),
-            serialize_input_metadata: Some(serialize_input_metadata_callback),
-            update_input_metadata: Some(update_input_metadata_callback),
-            free_input: Some(free_input_callback),
-            free_ctx: Some(free_ctx_callback),
-        };
+    fn construct_adapter(&self) -> RustFuzzTestAdapter {
+        RustFuzzTestAdapter { fuzz_test: self.construct_fuzz_test() }
     }
 }
 
-/// # Safety
+/// Runs `fuzztest` locally with random mutations for a short fixed duration.
 ///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `registry` is a valid pointer to `FuzzTestCoverageDomainRegistry`.
-pub unsafe extern "C" fn set_up_coverage_domains_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    registry: *const engine_ffi::FuzzTestCoverageDomainRegistry,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `registry` is a valid pointer to
-    // `FuzzTestCoverageDomainRegistry`.
-    let mut registry = unsafe { CoverageDomainRegistry::from_raw(registry) };
-    adapter.set_up_coverage_domains(&mut registry);
-}
-
-/// # Safety
+/// # Panics
 ///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `sink` is a valid pointer to `FuzzTestInputSink`.
-pub unsafe extern "C" fn get_preset_seed_inputs_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    sink: *const engine_ffi::FuzzTestInputSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
-    let mut safe_sink = unsafe { InputSink::from_raw(sink) };
-    adapter.get_preset_seed_inputs(&mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `sink` is a valid pointer to `FuzzTestInputSink`.
-pub unsafe extern "C" fn get_random_seed_input_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    sink: *const engine_ffi::FuzzTestInputSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
-    let mut safe_sink = unsafe { InputSink::from_raw(sink) };
-    adapter.get_random_seed_input(&mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `origin` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `sink` is a valid pointer to `FuzzTestInputSink`.
-pub unsafe extern "C" fn mutate_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    origin: engine_ffi::FuzzTestInputHandle,
-    shrink: c_int,
-    sink: *const engine_ffi::FuzzTestInputSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `origin` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let origin_ref = unsafe { &*(origin.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
-    let mut safe_sink = unsafe { InputSink::from_raw(sink) };
-    adapter.mutate(origin_ref, shrink != 0, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `origin` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `other` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `sink` is a valid pointer to `FuzzTestInputSink`.
-pub unsafe extern "C" fn cross_over_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    origin: engine_ffi::FuzzTestInputHandle,
-    other: engine_ffi::FuzzTestInputHandle,
-    sink: *const engine_ffi::FuzzTestInputSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `origin` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let origin_ref = unsafe { &*(origin.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `other` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let other_ref = unsafe { &*(other.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
-    let mut safe_sink = unsafe { InputSink::from_raw(sink) };
-    adapter.cross_over(origin_ref, other_ref, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `input` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `sink` is a valid pointer to `FuzzTestFeedbackSink`.
-pub unsafe extern "C" fn execute_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    input: engine_ffi::FuzzTestInputHandle,
-    sink: *const engine_ffi::FuzzTestFeedbackSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `input` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let input_ref = unsafe { &*(input.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestFeedbackSink`.
-    let mut safe_sink = unsafe { FeedbackSink::from_raw(sink) };
-
-    adapter.execute(input_ref, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `input` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `sink` is a valid pointer to `FuzzTestBytesSink`.
-pub unsafe extern "C" fn serialize_input_content_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    input: engine_ffi::FuzzTestInputHandle,
-    sink: *const engine_ffi::FuzzTestBytesSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `input` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let input_ref = unsafe { &*(input.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestBytesSink`.
-    let mut safe_sink = unsafe { BytesSink::from_raw(sink) };
-    adapter.serialize_input_content(input_ref, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `content` is a valid pointer to `FuzzTestBytesView` containing serialized input content.
-/// * `sink` is a valid pointer to `FuzzTestInputSink`.
-pub unsafe extern "C" fn deserialize_input_content_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    content: *const engine_ffi::FuzzTestBytesView,
-    sink: *const engine_ffi::FuzzTestInputSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `content` is a valid pointer to `FuzzTestBytesView`
-    // containing serialized input content.
-    let bytes = unsafe { &*(*content).to_bytes() };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
-    let mut safe_sink = unsafe { InputSink::from_raw(sink) };
-    adapter.deserialize_input_content(bytes, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `input` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `sink` is a valid pointer to `FuzzTestBytesSink`.
-pub unsafe extern "C" fn serialize_input_metadata_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    input: engine_ffi::FuzzTestInputHandle,
-    sink: *const engine_ffi::FuzzTestBytesSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `input` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let input_ref = unsafe { &*(input.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestBytesSink`.
-    let mut safe_sink = unsafe { BytesSink::from_raw(sink) };
-    adapter.serialize_input_metadata(input_ref, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `metadata` is a valid pointer to `FuzzTestBytesView` containing serialized input metadata.
-/// * `input` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework, and the engine guarantees exclusive access to it for the call
-///   duration.
-pub unsafe extern "C" fn update_input_metadata_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    metadata: *const engine_ffi::FuzzTestBytesView,
-    input: engine_ffi::FuzzTestInputHandle,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `metadata` is a valid pointer to `FuzzTestBytesView`
-    // containing serialized input metadata.
-    let bytes = unsafe { &*(*metadata).to_bytes() };
-    // SAFETY: The engine guarantees `input` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework, and provides exclusive
-    // access to it.
-    let input_ref = unsafe { &mut *(input.0 as *mut GenericCorpusValue) };
-    adapter.update_input_metadata(bytes, input_ref);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `input` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework that has not been freed yet.
-pub unsafe extern "C" fn free_input_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    input: engine_ffi::FuzzTestInputHandle,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    adapter.free_input(input);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-pub unsafe extern "C" fn free_ctx_callback(ctx: *mut engine_ffi::FuzzTestAdapterCtx) {
-    if !ctx.is_null() {
-        // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-        // created by `construct_adapter_callback`.
-        let ptr = ctx as *mut RustFuzzTestAdapter;
-        drop(unsafe { Box::from_raw(ptr) });
-
-        clear_diagnostic_sink();
-    }
-}
-
+/// Panics if locking, initializing, or mutating the test domains fails, or if the property
+/// function fails on a generated input.
 pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
-    let start_time = Instant::now();
-
     // TODO(the-shank): these should be configurable externally.
-    let smoke_test_duration = Duration::from_secs(1);
-    let only_shrink = false;
+    const SMOKE_TEST_DURATION: Duration = Duration::from_secs(1);
+    const ONLY_SHRINK: bool = false;
 
+    let deadline = Instant::now() + SMOKE_TEST_DURATION;
+    let domains = fuzztest.domains();
     // TODO(the-shank): the rng seed should be configurable
     let mut rng = rand::rng();
 
-    let mut generic_corpus_value = fuzztest
-        .domains()
+    let mut corpus_value = domains
         .lock()
         .expect("Failed to lock domains")
         .init(&mut rng)
         .expect("domain initialization should succeed to provide an initial corpus value");
-
-    let result = fuzztest.execute(&generic_corpus_value);
-    // DISCUSS: probably need a more "googletest" approach to handling the result here?
-    assert!(result);
-
-    while start_time.elapsed() < smoke_test_duration {
-        fuzztest
-            .domains()
+    loop {
+        // DISCUSS: probably need a more "googletest" approach to handling the result here?
+        assert!(
+            fuzztest.execute(&corpus_value),
+            "the property function failed; see the counterexample reported above"
+        );
+        if Instant::now() >= deadline {
+            break;
+        }
+        domains
             .lock()
             .expect("Failed to lock domains")
-            .mutate(&mut generic_corpus_value, &mut rng, only_shrink)
+            .mutate(&mut corpus_value, &mut rng, ONLY_SHRINK)
             .expect("domain mutation should succeed");
-        let result = fuzztest.execute(&generic_corpus_value);
-        // DISCUSS: probably need a more "googletest" approach to handling the result here?
-        assert!(result);
     }
-}
-
-pub enum WorkerStatus {
-    Success,
-    Failure,
 }
 
 /// Processes and executes a fuzz test using the provided [`RustFuzzTestAdapterManager`].
 ///
-/// This function serves as the primary entry point for running a fuzz test. It manages test
-/// execution across two operational modes:
+/// This function serves as the primary entry point for running a fuzz test:
 ///
-/// 1. Worker Mode: Registers signal/sanitizer crash handlers and attempts to hand off execution to
-///    the external fuzzing engine (e.g., Centipede) via [`maybe_run_as_worker`].
+/// 1. Worker mode: registers the sanitizer crash handler and offers the test to the fuzzing engine
+///    (e.g., Centipede) via [`engine::run_worker_if_requested`].
 ///    - If the binary was spawned as a worker process by the fuzzing engine, control remains in the
-///      engine loop until complete.
-///    - Returns cleanly on [`WorkerStatus::Success`], or panics on [`WorkerStatus::Failure`] to
-///      signal test failure to the harness.
-/// 2. Smoke Test Mode: If worker mode is not active (e.g., during standard `blaze test` or `cargo
-///    test` unit test runs), falls back to executing a short local smoke test using sample inputs
-///    and mutation iterations to verify property function sanity.
+///      engine loop until it completes.
+///    - Returns cleanly on [`RunOutcome::Success`], so that the harness continues with the next
+///      test, and exits the process with status 1 on [`RunOutcome::Failure`].
+/// 2. Otherwise, the action selected by the FuzzTest options: run the fuzzing controller
+///    (standalone fuzzing or crash replay), or fall back to a short local smoke test, as in
+///    standard `blaze test` or `cargo test` runs.
+///
+/// # Panics
+///
+/// Panics if the controller reports a failure in standalone mode, or if the smoke test finds a
+/// failing input.
 pub fn process(manager: RustFuzzTestAdapterManager) {
     super::crash_handler::register_crash_handler();
 
-    // box it to get a stable heap address.
-    let manager = Box::new(manager);
-
-    if let Some(status) = maybe_run_as_worker(&manager) {
-        match status {
-            WorkerStatus::Success => {
-                // do nothing, the harness would continue to the next test
-                return;
-            }
-            WorkerStatus::Failure => {
-                process::exit(1);
-            }
-        }
+    match ::engine::run_worker_if_requested(&manager) {
+        // The harness continues with the next test.
+        Some(RunOutcome::Success) => return,
+        Some(RunOutcome::Failure) => process::exit(1),
+        // Worker mode was not requested.
+        None => {}
     }
 
-    // worker mode was not run -- determine what to do next.
     match options::determine_execution_action(manager.test_name) {
-        ExecutionAction::Standalone(centipede_args) => {
-            let status = run_standalone_mode(&manager, centipede_args);
-            if status == engine_ffi::FuzzTestControllerStatus::Failure {
-                panic!("FuzzTest controller reported failure");
-            }
-        }
+        ExecutionAction::Standalone(args) => run_controller(&manager, args),
         ExecutionAction::ReplayAllCrashes { args, list_file } => {
-            let status = run_standalone_mode(&manager, args);
-            if status == engine_ffi::FuzzTestControllerStatus::Failure {
-                panic!("FuzzTest controller reported failure");
-            }
-
-            // Now read the file and replay each crash
-            if let Ok(contents) = fs::read_to_string(list_file.path()) {
-                let options = options::get_fuzztest_options();
-                for crash_id in contents.lines() {
-                    let crash_id = crash_id.trim();
-                    if crash_id.is_empty() {
-                        continue;
-                    }
-                    let replay_mode =
-                        options::ExecutionMode::ReplayCrash(options::ReplayCrashOptions {
-                            replay_id: crash_id.to_string(),
-                        });
-                    if let Ok(Some(replay_args)) = CentipedeArgs::from_execution_mode(
-                        &replay_mode,
-                        options,
-                        manager.test_name,
-                        None,
-                    ) {
-                        // We ignore the result here because replaying a crash is expected to fail
-                        // (report failure). We want to continue replaying other crashes.
-                        let _ = run_standalone_mode(&manager, replay_args);
-                    }
-                }
-            }
+            run_controller(&manager, args);
+            replay_listed_crashes(&manager, list_file.path());
         }
         ExecutionAction::SmokeTest => {
             let fuzz_test = manager.construct_fuzz_test();
@@ -758,52 +236,153 @@ pub fn process(manager: RustFuzzTestAdapterManager) {
     }
 }
 
-fn make_ffi_manager(manager: &RustFuzzTestAdapterManager) -> engine_ffi::FuzzTestAdapterManager {
-    let ctx =
-        manager as *const RustFuzzTestAdapterManager as *mut engine_ffi::FuzzTestAdapterManagerCtx;
-
-    engine_ffi::FuzzTestAdapterManager {
-        ctx,
-        get_binary_id: Some(get_binary_id_callback),
-        get_test_name: Some(get_test_name_callback),
-        construct_adapter: Some(construct_adapter_callback),
+/// Runs the controller and panics if it reports a failure, which fails the test in the harness.
+fn run_controller(manager: &RustFuzzTestAdapterManager, args: CentipedeArgs) {
+    if ::engine::run_controller(manager, &args.to_byte_slices()) == RunOutcome::Failure {
+        panic!("FuzzTest controller reported failure");
     }
 }
 
-/// Attempts to run the fuzz test in Centipede worker mode using the FFI engine interface.
+/// Replays every crash listed in `list_file`, with one controller run per crash ID.
 ///
-/// This function constructs a C-compatible [`engine_ffi::FuzzTestAdapterManager`] wrapping
-/// the given `manager` with required callback function pointers (`get_binary_id_callback`,
-/// `get_test_name_callback`, `construct_adapter_callback`), and invokes
-/// [`engine_ffi::FuzzTestWorkerMaybeRun`].
-///
-/// # Returns
-/// - `Some(WorkerStatus::Success)`: The process ran in worker mode and completed successfully.
-/// - `Some(WorkerStatus::Failure)`: The process ran in worker mode and encountered a failure.
-/// - `None`: Worker mode was not requested (`kFuzzTestWorkerNotRequired`). The caller should fall
-///   back to standalone smoke-test execution.
-fn maybe_run_as_worker(manager: &RustFuzzTestAdapterManager) -> Option<WorkerStatus> {
-    let ffi_manager = make_ffi_manager(manager);
-
-    // SAFETY: `manager` is a valid heap-allocated `RustFuzzTestAdapterManager`,
-    // and `ffi_manager` contains valid C-compatible function pointer callbacks.
-    let status = unsafe { engine_ffi::FuzzTestWorkerMaybeRun(&ffi_manager) };
-
-    match status {
-        engine_ffi::FuzzTestWorkerStatus::Success => Some(WorkerStatus::Success),
-        engine_ffi::FuzzTestWorkerStatus::Failure => Some(WorkerStatus::Failure),
-        engine_ffi::FuzzTestWorkerStatus::NotRequired => None,
+/// A list that cannot be read and a replay that cannot be prepared are reported as warnings.
+/// They do not fail the test, in the same way that a crash that reproduces does not: this mode
+/// replays as much as it can.
+fn replay_listed_crashes(manager: &RustFuzzTestAdapterManager, list_file: &Path) {
+    let crash_ids = match fs::read_to_string(list_file) {
+        Ok(crash_ids) => crash_ids,
+        Err(e) => {
+            eprintln!(
+                "warning: no crash was replayed, cannot read the crash list {}: {e}",
+                list_file.display()
+            );
+            return;
+        }
+    };
+    let options = options::get_fuzztest_options();
+    for crash_id in crash_ids.lines().map(str::trim).filter(|crash_id| !crash_id.is_empty()) {
+        let replay_mode = options::ExecutionMode::ReplayCrash(options::ReplayCrashOptions {
+            replay_id: crash_id.to_string(),
+        });
+        match CentipedeArgs::from_execution_mode(&replay_mode, options, manager.test_name, None) {
+            Ok(Some(replay_args)) => {
+                // The outcome is ignored: replaying a crash is expected to report a failure, and
+                // the remaining crashes should still be replayed.
+                let _ = ::engine::run_controller(manager, &replay_args.to_byte_slices());
+            }
+            Ok(None) => {
+                eprintln!("warning: crash {crash_id} was not replayed: nothing to run for it")
+            }
+            Err(e) => eprintln!("warning: crash {crash_id} was not replayed: {e:#}"),
+        }
     }
 }
 
-fn run_standalone_mode(
-    manager: &RustFuzzTestAdapterManager,
-    centipede_args: CentipedeArgs,
-) -> engine_ffi::FuzzTestControllerStatus {
-    let ffi_manager = make_ffi_manager(manager);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use googletest::prelude::*;
+    use rand::Rng;
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStringExt;
+    use std::sync::{Arc, Mutex};
+    use tempfile::TempDir;
 
-    // SAFETY: `ffi_manager` wraps `manager` which is guaranteed to be alive. `centipede_args` is
-    // alive until the end of this function, since we have the ownership, ensuring that the
-    // pointers passed to `FuzzTestControllerRun` remain valid.
-    unsafe { engine_ffi::FuzzTestControllerRun(&ffi_manager, &centipede_args.as_bytes_views()) }
+    struct FakeDomain;
+
+    impl GenericDomain for FakeDomain {
+        fn init(&mut self, _rng: &mut dyn Rng) -> anyhow::Result<GenericCorpusValue> {
+            Ok(Box::new(()))
+        }
+
+        fn mutate(
+            &mut self,
+            _corpus_value: &mut GenericCorpusValue,
+            _rng: &mut dyn Rng,
+            _only_shrink: bool,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        fn parse_corpus(&self, _data: &[u8]) -> anyhow::Result<GenericCorpusValue> {
+            Ok(Box::new(()))
+        }
+
+        fn serialize_corpus(&self, _val: &GenericCorpusValue) -> anyhow::Result<Vec<u8>> {
+            Ok(Vec::new())
+        }
+    }
+
+    struct FakeFuzzTest {
+        succeeds: bool,
+    }
+
+    impl FuzzTest for FakeFuzzTest {
+        fn name(&self) -> &'static str {
+            "fake_test"
+        }
+
+        fn activate(&mut self) {}
+
+        fn mutate(&mut self) {}
+
+        fn execute(&self, _args: &GenericCorpusValue) -> bool {
+            self.succeeds
+        }
+
+        fn domains(&self) -> Arc<Mutex<dyn GenericDomain>> {
+            Arc::new(Mutex::new(FakeDomain))
+        }
+    }
+
+    fn make_succeeding_test() -> BoxedFuzzTest {
+        Box::new(FakeFuzzTest { succeeds: true })
+    }
+
+    #[gtest]
+    fn binary_id_from_arg_strips_directory_and_handles_missing_or_empty() {
+        expect_eq!(binary_id_from_arg(Some("/usr/local/bin/my_fuzzer".into())), b"my_fuzzer");
+        expect_eq!(binary_id_from_arg(None), b"");
+        expect_eq!(binary_id_from_arg(Some("".into())), b"");
+    }
+
+    #[cfg(unix)]
+    #[gtest]
+    fn binary_id_from_arg_preserves_non_utf8_bytes() {
+        let arg = OsString::from_vec(b"/tmp/fuzz_\xff_bin".to_vec());
+        expect_eq!(binary_id_from_arg(Some(arg)), b"fuzz_\xff_bin");
+    }
+
+    #[gtest]
+    fn adapter_manager_replaces_double_colons_in_test_name() {
+        let manager = RustFuzzTestAdapterManager {
+            test_name: "crate::sub::prop",
+            fuzz_test_factory: make_succeeding_test,
+        };
+        expect_eq!(manager.test_name(), "crate.sub.prop");
+    }
+
+    #[gtest]
+    fn replay_listed_crashes_ignores_missing_list_file() -> Result<()> {
+        let dir = TempDir::new()?;
+        let missing = dir.path().join("missing_crashes.txt");
+        let manager = RustFuzzTestAdapterManager {
+            test_name: "crate::sub::prop",
+            fuzz_test_factory: make_succeeding_test,
+        };
+
+        replay_listed_crashes(&manager, &missing);
+        Ok(())
+    }
+
+    #[gtest]
+    fn run_smoke_test_succeeds_when_property_holds() {
+        run_smoke_test(&FakeFuzzTest { succeeds: true });
+    }
+
+    #[gtest]
+    #[should_panic(expected = "the property function failed")]
+    fn run_smoke_test_panics_when_property_fails() {
+        run_smoke_test(&FakeFuzzTest { succeeds: false });
+    }
 }
