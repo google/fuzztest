@@ -31,6 +31,7 @@ def _sancov_transition_impl(settings, attr):
         for x in settings["//command_line_option:features"]
         if x not in features_to_strip
     ]
+
     compiler = settings["//command_line_option:compiler"]
     compilers_to_disable = ["tsan", "msan"]
     if compiler in compilers_to_disable:
