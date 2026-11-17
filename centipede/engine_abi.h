@@ -28,6 +28,10 @@ extern "C" {
 
 // Opaque handles for in-memory input objects used by the test, which
 // may be serialized/deserialized by the engine.
+//
+// The engine never inspects or fabricates handle values. It only passes back
+// handles that the adapter emitted through a `FuzzTestInputSink` and that the
+// engine has not yet passed to `FuzzTestAdapter::FreeInput`.
 typedef uintptr_t FuzzTestInputHandle;
 
 typedef struct {
@@ -141,6 +145,21 @@ typedef struct {
                    const FuzzTestCoverageDomain* domain);
 } FuzzTestCoverageDomainRegistry;
 
+// Test adapter callbacks.
+//
+// The engine upholds the following when it invokes the callbacks of a
+// `FuzzTestAdapter` and of its `FuzzTestAdapterManager`:
+//
+//   - Callbacks are invoked sequentially, on the thread that called into the
+//     engine with the manager (e.g. `FuzzTestWorkerMaybeRun`). A callback is
+//     never invoked while another one is running.
+//   - Pointer arguments (sinks, views and registries) are non-null and remain
+//     valid until the callback returns. Calling a method of a sink or registry
+//     passed to a callback never invokes an adapter or manager callback.
+//   - Before `FreeCtx` is called, every input emitted by the adapter has been
+//     passed to `FreeInput` exactly once. An input is not used after that.
+//   - A callback is invoked with the `ctx` of the struct that holds it. Once
+//     `FreeCtx` is called, no callback is invoked with that `ctx` again.
 typedef struct FuzzTestAdapterCtx FuzzTestAdapterCtx;
 typedef struct FuzzTestAdapter {
   FuzzTestAdapterCtx* ctx;
@@ -169,7 +188,7 @@ typedef struct FuzzTestAdapter {
                  int shrink, const FuzzTestInputSink* sink);
 
   // [Optional] Performs cross-over mutation using `origin` and `other`, and
-  // emits the mutant using `sink`.
+  // emits the mutant using `sink`. `origin` and `other` may be the same input.
   //
   // It should not change the content/metadata of `origin` or `other`.
   void (*CrossOver)(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle origin,

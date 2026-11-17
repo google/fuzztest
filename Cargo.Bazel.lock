@@ -1,5 +1,5 @@
 {
-  "checksum": "92b03b2ac4b04427097d8cce6516c64ee505f842b06a265f5c16dedd6f83ae5e",
+  "checksum": "5ac81d675d27055dcd22b97969e045d58fec97bfbd2a60056cd7552fe4d6114b",
   "crates": {
     "aho-corasick 1.1.4": {
       "name": "aho-corasick",
@@ -1462,6 +1462,23 @@
             {
               "id": "engine-ffi 0.1.0",
               "target": "build_script_build"
+            },
+            {
+              "id": "safer_cffi 0.2.0",
+              "target": "safer_cffi"
+            },
+            {
+              "id": "spin 0.10.1",
+              "target": "spin"
+            }
+          ],
+          "selects": {}
+        },
+        "deps_dev": {
+          "common": [
+            {
+              "id": "googletest 0.14.3",
+              "target": "googletest"
             }
           ],
           "selects": {}
@@ -1703,10 +1720,6 @@
               "target": "serde"
             },
             {
-              "id": "spin 0.10.1",
-              "target": "spin"
-            },
-            {
               "id": "tempfile 3.27.0",
               "target": "tempfile"
             }
@@ -1835,6 +1848,55 @@
             {
               "id": "humantime 2.4.0",
               "target": "humantime"
+            }
+          ],
+          "selects": {}
+        },
+        "deps_dev": {
+          "common": [
+            {
+              "id": "googletest 0.14.3",
+              "target": "googletest"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2024",
+        "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
+    "fuzztest-registry 0.1.0": {
+      "name": "fuzztest-registry",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "fuzztest_registry",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "fuzztest_registry",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "inventory 0.3.24",
+              "target": "inventory"
             }
           ],
           "selects": {}
@@ -2679,15 +2741,11 @@
           "**"
         ],
         "crate_features": {
-          "common": [],
-          "selects": {
-            "aarch64-apple-darwin": [
-              "std"
-            ],
-            "wasm32-wasip1": [
-              "std"
-            ]
-          }
+          "common": [
+            "default",
+            "std"
+          ],
+          "selects": {}
         },
         "deps": {
           "common": [
@@ -2816,6 +2874,45 @@
         },
         "edition": "2021",
         "version": "0.4.14"
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
+    },
+    "log 0.4.35": {
+      "name": "log",
+      "version": "0.4.35",
+      "package_url": "https://github.com/rust-lang/log",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/log/0.4.35/download",
+          "sha256": "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "log",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "log",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "edition": "2021",
+        "version": "0.4.35"
       },
       "license": "MIT OR Apache-2.0",
       "license_ids": [
@@ -3951,6 +4048,58 @@
         "MIT"
       ],
       "license_file": "LICENSE-APACHE"
+    },
+    "safer_cffi 0.2.0": {
+      "name": "safer_cffi",
+      "version": "0.2.0",
+      "package_url": "https://github.com/google/safer_cffi",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/safer_cffi/0.2.0/download",
+          "sha256": "9ea91e79102f6312d849fe25711039cd02c0d6143c605c29807a7de32ab70e9f"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "safer_cffi",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "safer_cffi",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "libc 0.2.189",
+              "target": "libc"
+            },
+            {
+              "id": "log 0.4.35",
+              "target": "log"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2024",
+        "version": "0.2.0"
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE"
     },
     "scopeguard 1.2.0": {
       "name": "scopeguard",
@@ -5895,7 +6044,8 @@
     "engine-ffi 0.1.0": "rust/engine",
     "fuzztest 0.1.0": "rust",
     "fuzztest-macro 0.1.0": "rust/fuzztest_macro",
-    "fuzztest-options 0.1.0": "rust/options"
+    "fuzztest-options 0.1.0": "rust/options",
+    "fuzztest-registry 0.1.0": "rust/registry"
   },
   "conditions": {
     "aarch64-apple-darwin": [
@@ -6005,6 +6155,7 @@
     "proc-macro2 1.0.107",
     "quote 1.0.47",
     "rand 0.10.2",
+    "safer_cffi 0.2.0",
     "serde 1.0.229",
     "serde_json 1.0.151",
     "spin 0.10.1",
