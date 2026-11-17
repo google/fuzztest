@@ -19,5 +19,9 @@ edition = "2024"
 build = "build.rs"
 
 [dependencies]
+spin.workspace = true
+
+[dev-dependencies]
+googletest.workspace = true
 
 
