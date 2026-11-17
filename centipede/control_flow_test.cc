@@ -194,8 +194,6 @@ static std::string GetTracePCTargetPath() {
 // Tests GetCfTableFromBinary() on test_fuzz_target.
 TEST(CFTable, GetCfTable) {
   auto target_path = GetTargetPath();
-  std::string tmp_path1 = GetTempFilePath(test_info_->name(), 1);
-  std::string tmp_path2 = GetTempFilePath(test_info_->name(), 2);
 
   // Load the cf table.
   BinaryInfo binary_info;
@@ -203,7 +201,7 @@ TEST(CFTable, GetCfTable) {
       target_path, /*env_diff=*/{}, GetObjDumpPath(), GetLLVMSymbolizerPath(),
       GetTestTempDir(test_info_->name()).string());
   const auto &cf_table = binary_info.cf_table;
-  FUZZTEST_LOG(INFO) << VV(target_path) << VV(tmp_path1) << VV(cf_table.size());
+  FUZZTEST_LOG(INFO) << VV(target_path) << VV(cf_table.size());
   if (cf_table.empty()) {
     FUZZTEST_LOG(INFO) << "__sancov_cfs is empty.";
     // TODO(ussuri): This should be removed once OSS clang supports
@@ -211,8 +209,6 @@ TEST(CFTable, GetCfTable) {
     GTEST_SKIP();
   }
 
-  ASSERT_FALSE(
-      std::filesystem::exists(tmp_path1.c_str()));  // tmp_path1 was deleted.
   FUZZTEST_LOG(INFO) << VV(cf_table.size());
 
   const auto &pc_table = binary_info.pc_table;
