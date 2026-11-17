@@ -43,7 +43,6 @@ rust_library(
         "@crate_index//:postcard",  # v1
         "@crate_index//:rand",  # v0_10
         "@crate_index//:serde",  # v1
-        "@crate_index//:spin",  # v0_10
         "@crate_index//:tempfile",  # v3
     ],
 )

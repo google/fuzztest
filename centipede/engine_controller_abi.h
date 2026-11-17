@@ -36,6 +36,9 @@ typedef struct {
 } FuzzTestBytesViews;
 
 // Run the FuzzTest controller with `flags` and `manager`.
+//
+// `manager` and `flags` are only used during the call: the engine does not
+// retain them after this function returns.
 FuzzTestControllerStatus FuzzTestControllerRun(
     const FuzzTestAdapterManager* manager, const FuzzTestBytesViews* flags);
 
