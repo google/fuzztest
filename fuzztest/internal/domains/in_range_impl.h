@@ -216,7 +216,7 @@ class InRangeImpl : public domain_implementor::DomainBase<InRangeImpl<T>> {
   T min_;
   T max_;
   size_t largest_mutable_bit_positive = 0;
-  size_t largest_mutable_bit_negative = 0;
+  [[maybe_unused]] size_t largest_mutable_bit_negative = 0;
   IntegerDictionaryT temporary_dict_ = {};
   IntegerDictionaryT permanent_dict_ = {};
   std::optional<T> permanent_dict_candidate_ = std::nullopt;
