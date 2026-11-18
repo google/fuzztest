@@ -21,6 +21,8 @@
 #include <unistd.h>
 
 #include <csignal>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <sstream>
@@ -190,6 +192,21 @@ void CrashOnFailingTestInput(const std::string& input) {
   EXPECT_FALSE(absl::StartsWith(input, "crashing"));
 }
 FUZZ_TEST(MySuite, CrashOnFailingTestInput);
+
+extern "C" __attribute__((weak)) void CentipedeSetExecutionResult(
+    const uint8_t* data, size_t size);
+
+void ExecutionResultOverrideDoesNotLeakAcrossInputs(const std::string& s) {
+  if (s.empty()) {
+    if (CentipedeSetExecutionResult != nullptr) {
+      CentipedeSetExecutionResult(nullptr, 0);
+    }
+    return;
+  }
+  EXPECT_FALSE(absl::StartsWith(s, "ResetMe!"));
+}
+FUZZ_TEST(MySuite, ExecutionResultOverrideDoesNotLeakAcrossInputs)
+    .WithSeeds({""});
 
 class SkippedTestFixturePerTest
     : public ::fuzztest::PerFuzzTestFixtureAdapter<testing::Test> {
