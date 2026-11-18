@@ -883,6 +883,29 @@ cc_library(
 )
 
 cc_library(
+    name = "in_process_centipede_callbacks",
+    srcs = ["in_process_centipede_callbacks.cc"],
+    hdrs = ["in_process_centipede_callbacks.h"],
+    deps = [
+        ":centipede_callbacks",
+        ":engine_abi",
+        ":environment",
+        ":feature",
+        ":mutation_data",
+        ":runner_result",
+        ":stop",
+        ":util",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+    ],
+)
+
+cc_library(
     name = "fuzztest_mutator",
     srcs = ["fuzztest_mutator.cc"],
     hdrs = ["fuzztest_mutator.h"],
@@ -1371,6 +1394,31 @@ cc_test(
         ":stop",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "in_process_centipede_callbacks_test",
+    srcs = ["in_process_centipede_callbacks_test.cc"],
+    deps = [
+        ":centipede_interface",
+        ":engine_abi",
+        ":environment",
+        ":execution_metadata",
+        ":feature",
+        ":in_process_centipede_callbacks",
+        ":mutation_data",
+        ":runner_result",
+        ":stop",
+        ":thread_pool",
+        ":util",
+        ":workdir",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:temp_dir",
         "@googletest//:gtest_main",
     ],
 )
