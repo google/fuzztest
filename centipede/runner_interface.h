@@ -27,6 +27,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/types/span.h"
+#include "./centipede/engine_abi.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
@@ -196,6 +197,28 @@ std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
     FuzzerTestOneInputCallback test_one_input_cb,
     FuzzerCustomMutatorCallback custom_mutator_cb,
     FuzzerCustomCrossOverCallback custom_crossover_cb);
+
+// Creates a `FuzzTestAdapterManager` from `callbacks`, which must outlive the
+// returned manager and any adapters constructed from it.
+//
+// NOTE: The returned manager and its adapters rely on process-global runner
+// state that was designed for `RunnerMain()`. So a few limitations apply:
+//
+// - Execution feedback tracing: the adapter enables tracing on the current
+//   thread only while executing an input, and restores the previous value
+//   afterwards. Threads are traced by default, so the caller should call
+//   `CentipedeSetCurrentThreadTraced(0)` on the thread using the adapter before
+//   the first execution. Otherwise the code running between executions would be
+//   traced and pollute the feedback of later executions.
+// - Single active adapter: at most one adapter constructed from any such
+//   manager may be alive in the process at a time, since the diagnostic sink of
+//   the adapter is stored in the global runner state. Constructing a second
+//   adapter overrides the sink of the first one, and freeing either adapter
+//   clears it.
+// - Custom mutator: `Mutate` and `CrossOver` of the adapter terminate the
+//   process when `callbacks->HasCustomMutator()` returns false.
+FuzzTestAdapterManager CreateFuzzTestAdapterManager(
+    RunnerCallbacks* absl_nonnull callbacks);
 
 // The main Centipede Runner function.
 // It performs actions prescribed by argc/argv and environment variables
