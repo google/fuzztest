@@ -407,7 +407,12 @@ CENTIPEDE_FLAG(
 CENTIPEDE_FLAG(
     bool, batch_triage_suspect_only, false,
     "If set, triage the crash on only the suspected input in a crashing "
-    "batch. Otherwise, triage on all the executed inputs")
+    "batch. Otherwise, triage on all the executed inputs.")
+CENTIPEDE_FLAG(
+    bool, skip_triage, false,
+    "If set, do not re-execute inputs to triage a crash; save the suspected "
+    "input of the crashing batch as the reproducer directly. Takes precedence "
+    "over --batch_triage_suspect_only.")
 CENTIPEDE_FLAG(
     size_t, shmem_size_mb, 1024,
     "Size of the shared memory regions used to communicate between the "

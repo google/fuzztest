@@ -1202,6 +1202,7 @@ cc_library(
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
     deps = [
         ":centipede_runner_no_main",
+        ":engine_abi",
         ":execution_metadata",
         ":mutation_data",
         "@abseil-cpp//absl/base:nullability",
@@ -1419,6 +1420,27 @@ cc_test(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:temp_dir",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Separated from :in_process_centipede_callbacks_test because linking the
+# runner brings in its process-global state.
+cc_test(
+    name = "runner_adapter_manager_test",
+    srcs = ["runner_adapter_manager_test.cc"],
+    deps = [
+        ":centipede_runner_no_main",
+        ":engine_abi",
+        ":environment",
+        ":execution_metadata",
+        ":in_process_centipede_callbacks",
+        ":mutation_data",
+        ":runner_result",
+        ":stop",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/strings",
+        "@com_google_fuzztest//common:defs",
         "@googletest//:gtest_main",
     ],
 )

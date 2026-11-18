@@ -1080,6 +1080,47 @@ TEST(Centipede, SingleInputNonPersistentSkipsTriageReplay) {
       std::filesystem::exists(metadata_dir / (crashing_input_hash + ".sig")));
 }
 
+TEST(Centipede, SkipTriageSavesSuspectInputWithoutReexecution) {
+  constexpr size_t kNumBatches = 5;
+  constexpr size_t kBatchSize = 10;
+  // Not the first input of its batch, so that saving the suspect input can be
+  // told apart from saving the first input.
+  constexpr size_t kCrashingInputIdx = 15;
+
+  TempDir temp_dir{test_info_->name()};
+  Environment env;
+  env.workdir = temp_dir.path();
+  env.num_runs = kBatchSize * kNumBatches;
+  env.batch_size = kBatchSize;
+  env.require_pc_table = false;
+  env.exit_on_crash = true;
+  env.skip_triage = true;
+
+  // Would fail on the first triage attempt, if triage was not skipped.
+  FlakyCrashingInputMock mock(env, kCrashingInputIdx,
+                              /*fail_on_triage_attempt=*/1);
+  NonOwningCallbacksFactory factory(mock);
+  CentipedeMain(env, factory);
+
+  EXPECT_EQ(mock.triage_attempts(), 0);
+  const auto crash_dir =
+      std::filesystem::path{WorkDir{env}.CrashReproducerDirPaths().MyShard()};
+  const auto crashing_input_hash = Hash(mock.crashing_input());
+  // The suspect input must be the only thing saved: no other reproducer and no
+  // `crashing_batch-*` directory.
+  std::vector<std::string> saved_names;
+  for (const auto& dir_ent : std::filesystem::directory_iterator(crash_dir)) {
+    saved_names.push_back(dir_ent.path().filename());
+  }
+  EXPECT_THAT(saved_names, ElementsAre(crashing_input_hash));
+  const auto metadata_dir =
+      std::filesystem::path{WorkDir{env}.CrashMetadataDirPaths().MyShard()};
+  EXPECT_TRUE(
+      std::filesystem::exists(metadata_dir / (crashing_input_hash + ".desc")));
+  EXPECT_TRUE(
+      std::filesystem::exists(metadata_dir / (crashing_input_hash + ".sig")));
+}
+
 TEST_F(CentipedeWithTemporaryLocalDir, GetsSeedInputs) {
   Environment env;
   env.binary =

@@ -428,9 +428,10 @@ bool Centipede::ExecuteAndReportCrash(std::string_view binary,
     return true;
   }
   const bool can_report_without_reexecution =
-      input_vec.size() == 1 && !env_.persistent_mode &&
-      batch_result.IsInputFailure() && !stop_condition_.StopRequested() &&
-      batch_result.failure_description() != kExecutionFailurePerBatchTimeout;
+      env_.skip_triage ||
+      (input_vec.size() == 1 && !env_.persistent_mode &&
+       batch_result.IsInputFailure() && !stop_condition_.StopRequested() &&
+       batch_result.failure_description() != kExecutionFailurePerBatchTimeout);
   if (stop_condition_.ShouldStop() && !can_report_without_reexecution) {
     FUZZTEST_LOG_FIRST_N(WARNING, 1)
         << "Crash found but the stop condition is met - not reporting further "
@@ -1110,6 +1111,14 @@ void Centipede::ReportCrash(std::string_view binary,
            "and saving the reproducer directly.";
     SaveReproducer(wd_, log_prefix, /*input_idx=*/0, input_vec[0],
                    batch_result);
+    return;
+  } else if (env_.skip_triage) {
+    FUZZTEST_LOG(INFO) << log_prefix
+                       << "Skipping triaging the crash per --skip_triage "
+                          "and saving the suspect input as reproducer "
+                          "directly.";
+    SaveReproducer(wd_, log_prefix, suspect_input_idx,
+                   input_vec[suspect_input_idx], batch_result);
     return;
   }
 
