@@ -220,6 +220,8 @@ class FuzzTestFatalLogSink : public absl::LogSink {
 
 ReproducerOutputLocation GetReproducerOutputLocation() {
 #ifdef FUZZTEST_USE_CENTIPEDE
+  // TODO: b/587390979 - Fix the duplicated reproducer output when running with
+  // Centipede in-process execution.
   if (std::getenv("CENTIPEDE_RUNNER_FLAGS") != nullptr) {
     return ReproducerOutputLocation{
         "", ReproducerOutputLocation::Type::kReportToController};
