@@ -43,6 +43,24 @@ mod sub {
     }
 }
 
+#[fuzztest(_a = Arbitrary::<bool>::default())]
+#[ignore]
+fn ignored_fuzz_test(_a: bool) {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        println!("ignored_fuzz_test property function ran...");
+    });
+}
+
+#[ignore = "temporarily disabled"]
+#[fuzztest(_a = Arbitrary::<bool>::default())]
+fn ignored_with_reason_fuzz_test(_a: bool) {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        println!("ignored_with_reason_fuzz_test property function ran...");
+    });
+}
+
 #[googletest::prelude::gtest]
 fn regular_gtest() {
     println!("regular_gtest ran...");

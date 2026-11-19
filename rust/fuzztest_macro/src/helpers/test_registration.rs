@@ -18,6 +18,8 @@ use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse_quote;
+use syn::AttrStyle;
+use syn::Attribute;
 use syn::Expr;
 use syn::Generics;
 use syn::Ident;
@@ -40,6 +42,21 @@ pub struct FuzzTestObjectDefinition {
 #[derive(Clone, Debug)]
 pub struct GTestDefinition {
     pub gtest_tokens: TokenStream,
+}
+
+/// Removes outer test-harness attributes (currently `#[ignore]`) from `attrs` so they can be
+/// forwarded to the generated `#[gtest]` wrapper instead of remaining on the property function.
+pub fn extract_gtest_attrs(attrs: &mut Vec<Attribute>) -> Vec<Attribute> {
+    let mut gtest_attrs = Vec::new();
+    attrs.retain(|attr| {
+        if matches!(attr.style, AttrStyle::Outer) && attr.path().is_ident("ignore") {
+            gtest_attrs.push(attr.clone());
+            false
+        } else {
+            true
+        }
+    });
+    gtest_attrs
 }
 
 /// A context struct holding the pre-computed information and token streams required
@@ -141,8 +158,8 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
 
     /// Generates a GoogleTest-compatible test function that wraps the fuzz test.
     ///
-    /// This allows the fuzz test to be executed as a regular tests.
-    pub fn generate_gtest(&self) -> syn::Result<GTestDefinition> {
+    /// This allows the fuzz test to be executed as a regular test.
+    pub fn generate_gtest(&self, gtest_attrs: &[Attribute]) -> syn::Result<GTestDefinition> {
         let gtest_name = &self.test_fn_ident;
         let crate_name = &self.crate_name;
         let test_fn_name = self.test_fn_ident.to_string();
@@ -150,6 +167,7 @@ impl<'a> FuzzTestRegistrationCtx<'a> {
 
         let tokens = quote!(
             #[::googletest::prelude::gtest]
+            #(#gtest_attrs)*
             fn #gtest_name() {
                 let test_name = concat!(module_path!(), "::", #test_fn_name);
                 let manager = #crate_name::worker::RustFuzzTestAdapterManager {
@@ -372,7 +390,7 @@ mod tests {
         let expr2: Expr =
             parse_quote! { ::fuzztest::domains::arbitrary::Arbitrary::<String>::default() };
         let context = FuzzTestRegistrationCtx::new(&sig, [&expr1, &expr2]).unwrap();
-        let GTestDefinition { gtest_tokens } = context.generate_gtest().unwrap();
+        let GTestDefinition { gtest_tokens } = context.generate_gtest(&[]).unwrap();
 
         // test that the gtest was generated
         expect_that!(
@@ -396,5 +414,74 @@ mod tests {
                 .to_string()
             )
         )
+    }
+
+    #[googletest::test]
+    fn test_extract_gtest_attrs_moves_ignore_and_keeps_other_attrs() {
+        let mut test_fn: syn::ItemFn = parse_quote! {
+            #[allow(dead_code)]
+            #[ignore = "temporarily disabled"]
+            /// Doc comment
+            fn test_fuzz(a: i32) {}
+        };
+
+        let gtest_attrs = extract_gtest_attrs(&mut test_fn.attrs);
+
+        expect_that!(
+            quote! { #(#gtest_attrs)* }.to_string(),
+            eq(&quote! { #[ignore = "temporarily disabled"] }.to_string())
+        );
+        let remaining = &test_fn.attrs;
+        expect_that!(
+            quote! { #(#remaining)* }.to_string(),
+            eq(&quote! {
+                #[allow(dead_code)]
+                /// Doc comment
+            }
+            .to_string())
+        );
+    }
+
+    #[googletest::test]
+    fn test_extract_gtest_attrs_does_not_move_inner_ignore_attr() {
+        let mut test_fn: syn::ItemFn = parse_quote! {
+            fn test_fuzz(a: i32) {
+                #![ignore]
+            }
+        };
+
+        let gtest_attrs = extract_gtest_attrs(&mut test_fn.attrs);
+
+        expect_that!(gtest_attrs, is_empty());
+        let remaining = &test_fn.attrs;
+        expect_that!(
+            quote! { #(#remaining)* }.to_string(),
+            eq(&quote! { #![ignore] }.to_string())
+        );
+    }
+
+    #[googletest::test]
+    fn test_generate_gtest_forwards_ignore_attr() {
+        let mut test_fn: syn::ItemFn = parse_quote! {
+            #[ignore = "reason"]
+            fn test_fuzz(a: i32) {}
+        };
+        let gtest_attrs = extract_gtest_attrs(&mut test_fn.attrs);
+        let expr: Expr =
+            parse_quote! { ::fuzztest::domains::arbitrary::Arbitrary::<i32>::default() };
+        let context = FuzzTestRegistrationCtx::new(&test_fn.sig, [&expr]).unwrap();
+        let GTestDefinition { gtest_tokens } = context.generate_gtest(&gtest_attrs).unwrap();
+
+        expect_that!(
+            gtest_tokens.to_string(),
+            matchers::contains_substring(
+                quote! {
+                    #[::googletest::prelude::gtest]
+                    #[ignore = "reason"]
+                    fn test_fuzz()
+                }
+                .to_string()
+            )
+        );
     }
 }

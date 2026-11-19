@@ -23,6 +23,7 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream, Parser};
 use syn::{parse_macro_input, Item};
 
+use helpers::test_registration::extract_gtest_attrs;
 use helpers::test_registration::FuzzTestObjectDefinition;
 use helpers::test_registration::FuzzTestRegistrationCtx;
 use helpers::test_registration::GTestDefinition;
@@ -63,9 +64,11 @@ impl Parse for FuzzTestArg {
 pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
     let item = parse_macro_input!(input as Item);
 
-    let syn::Item::Fn(test_fn) = item else {
+    let syn::Item::Fn(mut test_fn) = item else {
         return syn::Error::new_spanned(item, "not a function").into_compile_error().into();
     };
+
+    let gtest_attrs = extract_gtest_attrs(&mut test_fn.attrs);
 
     let original_ident = test_fn.sig.ident.clone();
     let fuzztest_name = original_ident.to_string();
@@ -94,10 +97,11 @@ pub fn fuzztest(args: TokenStream, input: TokenStream) -> TokenStream {
             Err(e) => return e.into_compile_error().into(),
         };
 
-    let GTestDefinition { gtest_tokens } = match fuzztest_registration_context.generate_gtest() {
-        Ok(gtest_tokens) => gtest_tokens,
-        Err(e) => return e.into_compile_error().into(),
-    };
+    let GTestDefinition { gtest_tokens } =
+        match fuzztest_registration_context.generate_gtest(&gtest_attrs) {
+            Ok(gtest_tokens) => gtest_tokens,
+            Err(e) => return e.into_compile_error().into(),
+        };
 
     let prop_fn_ident = fuzztest_registration_context.prop_fn_ident().clone();
 

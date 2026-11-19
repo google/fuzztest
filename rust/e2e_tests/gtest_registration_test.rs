@@ -55,6 +55,58 @@ fn test_fuzztest_property_function_executes_in_gtest(fixture: &EnvVars) {
 }
 
 #[gtest]
+fn test_ignored_fuzztest_is_skipped_by_default(fixture: &EnvVars) {
+    let target_binary_path = fixture.binary_path("fuzz_tests_as_gtests");
+
+    let output = Command::new(&target_binary_path)
+        .arg("ignored")
+        .arg("--nocapture")
+        .output()
+        .expect("Failed to execute test binary");
+
+    expect_true!(output.status.success(), "Default run failed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    expect_that!(
+        stdout,
+        not(matchers::contains_substring("ignored_fuzz_test property function ran..."))
+    );
+    expect_that!(
+        stdout,
+        not(matchers::contains_substring("ignored_with_reason_fuzz_test property function ran..."))
+    );
+    expect_that!(stdout, matchers::contains_substring("ignored_fuzz_test ... ignored"));
+    expect_that!(
+        stdout,
+        matchers::contains_substring(
+            "ignored_with_reason_fuzz_test ... ignored, temporarily disabled"
+        )
+    );
+}
+
+#[gtest]
+fn test_ignored_fuzztest_runs_with_ignored_flag(fixture: &EnvVars) {
+    let target_binary_path = fixture.binary_path("fuzz_tests_as_gtests");
+
+    let output = Command::new(&target_binary_path)
+        .arg("ignored")
+        .arg("--ignored")
+        .arg("--nocapture")
+        .output()
+        .expect("Failed to execute test binary with --ignored");
+
+    expect_true!(output.status.success(), "--ignored run failed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    expect_that!(
+        stdout,
+        matchers::contains_substring("ignored_fuzz_test property function ran...")
+    );
+    expect_that!(
+        stdout,
+        matchers::contains_substring("ignored_with_reason_fuzz_test property function ran...")
+    );
+}
+
+#[gtest]
 fn test_panicking_fuzztest_prints_finding_report_in_smoke_test(fixture: &EnvVars) {
     let target_binary_path = fixture.binary_path("fuzztest_main");
 
