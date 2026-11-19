@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cinttypes>
 #include <csignal>
@@ -69,9 +70,11 @@
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_default_callbacks.h"
 #include "./centipede/centipede_interface.h"
+#include "./centipede/engine_abi.h"
 #include "./centipede/environment.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/fuzztest_mutator.h"
+#include "./centipede/in_process_centipede_callbacks.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
@@ -222,7 +225,7 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
     const Configuration& configuration, absl::string_view workdir,
     absl::string_view test_name, RunMode run_mode) {
   fuzztest::internal::Environment env = CreateDefaultCentipedeEnvironment();
-  constexpr absl::Duration kUnitTestDefaultDuration = absl::Seconds(3);
+  constexpr absl::Duration kUnitTestDefaultDuration = absl::Seconds(1);
   env.fuzztest_multi_test_mode_soon_to_be_removed = false;
   if (configuration.time_limit_per_input < absl::InfiniteDuration()) {
     const int64_t time_limit_seconds =
@@ -415,7 +418,8 @@ void InstallCentipedeTerminationHandler() {
 }
 
 int RunCentipede(const Environment& env,
-                 const std::optional<std::string>& centipede_command) {
+                 const std::optional<std::string>& centipede_command,
+                 RunnerCallbacks* runner_callbacks = nullptr) {
   FUZZTEST_CHECK(!IsCentipedeRunner())
       << "Unexpected RunCentipede() in runner mode.";
   if (Runtime::instance().termination_requested()) {
@@ -456,6 +460,17 @@ int RunCentipede(const Environment& env,
   }
   global_stop_condition.ClearStopRequest();
   global_stop_condition.SetStopTime(absl::InfiniteFuture());
+  if (runner_callbacks != nullptr) {
+    FuzzTestAdapterManager adapter_manager =
+        CreateFuzzTestAdapterManager(runner_callbacks);
+    InProcessCentipedeCallbacksFactory factory(&adapter_manager);
+    // Disable tracing outside of the input executions, which enable tracing by
+    // themselves.
+    const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
+    const int result = CentipedeMain(env, factory, &global_stop_condition);
+    CentipedeSetCurrentThreadTraced(old_traced);
+    return result;
+  }
   static absl::NoDestructor<DefaultCallbacksFactory<CentipedeDefaultCallbacks>>
       factory;
   return CentipedeMain(env, *factory, &global_stop_condition);
@@ -521,21 +536,6 @@ class CentipedeAdaptorRunnerCallbacks
     absl::Cleanup tracing_restorer = [old_traced] {
       CentipedeSetCurrentThreadTraced(old_traced);
     };
-    static const bool skipped_on_setup = runtime_.skipping_requested();
-    if (skipped_on_setup) {
-      absl::FPrintF(GetStderr(),
-                    "[.] Skipping %s per request from the test setup.\n",
-                    fuzzer_impl_.test_.full_name());
-      if (const char* indicator =
-              std::getenv("FUZZTEST_SKIPPED_TEST_INDICATOR_FILE");
-          indicator != nullptr) {
-        absl::FPrintF(GetStderr(), "[.] Touching the indicator file %s\n",
-                      indicator);
-        WriteFile(indicator, "");
-      }
-      CentipedeSetFailureDescription("SETUP FAILURE: Test is skipped");
-      return false;
-    }
     if (runtime_.termination_requested()) {
       absl::FPrintF(GetStderr(),
                     "[.] Termination requested - not executing input.\n");
@@ -631,6 +631,30 @@ class CentipedeAdaptorRunnerCallbacks
 
 namespace {
 
+// Whether the crash metadata from the runtime should be forwarded to Centipede.
+// It must be set only while Centipede is able to receive failures, since
+// `CentipedeSetFailure()` terminates the process otherwise.
+std::atomic<bool> forward_crash_metadata_to_centipede = false;
+
+// Registers the listener that forwards the crash metadata to Centipede. The
+// registration happens at most once in the process, since the runtime is
+// process-wide and its listeners cannot be unregistered.
+void RegisterCrashMetadataForwarderOnce(Runtime& runtime) {
+  static const bool registered = [&runtime] {
+    runtime.RegisterCrashMetadataListener(
+        [](absl::string_view description, absl::string_view signature) {
+          if (!forward_crash_metadata_to_centipede.load(
+                  std::memory_order_relaxed)) {
+            return;
+          }
+          CentipedeSetFailure(description.data(), description.size(),
+                              signature.data(), signature.size());
+        });
+    return true;
+  }();
+  (void)registered;
+}
+
 void PopulateTestLimitsToCentipedeRunner(const Configuration& configuration) {
   if (const size_t stack_limit = configuration.stack_limit; stack_limit > 0) {
     absl::FPrintF(GetStderr(), "[.] Stack limit set to: %zu\n", stack_limit);
@@ -663,17 +687,36 @@ void PopulateTestLimitsToCentipedeRunner(const Configuration& configuration) {
 class CentipedeFixtureDriver : public UntypedFixtureDriver {
  public:
   CentipedeFixtureDriver(
-      Runtime& runtime,
+      Runtime& runtime, const FuzzTest& test,
       std::unique_ptr<UntypedFixtureDriver> orig_fixture_driver)
       : runtime_(runtime),
+        test_(test),
         orig_fixture_driver_(std::move(orig_fixture_driver)) {}
 
   void RunFuzzTest(absl::AnyInvocable<void() &&> run_fuzz_test_once) override {
     orig_fixture_driver_->RunFuzzTest([&, this] {
+      if (runtime_.skipping_requested()) {
+        absl::FPrintF(GetStderr(),
+                      "[.] Skipping %s per request from the test setup.\n",
+                      test_.full_name());
+        if (!runner_mode) return;
+        if (const char* indicator =
+                std::getenv("FUZZTEST_SKIPPED_TEST_INDICATOR_FILE");
+            indicator != nullptr) {
+          absl::FPrintF(GetStderr(), "[.] Touching the indicator file %s\n",
+                        indicator);
+          WriteFile(indicator, "");
+        }
+        CentipedeSetFailureDescription("SETUP FAILURE: Test is skipped");
+        return;
+      }
       FUZZTEST_CHECK(configuration_ != nullptr)
           << "Setting up a fuzz test without configuration!";
       PopulateTestLimitsToCentipedeRunner(*configuration_);
       std::move(run_fuzz_test_once)();
+      // Skipping could be requested inside iterations, but it should not be
+      // exposed outside.
+      runtime_.SetSkippingRequested(false);
     });
   }
 
@@ -685,7 +728,7 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
       CentipedeSetCurrentThreadTraced(old_traced);
     };
     orig_fixture_driver_->RunFuzzTestIteration([&, this] {
-      if (!runner_mode) CentipedePrepareProcessing();
+      if (use_legacy_runtime_) CentipedePrepareProcessing();
       std::move(run_iteration_once)();
     });
     if (runtime_.skipping_requested() ||
@@ -711,9 +754,19 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
     configuration_ = configuration;
   }
 
+  // Sets whether the iterations are driven by the legacy FuzzTest runtime
+  // (e.g. `ReplayInputsIfAvailable`) instead of the Centipede runner or
+  // adapter, in which case this driver needs to prepare the processing for
+  // each iteration by itself.
+  void set_use_legacy_runtime(bool use_legacy_runtime) {
+    use_legacy_runtime_ = use_legacy_runtime;
+  }
+
  private:
   const Configuration* configuration_ = nullptr;
+  bool use_legacy_runtime_ = false;
   Runtime& runtime_;
+  const FuzzTest& test_;
   const bool runner_mode = IsCentipedeRunner();
   std::unique_ptr<UntypedFixtureDriver> orig_fixture_driver_;
 };
@@ -721,8 +774,8 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
 CentipedeFuzzerAdaptor::CentipedeFuzzerAdaptor(
     const FuzzTest& test, std::unique_ptr<UntypedFixtureDriver> fixture_driver)
     : test_(test),
-      centipede_fixture_driver_(
-          new CentipedeFixtureDriver(runtime_, std::move(fixture_driver))),
+      centipede_fixture_driver_(new CentipedeFixtureDriver(
+          runtime_, test, std::move(fixture_driver))),
       fuzzer_impl_(test_, absl::WrapUnique(centipede_fixture_driver_)) {
   FUZZTEST_CHECK(centipede_fixture_driver_ != nullptr)
       << "Invalid fixture driver!";
@@ -765,7 +818,7 @@ bool CentipedeFuzzerAdaptor::ReplayCrashInSingleProcess(
   char* replay_argv[] = {replay_argv0, crash_file.data()};
 
   int result = 0;
-  fuzzer_impl_.fixture_driver_->RunFuzzTest([&] {
+  centipede_fixture_driver_->RunFuzzTest([&] {
     result = fuzztest::internal::RunnerMain(/*argc=*/2, replay_argv,
                                             runner_callbacks);
   });
@@ -904,6 +957,10 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   const bool runner_mode = IsCentipedeRunner();
   const bool is_running_property_function_in_this_process =
       runner_mode ||
+      (mode == RunMode::kUnitTest &&
+       !configuration.centipede_command.has_value() &&
+       !configuration.continue_after_crash &&
+       !configuration.crashing_input_to_reproduce.has_value()) ||
       (configuration.crashing_input_to_reproduce.has_value() &&
        configuration.replay_in_single_process) ||
       std::getenv("FUZZTEST_REPLAY") ||
@@ -921,29 +978,33 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
   runtime_.SetRunMode(mode);
   runtime_.SetSkippingRequested(false);
   runtime_.SetCurrentTest(&test_, &configuration);
-  // We don't always enable reporter, but always disable it at the end for
-  // simplicity.
-  absl::Cleanup always_disable_reporter = [this]() {
-    runtime_.DisableReporter();
-  };
+  absl::Cleanup in_process_cleanup =
+      [this, is_running_property_function_in_this_process]() {
+        if (is_running_property_function_in_this_process) {
+          if (IsSilenceTargetEnabled()) RestoreTargetStdoutAndStderr();
+          runtime_.DisableReporter();
+        }
+      };
   if (is_running_property_function_in_this_process) {
     if (IsSilenceTargetEnabled()) SilenceTargetStdoutAndStderr();
     // TODO(b/393582695): Consider whether we need some kind of reporting
     // enabled in the controller mode to handle test setup failures.
     runtime_.EnableReporter(&fuzzer_impl_.stats_, [] { return absl::Now(); });
-  } else {
+  }
+  if (!runner_mode) {
+    // When invoking the controller in-process these handlers may supercede with
+    // the what `EnableReporter` installs. But it's fine because the handlers
+    // here subsume the logic of the previous handles.
     InstallCentipedeTerminationHandler();
   }
+  RegisterCrashMetadataForwarderOnce(runtime_);
   if (runner_mode) {
-    runtime_.RegisterCrashMetadataListener(
-        [](absl::string_view description, absl::string_view signature) {
-          CentipedeSetFailure(description.data(), description.size(),
-                              signature.data(), signature.size());
-        });
+    // The runner reports all failures to the controller.
+    forward_crash_metadata_to_centipede.store(true, std::memory_order_relaxed);
   }
   if (runner_mode) {
     std::optional<int> result;
-    fuzzer_impl_.fixture_driver_->RunFuzzTest([&, this]() {
+    centipede_fixture_driver_->RunFuzzTest([&, this]() {
       CentipedeAdaptorRunnerCallbacks runner_callbacks(&runtime_, &fuzzer_impl_,
                                                        &configuration);
       static char fake_argv0[] = "fake_argv";
@@ -962,17 +1023,13 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       configuration.replay_in_single_process) {
     return ReplayCrashInSingleProcess(configuration);
   }
-  if (is_running_property_function_in_this_process) {
-    // If `is_running_property_function_in_this_process` holds at this point. We
-    // assume it is for `ReplayInputsIfAvailable` to handle `FUZZTEST_REPLAY`
-    // and `FUZZTEST_MINIMIZE_REPRODUCER`, which Centipede does not support.
-    // This is fine because it does not require coverage instrumentation.
-    FUZZTEST_CHECK(std::getenv("FUZZTEST_REPLAY") ||
-                   std::getenv("FUZZTEST_MINIMIZE_REPRODUCER"))
-        << "Both env vars `FUZZTEST_REPLAY` and `FUZZTEST_MINIMIZE_REPRODUCER` "
-           "are not set when calling the legacy input replaying - this is a "
-           "FuzzTest bug!";
-    fuzzer_impl_.fixture_driver_->RunFuzzTest([&, this]() {
+  if (std::getenv("FUZZTEST_REPLAY") ||
+      std::getenv("FUZZTEST_MINIMIZE_REPRODUCER")) {
+    // Handle `FUZZTEST_REPLAY` and `FUZZTEST_MINIMIZE_REPRODUCER`, which
+    // Centipede does not support. This is fine because it does not require
+    // coverage instrumentation.
+    centipede_fixture_driver_->set_use_legacy_runtime(true);
+    centipede_fixture_driver_->RunFuzzTest([&, this]() {
       FUZZTEST_PRECONDITION(fuzzer_impl_.ReplayInputsIfAvailable(configuration))
           << "ReplayInputsIfAvailable failed to handle env vars "
              "`FUZZTEST_REPLAY` "
@@ -982,6 +1039,13 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     });
     return true;
   }
+  FUZZTEST_CHECK(!is_running_property_function_in_this_process ||
+                 (mode == RunMode::kUnitTest &&
+                  !configuration.centipede_command.has_value() &&
+                  !configuration.continue_after_crash &&
+                  !configuration.crashing_input_to_reproduce.has_value()))
+      << "`is_running_property_function_in_this_process` is unexpectedly set "
+         " - this is a FuzzTest bug!";
   // Run as the fuzzing engine.
   int result = EXIT_FAILURE;
   TempDir temp_dir("fuzztest_temp");
@@ -1071,7 +1135,25 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
       result = 0;
       return;
     }
-    result = RunCentipede(env, configuration.centipede_command);
+    if (is_running_property_function_in_this_process) {
+      absl::FPrintF(GetStderr(), "[.] Using in-process fuzzing execution.\n");
+      centipede_fixture_driver_->RunFuzzTest([&, this] {
+        CentipedeAdaptorRunnerCallbacks runner_callbacks(
+            &runtime_, &fuzzer_impl_, &configuration);
+        // Forward the crash metadata only while Centipede is running in this
+        // process to receive it.
+        forward_crash_metadata_to_centipede.store(true,
+                                                  std::memory_order_relaxed);
+        absl::Cleanup stop_forwarding = [] {
+          forward_crash_metadata_to_centipede.store(false,
+                                                    std::memory_order_relaxed);
+        };
+        result = RunCentipede(env, configuration.centipede_command,
+                              &runner_callbacks);
+      });
+    } else {
+      result = RunCentipede(env, configuration.centipede_command);
+    }
     if (std::filesystem::exists(skipped_test_indicator_file, ec)) {
       return;
     }

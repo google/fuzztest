@@ -29,7 +29,9 @@
 #include <windows.h>
 #endif  // defined(_MSC_VER)
 
+#include <algorithm>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -87,8 +89,13 @@ class LocalRemoteFile : public RemoteFile {
     if (write_buf_ != nullptr) {
       return absl::FailedPreconditionError("SetWriteBufCapacity called twice");
     }
-    write_buf_ = std::make_unique<char[]>(size);
-    if (std::setvbuf(file_, write_buf_.get(), _IOFBF, size) != 0) {
+    // Cap the stdio buffer size: callers pass large thresholds (e.g. 100 MiB)
+    // tuned for remote RPC coalescing, whereas local FILE* I/O does not benefit
+    // from huge buffers and eagerly allocating them bloats RSS.
+    static constexpr size_t kMaxWriteBufSize = 64UL * 1024;
+    const size_t capped_size = std::min(size, kMaxWriteBufSize);
+    write_buf_ = std::unique_ptr<char[]>(new char[capped_size]);
+    if (std::setvbuf(file_, write_buf_.get(), _IOFBF, capped_size) != 0) {
       return absl::UnknownError(
           absl::StrCat("std::setvbuf failed, path: ", path_,
                        ", errno: ", std::strerror(errno)));
