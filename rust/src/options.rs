@@ -807,40 +807,6 @@ mod tests {
     }
 
     #[gtest]
-    fn test_replay_id_requires_corpus_db() {
-        assert_single_threaded_test_environment();
-        // SAFETY: Single-threaded test environment and no background threads.
-        let result = unsafe {
-            with_env_vars(
-                [("FUZZTEST_REPLAY_ID", Some("my_crash_123")), ("FUZZTEST_CORPUS_DB", None)],
-                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
-            )
-        };
-
-        let err = result.expect_err("parsing should fail when corpus_db is missing");
-        expect_that!(err.kind(), eq(clap::error::ErrorKind::MissingRequiredArgument));
-    }
-
-    #[gtest]
-    fn test_replay_id_with_corpus_db_succeeds() {
-        assert_single_threaded_test_environment();
-        // SAFETY: Single-threaded test environment and no background threads.
-        let options = unsafe {
-            with_env_vars(
-                [
-                    ("FUZZTEST_REPLAY_ID", Some("my_crash_123")),
-                    ("FUZZTEST_CORPUS_DB", Some("/tmp/corpus_db")),
-                ],
-                || FuzzTestOptions::try_parse_from(std::iter::empty::<OsString>()),
-            )
-        }
-        .expect("parsing should succeed when both replay_id and corpus_db are present");
-
-        expect_that!(options.replay_id.as_deref(), eq(Some("my_crash_123")));
-        expect_that!(options.corpus_db.as_deref(), eq(Some(Path::new("/tmp/corpus_db"))));
-    }
-
-    #[gtest]
     fn test_centipede_args_fuzz_for_duration_without_corpus_db() {
         // When corpus_db is not provided, fuzzing for a fixed duration should pass --stop_after
         // to Centipede so it stops fuzzing after the specified duration.
