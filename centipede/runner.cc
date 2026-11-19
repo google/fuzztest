@@ -712,8 +712,15 @@ struct Input {
 
 struct RunnerAdapterCtx {
   bool need_full_cleanup;
+  // The traced state of the constructing thread to restore in `FreeCtx`.
+  int old_traced;
   RunnerCallbacks& callbacks;
 };
+
+// Whether a runner adapter is alive in the process. At most one may be alive at
+// a time, since the adapter relies on process-global state (the diagnostic sink
+// and the SanCov coverage state).
+std::atomic<bool> adapter_alive = false;
 
 void SetUpCoverageDomains(FuzzTestAdapterCtx* ctx,
                           const FuzzTestCoverageDomainRegistry* registry) {
@@ -745,6 +752,10 @@ void NotifyControllerAndExitIfNoCustomMutator(RunnerCallbacks& callbacks) {
     // needed by the LLVM fuzzer runners (used by some engine tests). We
     // cannot remove it until the LLVM fuzzers can be migrated to use
     // the FuzzTest LLVM fuzzer wrapper.
+    RunnerCheck(sancov_state->arg2 != nullptr,
+                "no custom mutator, and no outputs blobseq specified to notify "
+                "the engine - built-in mutator fallback requires running as an "
+                "engine worker");
     SharedMemoryBlobSequence outputs_blobseq(
         sancov_state->arg2,
         sancov_state->flag_helper.GetIntFlag("shmem_size_mb=", 0) << 20);
@@ -870,16 +881,24 @@ void FreeInput(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle) {
 }
 
 void FreeCtx(FuzzTestAdapterCtx* ctx) {
-  delete reinterpret_cast<RunnerAdapterCtx*>(ctx);
-  auto guard = SpinlockGuard::Acquire(state->diagnostic_sink_spinlock);
-  state->diagnostic_sink = nullptr;
+  auto* runner_ctx = reinterpret_cast<RunnerAdapterCtx*>(ctx);
+  // The engine invokes the callbacks on the same thread, so this restores the
+  // state of the thread that called `ConstructAdapter`.
+  CentipedeSetCurrentThreadTraced(runner_ctx->old_traced);
+  delete runner_ctx;
+  {
+    auto guard = SpinlockGuard::Acquire(state->diagnostic_sink_spinlock);
+    state->diagnostic_sink = nullptr;
+  }
+  adapter_alive.store(false);
 }
 
 void GetTestName(FuzzTestAdapterManagerCtx* ctx,
                  const FuzzTestBytesSink* sink) {
-  // Provide the test name exactly specified from the flag. This is hacky
-  // but should work as the user of runner should call RunnerMain at most
-  // once.
+  // Provide the test name exactly specified from the runner flags instead of
+  // anything from the callbacks. This is hacky but works since the runner flags
+  // are fixed for the lifetime of the process, so the name is the same for all
+  // the managers and can be cached.
   static const char* test_name = state->flag_helper.GetStringFlag("test=");
   if (test_name == nullptr) return;
   static size_t len = strlen(test_name);
@@ -893,12 +912,23 @@ void GetTestName(FuzzTestAdapterManagerCtx* ctx,
 void ConstructAdapter(FuzzTestAdapterManagerCtx* ctx,
                       const FuzzTestDiagnosticSink* diagnostic_sink,
                       FuzzTestAdapter* adapter_out) {
+  RunnerCheck(!adapter_alive.exchange(true),
+              "ConstructAdapter called while another runner adapter is alive: "
+              "at most one runner adapter may be alive in the process");
   {
     auto guard = SpinlockGuard::Acquire(state->diagnostic_sink_spinlock);
     state->diagnostic_sink = diagnostic_sink;
   }
+  // Threads are traced by default. Disable tracing outside of the input
+  // executions, which enable tracing by themselves, so that the code running
+  // between executions does not pollute the execution feedback. The engine
+  // invokes the callbacks on the same thread, so `FreeCtx` restores it.
+  const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
   adapter_out->ctx = reinterpret_cast<FuzzTestAdapterCtx*>(new RunnerAdapterCtx{
-      /*need_full_cleanup=*/true, *reinterpret_cast<RunnerCallbacks*>(ctx)});
+      /*need_full_cleanup=*/true,
+      /*old_traced=*/old_traced,
+      /*callbacks=*/*reinterpret_cast<RunnerCallbacks*>(ctx),
+  });
 
   adapter_out->SetUpCoverageDomains = SetUpCoverageDomains;
   adapter_out->GetPresetSeedInputs = GetPresetSeedInputs;
@@ -915,6 +945,17 @@ void ConstructAdapter(FuzzTestAdapterManagerCtx* ctx,
 }
 
 }  // namespace
+
+FuzzTestAdapterManager CreateFuzzTestAdapterManager(
+    RunnerCallbacks* absl_nonnull callbacks) {
+  RunnerCheck(callbacks != nullptr, "callbacks must not be null");
+  return {
+      /*ctx=*/reinterpret_cast<FuzzTestAdapterManagerCtx*>(callbacks),
+      /*GetBinaryId=*/nullptr,
+      /*GetTestName=*/GetTestName,
+      /*ConstructAdapter=*/ConstructAdapter,
+  };
+}
 
 // Constructs a FuzzTestAdapterManager and try to run as an engine worker.
 //
@@ -933,15 +974,8 @@ int RunnerMain(int argc, char** argv, RunnerCallbacks& callbacks) {
     return EXIT_SUCCESS;
   }
 
-  FuzzTestAdapterManager manager = {
-      /*ctx=*/reinterpret_cast<FuzzTestAdapterManagerCtx*>(&callbacks),
-      /*GetBinaryId=*/nullptr,
-      /*GetTestName=*/GetTestName,
-      /*ConstructAdapter=*/ConstructAdapter,
-  };
-  const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
+  FuzzTestAdapterManager manager = CreateFuzzTestAdapterManager(&callbacks);
   const auto s = FuzzTestWorkerMaybeRun(&manager);
-  CentipedeSetCurrentThreadTraced(old_traced);
   if (s == kFuzzTestWorkerNotRequired) {
     for (int i = 1; i < argc; i++) {
       ReadOneInputExecuteItAndDumpCoverage(argv[i], callbacks);

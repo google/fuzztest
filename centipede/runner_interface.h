@@ -27,6 +27,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/types/span.h"
+#include "./centipede/engine_abi.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/mutation_data.h"
 #include "./common/defs.h"
@@ -196,6 +197,34 @@ std::unique_ptr<RunnerCallbacks> CreateLegacyRunnerCallbacks(
     FuzzerTestOneInputCallback test_one_input_cb,
     FuzzerCustomMutatorCallback custom_mutator_cb,
     FuzzerCustomCrossOverCallback custom_crossover_cb);
+
+// Creates a `FuzzTestAdapterManager` from `callbacks`, which must outlive the
+// returned manager and any adapters constructed from it.
+//
+// NOTE: The returned manager and its adapters rely on process-global runner
+// state that was designed for `RunnerMain()`. So a few limitations apply:
+//
+// - Custom mutator: `Mutate` and `CrossOver` of the adapter terminate the
+//   process when `callbacks->HasCustomMutator()` returns false, after notifying
+//   the engine controller that there is no custom mutator. This works with
+//   `FuzzTestWorkerMaybeRun()`, where the adapter runs as the engine worker of
+//   a controller, but may not work otherwise.
+// - Single active adapter: at most one adapter constructed from any such
+//   manager may be alive in the process at a time, since the diagnostic sink
+//   and the coverage state used by the adapter are process-global. Constructing
+//   an adapter while another one is alive terminates the process with an error.
+// - Execution feedback tracing: threads are traced by default, so the adapter
+//   disables tracing on the constructing thread, enables it only while
+//   executing an input, and restores the original value when it is freed. This
+//   keeps the code running between executions from polluting the execution
+//   feedback. For this to work, `ConstructAdapter` of the manager, the
+//   callbacks of the adapter, and `FreeCtx` of the adapter must all be called
+//   on the same thread. This is the case for the engine worker and controller.
+// - Test name: `GetTestName` of the manager emits the `test=` value from the
+//   runner flags instead of anything from `callbacks`, and emits nothing when
+//   the flag is not set.
+FuzzTestAdapterManager CreateFuzzTestAdapterManager(
+    RunnerCallbacks* absl_nonnull callbacks);
 
 // The main Centipede Runner function.
 // It performs actions prescribed by argc/argv and environment variables
