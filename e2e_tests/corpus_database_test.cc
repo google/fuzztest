@@ -29,11 +29,11 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "./common/escaping.h"
 #include "./common/logging.h"
 #include "./common/remote_file.h"
 #include "./common/temp_dir.h"
 #include "./e2e_tests/test_binary_util.h"
-#include "./fuzztest/internal/escaping.h"
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/subprocess.h"
 

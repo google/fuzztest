@@ -41,10 +41,10 @@
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/time.h"
+#include "./framework_shared/internal/symbol_name_utils.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/printer.h"
-#include "./fuzztest/internal/symbol_name_utils.h"
 
 namespace google::protobuf {
 class EnumDescriptor;

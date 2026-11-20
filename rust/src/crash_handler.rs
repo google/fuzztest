@@ -14,7 +14,8 @@
 
 // SAFETY:
 // - `FuzzTestSetSanitizerErrorSummaryCallback` is declared with `extern "C"` linkage in
-//   `internal/sanitizer_interface.h` and defined in `internal/sanitizer_interface.cc`.
+//   `framework_shared/crash_reporting.h` and defined in
+//   `framework_shared/crash_reporting.cc`.
 // - The signature matches `void FuzzTestSetSanitizerErrorSummaryCallback(void (*)(const char*, size_t))`:
 //   `*const u8` is layout- and ABI-compatible with `const char*`, and `usize` is ABI-compatible
 //   with `size_t`.
@@ -24,7 +25,7 @@ unsafe extern "C" {
     );
 }
 
-/// Sanitizer error summary callback invoked by the C++ sanitizer interface.
+/// Sanitizer error summary callback invoked by the C++ crash reporting library.
 ///
 /// # Safety
 ///

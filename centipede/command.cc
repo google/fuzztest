@@ -60,8 +60,8 @@
 #include "absl/time/time.h"
 #include "./centipede/stop.h"
 #include "./centipede/util.h"
+#include "./common/escaping.h"
 #include "./common/logging.h"
-#include "./fuzztest/internal/escaping.h"
 #ifdef _WIN32
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_map.h"

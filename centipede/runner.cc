@@ -54,17 +54,16 @@
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/engine_abi.h"
 #include "./centipede/engine_worker_abi.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
-#include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/runner_utils.h"
-#include "./centipede/sancov_runtime.h"
-#include "./centipede/sancov_state.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
+#include "./framework_shared/internal/execution_metadata.h"
+#include "./framework_shared/internal/sancov_state.h"
+#include "./framework_shared/sancov_runtime.h"
 
 namespace fuzztest::internal {
 

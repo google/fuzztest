@@ -84,6 +84,17 @@ fuzztest_cc_library(
 
 fuzztest_cc_library(
   NAME
+    escaping
+  HDRS
+    "escaping.h"
+  SRCS
+    "escaping.cc"
+  DEPS
+    absl::strings
+)
+
+fuzztest_cc_library(
+  NAME
     hash
   HDRS
     "hash.h"

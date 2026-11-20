@@ -68,6 +68,8 @@ if (FUZZTEST_BUILD_TESTING)
 endif ()
 
 add_subdirectory(common)
+add_subdirectory(framework_shared)
+add_subdirectory(framework_shared/internal)
 add_subdirectory(fuzztest)
 add_subdirectory(fuzztest/grammars)
 add_subdirectory(fuzztest/internal)

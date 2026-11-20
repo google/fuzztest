@@ -48,10 +48,14 @@ TEST(BlobSequence, WriteAndReadAnEmptyBlob) {
   std::vector<uint8_t> buffer(1000);
   BlobSequence blobseq1(buffer.data(), buffer.size());
   ASSERT_TRUE(blobseq1.Write(BlobFromVec({}, /*tag=*/1)));
+  ASSERT_TRUE(blobseq1.Write({/*tag=*/2, /*size=*/0, /*data=*/nullptr}));
   BlobSequence blobseq2(buffer.data(), blobseq1.offset());
-  auto blob = blobseq2.Read();
-  EXPECT_EQ(Vec(blob).size(), 0);
-  EXPECT_EQ(blob.tag, 1);
+  auto blob1 = blobseq2.Read();
+  EXPECT_EQ(Vec(blob1).size(), 0);
+  EXPECT_EQ(blob1.tag, 1);
+  auto blob2 = blobseq2.Read();
+  EXPECT_EQ(Vec(blob2).size(), 0);
+  EXPECT_EQ(blob2.tag, 2);
 }
 
 TEST(BlobSequence, WriteReturnErrorOnOverflow) {

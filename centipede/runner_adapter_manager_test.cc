@@ -29,13 +29,13 @@
 #include "absl/strings/str_cat.h"
 #include "./centipede/engine_abi.h"
 #include "./centipede/environment.h"
-#include "./centipede/execution_metadata.h"
 #include "./centipede/in_process_centipede_callbacks.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/stop.h"
 #include "./common/defs.h"
+#include "./framework_shared/internal/execution_metadata.h"
 
 namespace fuzztest::internal {
 namespace {
