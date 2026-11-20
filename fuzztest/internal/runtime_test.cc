@@ -20,6 +20,7 @@
 #include <unistd.h>
 #endif
 
+#include <cstddef>
 #include <cstdlib>
 #include <memory>
 #include <optional>
@@ -41,6 +42,7 @@
 #include "absl/types/span.h"
 #include "./fuzztest/domain_core.h"
 #include "./fuzztest/internal/configuration.h"
+#include "./fuzztest/internal/sanitizer_interface.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
 extern "C" void __sanitizer_report_error_summary(const char* error_summary);
@@ -445,6 +447,133 @@ TEST(CrashMetadataTest, ConcurrentFailuresKeepCrashTypeAndSignatureConsistent) {
                                absl::StrCat(*crash_type, ":test_app::")))
       << "Crash type: " << *crash_type
       << ", crash signature: " << *crash_signature;
+  runtime.ResetCrashType();
+}
+
+TEST(CrashMetadataTest, AssertionFailureKeyFormatsSignatureAndPrintsInReport) {
+  auto& runtime = Runtime::instance();
+  runtime.ResetCrashType();
+
+  auto received = std::make_shared<std::pair<std::string, std::string>>();
+  runtime.RegisterCrashMetadataListener(
+      [received](absl::string_view description, absl::string_view signature) {
+        *received = {std::string(description), std::string(signature)};
+      });
+
+  FuzzTest test({"SUITE_NAME", "TEST_NAME", "FILE", 123}, nullptr);
+  Configuration configuration;
+  std::tuple args(17);
+  const RuntimeStats stats = {absl::FromUnixNanos(0), 1, 2, 3, 4, 5};
+  UntypedDomain domain = TupleOf(Arbitrary<int>());
+  GenericDomainCorpusType generic_args(std::in_place_type<std::tuple<int>>,
+                                       args);
+  Runtime::Args debug_args{generic_args, domain};
+  runtime.SetRunMode(RunMode::kFuzz);
+  runtime.SetCurrentTest(&test, &configuration);
+  runtime.SetCurrentArgs(&debug_args);
+
+  // Non-empty assertion failure key (with control char sanitized via
+  // `FuzzTestSetPendingAssertionFailureKey`) sets both `crash_signature` and
+  // `Assertion failure key:` in the report.
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  constexpr absl::string_view kRawKey = "key\nwith_newline";
+  FuzzTestSetPendingAssertionFailureKey(kRawKey.data(), kRawKey.size());
+  size_t key_size = 0;
+  const char* key_data = FuzzTestGetPendingAssertionFailureKey(&key_size);
+  ASSERT_NE(key_data, nullptr);
+  ASSERT_TRUE(runtime.SetCrashTypeIfUnset("GoogleTest assertion failure"));
+  runtime.SetAssertionCrashSignatureIfUnset(
+      "GoogleTest assertion failure", absl::string_view(key_data, key_size));
+  FuzzTestClearPendingAssertionFailureKey();
+  EXPECT_EQ(runtime.assertion_failure_key(), "key_with_newline");
+  std::string report;
+  runtime.PrintReport(&report);
+  EXPECT_EQ(received->first,
+            "GoogleTest assertion failure\n"
+            "CRASH_SIGNATURE=GoogleTest assertion failure:key_with_newline");
+  EXPECT_EQ(received->second, "GoogleTest assertion failure:key_with_newline");
+  EXPECT_TRUE(absl::StrContains(report,
+                                "FILE:123: Counterexample found for "
+                                "SUITE_NAME.TEST_NAME.\n"
+                                "Assertion failure key: key_with_newline\n"))
+      << report;
+
+  // Empty assertion failure key leaves `assertion_failure_key()` unset and uses
+  // `<crash_type>`.
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  ASSERT_TRUE(runtime.SetCrashTypeIfUnset("GoogleTest assertion failure"));
+  runtime.SetAssertionCrashSignatureIfUnset("GoogleTest assertion failure", "");
+  EXPECT_EQ(runtime.assertion_failure_key(), std::nullopt);
+  report.clear();
+  runtime.PrintReport(&report);
+  EXPECT_EQ(received->first,
+            "GoogleTest assertion failure\n"
+            "CRASH_SIGNATURE=GoogleTest assertion failure");
+  EXPECT_EQ(received->second, "GoogleTest assertion failure");
+  EXPECT_FALSE(absl::StrContains(report, "Assertion failure key:")) << report;
+
+  // Setup failure (`current_args_ == nullptr`) prints `Assertion failure key:`
+  // as well.
+  runtime.UnsetCurrentArgs();
+  runtime.EnableReporter(&stats, [] { return absl::FromUnixNanos(1979); });
+  ASSERT_TRUE(runtime.SetCrashTypeIfUnset("GoogleTest assertion failure"));
+  runtime.SetAssertionCrashSignatureIfUnset("GoogleTest assertion failure",
+                                            "setup_key");
+  report.clear();
+  runtime.PrintReport(&report);
+  EXPECT_EQ(received->first,
+            "SETUP FAILURE: GoogleTest assertion failure\n"
+            "CRASH_SIGNATURE=GoogleTest assertion failure:setup_key");
+  EXPECT_EQ(received->second,
+            "SETUP FAILURE: GoogleTest assertion failure:setup_key");
+  EXPECT_TRUE(absl::StrContains(report, "Assertion failure key: setup_key"))
+      << report;
+
+  runtime.ResetCrashType();
+  EXPECT_EQ(runtime.assertion_failure_key(), std::nullopt);
+  runtime.SetCurrentTest(nullptr, nullptr);
+  runtime.SetRunMode(RunMode::kUnitTest);
+  runtime.DisableReporter();
+}
+
+TEST(CrashMetadataTest,
+     ConcurrentAssertionFailureKeysKeepCrashTypeAndSignatureConsistent) {
+  auto& runtime = Runtime::instance();
+  runtime.ResetCrashType();
+  std::vector<std::thread> threads;
+  threads.reserve(8);
+  for (int i = 0; i < 8; ++i) {
+    threads.emplace_back([&runtime, i] {
+      const std::string crash_type = absl::StrCat("type_", i);
+      const std::string key = absl::StrCat("key_", i);
+      FuzzTestSetPendingAssertionFailureKey(key.data(), key.size());
+      size_t consumed_size = 0;
+      const char* consumed_data =
+          FuzzTestGetPendingAssertionFailureKey(&consumed_size);
+      ASSERT_NE(consumed_data, nullptr);
+      const absl::string_view consumed(consumed_data, consumed_size);
+      EXPECT_EQ(consumed, key);
+      if (runtime.SetCrashTypeIfUnset(crash_type)) {
+        runtime.SetAssertionCrashSignatureIfUnset(crash_type, consumed);
+      }
+      FuzzTestClearPendingAssertionFailureKey();
+    });
+  }
+  for (std::thread& thread : threads) thread.join();
+
+  const std::optional<absl::string_view> crash_type = runtime.crash_type();
+  const std::optional<absl::string_view> assertion_failure_key =
+      runtime.assertion_failure_key();
+  const std::optional<absl::string_view> crash_signature =
+      runtime.crash_signature();
+  ASSERT_TRUE(crash_type.has_value());
+  ASSERT_TRUE(assertion_failure_key.has_value());
+  ASSERT_TRUE(crash_signature.has_value());
+  // Extract the winning thread index `i` from `type_<i>` and verify both
+  // `assertion_failure_key` and `crash_signature` came from the same thread.
+  const absl::string_view suffix = crash_type->substr(5);
+  EXPECT_EQ(*assertion_failure_key, absl::StrCat("key_", suffix));
+  EXPECT_EQ(*crash_signature, absl::StrCat(*crash_type, ":key_", suffix));
   runtime.ResetCrashType();
 }
 

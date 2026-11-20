@@ -87,6 +87,40 @@ size_t FuzzTestComputeSanitizerCrashSignature(const char* crash_type_data,
                                               size_t crash_type_size, char* out,
                                               size_t out_size);
 
+// Sanitizes `(assertion_failure_key, assertion_failure_key_size)` (replacing
+// ASCII control characters `< 0x20` or `0x7F` with `'_'` and truncating to at
+// most 256 bytes without splitting multi-byte UTF-8 code points when
+// `assertion_failure_key` is valid UTF-8) and stores it as the calling thread's
+// pending assertion failure key (logging a signal-safe warning and replacing
+// any previous unconsumed pending key on this thread).
+//
+// If `assertion_failure_key == nullptr` or `assertion_failure_key_size == 0`,
+// this is a no-op. Async-signal-safe (does not allocate). Shared across C++ and
+// Rust via FFI.
+void FuzzTestSetPendingAssertionFailureKey(const char* assertion_failure_key,
+                                           size_t assertion_failure_key_size);
+
+// Returns a pointer to the calling thread's pending assertion failure key and
+// sets `*out_size` to its byte length (or returns `nullptr` with
+// `*out_size = 0` if none is pending, or returns `nullptr` if
+// `out_size == nullptr`). Does not copy or clear the key; the returned slice is
+// not null-terminated and remains valid on the calling thread until the next
+// `FuzzTestSetPendingAssertionFailureKey()`,
+// `FuzzTestClearPendingAssertionFailureKey()`, or
+// `FuzzTestClearAllPendingAssertionFailureKeys()` call.
+//
+// Async-signal-safe (does not allocate).
+const char* FuzzTestGetPendingAssertionFailureKey(size_t* out_size);
+
+// Clears the calling thread's pending assertion failure key, if any.
+// Async-signal-safe (does not allocate).
+void FuzzTestClearPendingAssertionFailureKey();
+
+// Invalidates pending assertion failure keys across all threads by advancing a
+// global 64-bit epoch counter (aborting on epoch overflow).
+// Async-signal-safe (does not allocate).
+void FuzzTestClearAllPendingAssertionFailureKeys();
+
 }  // extern "C"
 
 namespace fuzztest::internal {

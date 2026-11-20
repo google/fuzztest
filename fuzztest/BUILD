@@ -89,6 +89,7 @@ cc_library(
         "@com_google_fuzztest//fuzztest/internal:fuzztest_macro_impl",
         "@com_google_fuzztest//fuzztest/internal:registration",
         "@com_google_fuzztest//fuzztest/internal:runtime",
+        "@com_google_fuzztest//fuzztest/internal:sanitizer_interface",
     ],
 )
 
@@ -102,6 +103,7 @@ cc_test(
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:temp_dir",
+        "@com_google_fuzztest//fuzztest/internal:sanitizer_interface",
         "@googletest//:gtest_main",
     ],
 )

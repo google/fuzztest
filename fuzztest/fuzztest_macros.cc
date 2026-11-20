@@ -17,6 +17,7 @@
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <functional>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -32,6 +33,7 @@
 #include "absl/strings/string_view.h"
 #include "./common/logging.h"
 #include "./fuzztest/internal/runtime.h"
+#include "./fuzztest/internal/sanitizer_interface.h"
 
 namespace fuzztest {
 
@@ -160,6 +162,14 @@ std::vector<std::string> ReadDictionaryFromFile(
 
 void SkipTestsOrCurrentInput() {
   internal::Runtime::instance().SetSkippingRequested(true);
+}
+
+std::ostream& operator<<(std::ostream& os, const FailureKey& key) {
+  if (!key.value().empty()) {
+    FuzzTestSetPendingAssertionFailureKey(key.value().data(),
+                                          key.value().size());
+  }
+  return os;
 }
 
 }  // namespace fuzztest
