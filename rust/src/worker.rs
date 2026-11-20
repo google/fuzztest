@@ -152,11 +152,6 @@ impl RustFuzzTestAdapter {
         registry.set_up_sancov_domains();
     }
 
-    pub fn get_preset_seed_inputs(&self, _sink: &mut InputSink) {
-        // TODO(the-shank): implement this once the macro has support for specifying preset seed
-        // inputs
-    }
-
     pub fn get_random_seed_input(&self, sink: &mut InputSink) {
         let domains = self.fuzz_test.domains();
         let mut domains_guard = domains.lock().expect("Failed to lock domains");
@@ -181,16 +176,6 @@ impl RustFuzzTestAdapter {
         }
 
         sink.emit(pack_input(mutant));
-    }
-
-    pub fn cross_over(
-        &self,
-        origin: &GenericCorpusValue,
-        _other: &GenericCorpusValue,
-        sink: &mut InputSink,
-    ) {
-        // TODO(the-shank): implement cross_over. Currently we are just calling mutate.
-        self.mutate(origin, false, sink);
     }
 
     pub fn execute(&self, input: &GenericCorpusValue, sink: &mut FeedbackSink) {
@@ -241,14 +226,6 @@ impl RustFuzzTestAdapter {
                 emit_error(&format!("Failed to deserialize input: {:?}", e));
             }
         }
-    }
-
-    pub fn serialize_input_metadata(&self, _input: &GenericCorpusValue, _sink: &mut BytesSink) {
-        // TODO(the-shank): to be implemented
-    }
-
-    pub fn update_input_metadata(&self, _metadata: &[u8], _input: &mut GenericCorpusValue) {
-        // TODO(the-shank): to be implemented
     }
 
     pub fn free_input(&self, input: engine_ffi::FuzzTestInputHandle) {
@@ -366,21 +343,25 @@ pub unsafe extern "C" fn construct_adapter_callback(
     // have access to the adapter `self` pointer and must rely on a global lookup to report crashes.
     let adapter = manager.construct_adapter();
     let boxed_adapter = Box::new(adapter);
+    // TODO(b/587358247): Implement missing callbacks on `RustFuzzTestAdapter`.
     // SAFETY: The engine guarantees `adapter_out` is a valid pointer to write the output adapter.
     // The returned raw pointer `ctx` will be managed and eventually freed by `free_ctx_callback`.
     unsafe {
         *adapter_out = engine_ffi::FuzzTestAdapter {
             ctx: Box::into_raw(boxed_adapter) as *mut engine_ffi::FuzzTestAdapterCtx,
             set_up_coverage_domains: Some(set_up_coverage_domains_callback),
-            get_preset_seed_inputs: Some(get_preset_seed_inputs_callback),
+            // The optional callbacks that have no implementation yet stay null. The engine then
+            // uses its own fallback: no preset seeds, `mutate` instead of `cross_over`, and no
+            // input metadata.
+            get_preset_seed_inputs: None,
             get_random_seed_input: Some(get_random_seed_input_callback),
             mutate: Some(mutate_callback),
-            cross_over: Some(cross_over_callback),
+            cross_over: None,
             execute: Some(execute_callback),
             serialize_input_content: Some(serialize_input_content_callback),
             deserialize_input_content: Some(deserialize_input_content_callback),
-            serialize_input_metadata: Some(serialize_input_metadata_callback),
-            update_input_metadata: Some(update_input_metadata_callback),
+            serialize_input_metadata: None,
+            update_input_metadata: None,
             free_input: Some(free_input_callback),
             free_ctx: Some(free_ctx_callback),
         };
@@ -403,23 +384,6 @@ pub unsafe extern "C" fn set_up_coverage_domains_callback(
     // `FuzzTestCoverageDomainRegistry`.
     let mut registry = unsafe { CoverageDomainRegistry::from_raw(registry) };
     adapter.set_up_coverage_domains(&mut registry);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `sink` is a valid pointer to `FuzzTestInputSink`.
-pub unsafe extern "C" fn get_preset_seed_inputs_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    sink: *const engine_ffi::FuzzTestInputSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
-    let mut safe_sink = unsafe { InputSink::from_raw(sink) };
-    adapter.get_preset_seed_inputs(&mut safe_sink);
 }
 
 /// # Safety
@@ -461,35 +425,6 @@ pub unsafe extern "C" fn mutate_callback(
     // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
     let mut safe_sink = unsafe { InputSink::from_raw(sink) };
     adapter.mutate(origin_ref, shrink != 0, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `origin` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `other` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `sink` is a valid pointer to `FuzzTestInputSink`.
-pub unsafe extern "C" fn cross_over_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    origin: engine_ffi::FuzzTestInputHandle,
-    other: engine_ffi::FuzzTestInputHandle,
-    sink: *const engine_ffi::FuzzTestInputSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `origin` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let origin_ref = unsafe { &*(origin.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `other` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let other_ref = unsafe { &*(other.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
-    let mut safe_sink = unsafe { InputSink::from_raw(sink) };
-    adapter.cross_over(origin_ref, other_ref, &mut safe_sink);
 }
 
 /// # Safety
@@ -559,55 +494,6 @@ pub unsafe extern "C" fn deserialize_input_content_callback(
     // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestInputSink`.
     let mut safe_sink = unsafe { InputSink::from_raw(sink) };
     adapter.deserialize_input_content(bytes, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `input` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework.
-/// * `sink` is a valid pointer to `FuzzTestBytesSink`.
-pub unsafe extern "C" fn serialize_input_metadata_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    input: engine_ffi::FuzzTestInputHandle,
-    sink: *const engine_ffi::FuzzTestBytesSink,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `input` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework.
-    let input_ref = unsafe { &*(input.0 as *const GenericCorpusValue) };
-    // SAFETY: The engine guarantees `sink` is a valid pointer to `FuzzTestBytesSink`.
-    let mut safe_sink = unsafe { BytesSink::from_raw(sink) };
-    adapter.serialize_input_metadata(input_ref, &mut safe_sink);
-}
-
-/// # Safety
-///
-/// The caller must ensure that:
-/// * `ctx` is a valid pointer to the `RustFuzzTestAdapter` created by `construct_adapter_callback`.
-/// * `metadata` is a valid pointer to `FuzzTestBytesView` containing serialized input metadata.
-/// * `input` is a valid `FuzzTestInputHandle` pointing to a heap-allocated `GenericCorpusValue`
-///   managed by the framework, and the engine guarantees exclusive access to it for the call
-///   duration.
-pub unsafe extern "C" fn update_input_metadata_callback(
-    ctx: *mut engine_ffi::FuzzTestAdapterCtx,
-    metadata: *const engine_ffi::FuzzTestBytesView,
-    input: engine_ffi::FuzzTestInputHandle,
-) {
-    // SAFETY: The engine guarantees `ctx` is a valid pointer to the `RustFuzzTestAdapter`
-    // created by `construct_adapter_callback`.
-    let adapter = unsafe { &*(ctx as *const RustFuzzTestAdapter) };
-    // SAFETY: The engine guarantees `metadata` is a valid pointer to `FuzzTestBytesView`
-    // containing serialized input metadata.
-    let bytes = unsafe { &*(*metadata).to_bytes() };
-    // SAFETY: The engine guarantees `input` is a valid `FuzzTestInputHandle` pointing to
-    // a heap-allocated `GenericCorpusValue` managed by the framework, and provides exclusive
-    // access to it.
-    let input_ref = unsafe { &mut *(input.0 as *mut GenericCorpusValue) };
-    adapter.update_input_metadata(bytes, input_ref);
 }
 
 /// # Safety
