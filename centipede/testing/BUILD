@@ -550,3 +550,12 @@ cc_binary(
         "@com_google_fuzztest//centipede:engine_worker",
     ],
 )
+
+cc_binary(
+    name = "test_binary_for_engine_worker_diagnostics",
+    srcs = ["test_binary_for_engine_worker_diagnostics.cc"],
+    deps = [
+        "@com_google_fuzztest//centipede:engine_abi",
+        "@com_google_fuzztest//centipede:engine_worker",
+    ],
+)
