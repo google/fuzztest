@@ -16,6 +16,7 @@
 # @com_google_fuzztest//framework_shared.
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 DEFAULT_VISIBILITY = [
@@ -147,10 +148,77 @@ cc_library(
     name = "interceptor_utils",
     hdrs = ["interceptor_utils.h"],
     copts = DISABLE_SANCOV_COPTS,
-    linkopts = ["-ldl"],  # for dlsym
+    linkopts = ["-ldl"] + select({
+        "@platforms//os:macos": [
+            # For compatible behavior on weak __interceptor_* symbols.
+            "-Wl,-undefined,dynamic_lookup",
+        ],
+        "//conditions:default": [],
+    }),  # -ldl for dladdr, dlsym
     # TODO(b/436308818): Drop centipede visibility once centipede_runner depends on :sancov_runtime.
     visibility = DEFAULT_VISIBILITY + [
         "@com_google_fuzztest//centipede:__pkg__",
+    ],
+)
+
+cc_library(
+    name = "interceptor_utils_test_target_dso",
+    testonly = True,
+    srcs = ["interceptor_utils_test_target_dso.cc"],
+    hdrs = ["interceptor_utils_test_target_dso.h"],
+    visibility = ["//visibility:private"],
+)
+
+cc_shared_library(
+    name = "interceptor_utils_test_target_dso_shared",
+    testonly = True,
+    visibility = ["//visibility:private"],
+    deps = [":interceptor_utils_test_target_dso"],
+)
+
+cc_library(
+    name = "interceptor_utils_test_dso",
+    testonly = True,
+    srcs = ["interceptor_utils_test_dso.cc"],
+    hdrs = ["interceptor_utils_test_dso.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":interceptor_utils",
+        ":interceptor_utils_test_target_dso",
+    ],
+)
+
+cc_shared_library(
+    name = "interceptor_utils_test_dso_shared",
+    testonly = True,
+    dynamic_deps = [":interceptor_utils_test_target_dso_shared"],
+    user_link_flags = select({
+        "@platforms//os:macos": [
+            # For compatible behavior on weak symbols.
+            "-Wl,-undefined,dynamic_lookup",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:private"],
+    deps = [
+        ":interceptor_utils",
+        ":interceptor_utils_test_dso",
+    ],
+)
+
+cc_test(
+    name = "interceptor_utils_test",
+    srcs = ["interceptor_utils_test.cc"],
+    dynamic_deps = [
+        ":interceptor_utils_test_dso_shared",
+        ":interceptor_utils_test_target_dso_shared",
+    ],
+    linkopts = ["-ldl"],  # for dlsym
+    deps = [
+        ":interceptor_utils",
+        ":interceptor_utils_test_dso",
+        ":interceptor_utils_test_target_dso",
+        "@googletest//:gtest_main",
     ],
 )
 
