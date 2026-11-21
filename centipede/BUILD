@@ -2115,6 +2115,7 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:hanging_fuzz_target",
         "@com_google_fuzztest//centipede/testing:seeded_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_binary_for_engine_testing",
+        "@com_google_fuzztest//centipede/testing:test_binary_for_engine_worker_diagnostics",
         "@com_google_fuzztest//centipede/testing:test_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_input_filter",
     ],

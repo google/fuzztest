@@ -191,6 +191,8 @@ constexpr std::string_view kWorkerFailureDescriptionPathFlagHeader =
     "failure_description_path=";
 constexpr std::string_view kWorkerFailureSignaturePathFlagHeader =
     "failure_signature_path=";
+constexpr std::string_view kWorkerErrorDescriptionPathFlagHeader =
+    "error_description_path=";
 constexpr std::string_view kWorkerInputsBlobSequencePathFlagHeader =
     "arg1=";  // TODO: Use better flag names when standardizing the protocol.
 constexpr std::string_view kWorkerOutputsBlobSequencePathFlagHeader =
@@ -254,9 +256,20 @@ bool WorkerEmitFailureOutput(std::string_view prefix,
   return !ignored;
 }
 
+// Records the error, and writes it to the error description file if it is the
+// first error. The error description is separate from the failure output of
+// findings, and takes precedence over it in the controller.
 void WorkerEmitError(std::string_view message) {
-  GetWorkerState().has_error = true;
-  WorkerEmitFailureOutput("SETUP FAILURE: ", message);
+  if (GetWorkerState().has_error.exchange(true)) {
+    WorkerLog("Ignored emitting error: ", message, LogLnSync{});
+    return;
+  }
+  if (const char* error_description_path =
+          GetWorkerFlags().GetStringFlag(kWorkerErrorDescriptionPathFlagHeader);
+      error_description_path != nullptr) {
+    TrySetFileContents(error_description_path, /*append=*/false, message);
+  }
+  WorkerLog("Emitted error: ", message, LogLnSync{});
 }
 
 // TODO(xinhaoyuan): Some of them are planned to be removed.

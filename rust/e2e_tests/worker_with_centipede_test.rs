@@ -142,8 +142,6 @@ fn ensure_emit_error_with_centipede_test(fixture: &EnvVars) {
 
     expect_that!(
         stderr,
-        matchers::contains_substring(
-            "Emitted failure output: Failed to mutate: Intentional mutate failure"
-        )
+        matchers::contains_substring("Emitted error: Failed to mutate: Intentional mutate failure")
     );
 }
