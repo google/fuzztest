@@ -20,31 +20,36 @@
   name(__VA_ARGS__)
 
 WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp1, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp2, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp4, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp8, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_const_cmp1, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_const_cmp2, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_const_cmp4, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_const_cmp8, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_switch, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_div4, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_div8, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_gep, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_pc_indir, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_8bit_counters_init, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_bool_flag_init, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_pcs_init, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_cfs_init, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_pc_guard, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_pc_guard_init, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_load1, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_load2, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_load4, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_load8, void) {}
-WEAK_SANCOV_DEF(void, __sanitizer_cov_load16, void) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp1, uint8_t, uint8_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp2, uint16_t, uint16_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp4, uint32_t, uint32_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_cmp8, uint64_t, uint64_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_const_cmp1, uint8_t, uint8_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_const_cmp2, uint16_t, uint16_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_const_cmp4, uint32_t, uint32_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_const_cmp8, uint64_t, uint64_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_switch, uint64_t, uint64_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_div4, uint32_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_div8, uint64_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_gep, uintptr_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_pc_indir, uintptr_t) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_8bit_counters_init, uint8_t*, uint8_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_bool_flag_init, bool*, bool*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_pcs_init, const uintptr_t*,
+                const uintptr_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_cfs_init, const uintptr_t*,
+                const uintptr_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_pc_guard, uint32_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_trace_pc_guard_init, uint32_t*,
+                uint32_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_load1, uint8_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_load2, uint16_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_load4, uint32_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_load8, uint64_t*) {}
+WEAK_SANCOV_DEF(void, __sanitizer_cov_load16, void*) {}
 
 WEAK_SANCOV_DEF(void, __sanitizer_cov_stack_depth, void) {}
-extern "C" __attribute__((visibility("default")))
+extern "C" {
+__attribute__((visibility("default")))
 __attribute__((weak)) thread_local uintptr_t __sancov_lowest_stack;
+}
