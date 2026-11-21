@@ -469,7 +469,7 @@ void __sanitizer_cov_trace_cmp8(uint64_t Arg1, uint64_t Arg2) {
 FUZZTEST_INTERNAL_NOSANITIZE
 void __sanitizer_cov_trace_switch(uint64_t Val, uint64_t *Cases) {
   uintptr_t PC = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
-  switch (Cases[0]) {
+  switch (Cases[1]) {
     case 8:
       for (uint64_t i = 0; i < Cases[0]; i++) {
         TraceCmp<1>(Val, Cases[2 + i], Cases[1], PC + i);
