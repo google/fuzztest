@@ -409,7 +409,7 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE      // To make __builtin_return_address(0) work.
     return;
   uint64_t abs = arg1 > arg2 ? arg1 - arg2 : arg2 - arg1;
   fuzztest::internal::execution_coverage_instance->UpdateCmpMap(
-      PC, argsize_bit - __builtin_popcount(arg1 ^ arg2),
+      PC, argsize_bit - __builtin_popcountll(arg1 ^ arg2),
       255U - (255U > abs ? abs : 255U));
   fuzztest::internal::execution_coverage_instance->GetTablesOfRecentCompares()
       .GetMutable<data_size>()
