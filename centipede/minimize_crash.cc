@@ -26,6 +26,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
 #include "./centipede/mutation_data.h"
@@ -89,6 +90,7 @@ void MinimizeCrashInOneThread(const Environment& env,
   auto callbacks = scoped_callback.callbacks();
   BatchResult batch_result;
 
+  const size_t max_attempts = std::max<size_t>(1, env.replay_crash_attempts);
   size_t num_batches = env.num_runs / env.batch_size;
   for (size_t i = 0; i < num_batches; ++i) {
     if (stop_condition.ShouldStop()) break;
@@ -127,22 +129,38 @@ void MinimizeCrashInOneThread(const Environment& env,
     std::sort(smaller_mutants.begin(), smaller_mutants.end(),
               [](const auto& a, const auto& b) { return a.size() < b.size(); });
 
-    // Execute all mutants. If a new crasher is found, add it to `state`.
-    if (callbacks->Execute(env.binary, smaller_mutants, batch_result)) {
-      continue;
+    std::vector<ByteSpan> inputs_to_execute;
+    inputs_to_execute.reserve(smaller_mutants.size() * max_attempts);
+    for (const auto& m : smaller_mutants) {
+      inputs_to_execute.insert(inputs_to_execute.end(), max_attempts, m);
     }
 
-    if (batch_result.failure_signature() != crash_signature) {
-      continue;
-    }
+    // Execute all mutants in chunks of at most `env.batch_size`. If a new
+    // crasher is found, add it to `state`.
+    for (size_t offset = 0; offset < inputs_to_execute.size();
+         offset += env.batch_size) {
+      if (stop_condition.ShouldStop()) break;
+      const size_t chunk_size =
+          std::min(inputs_to_execute.size() - offset, env.batch_size);
+      const absl::Span<const ByteSpan> chunk =
+          absl::MakeConstSpan(inputs_to_execute).subspan(offset, chunk_size);
+      if (callbacks->Execute(env.binary, chunk, batch_result)) {
+        continue;
+      }
 
-    size_t crash_inputs_idx = batch_result.num_outputs_read();
-    FUZZTEST_CHECK_LT(crash_inputs_idx, smaller_mutants.size());
-    const auto& new_crasher = smaller_mutants[crash_inputs_idx];
-    FUZZTEST_LOG(INFO) << "Crasher: size: " << new_crasher.size() << ": "
-                       << AsPrintableString(new_crasher, /*max_len=*/40);
-    state.AddCrasher({new_crasher.begin(), new_crasher.end()},
-                     std::move(batch_result.failure_description()));
+      if (batch_result.failure_signature() != crash_signature) {
+        continue;
+      }
+
+      size_t crash_inputs_idx = batch_result.num_outputs_read();
+      FUZZTEST_CHECK_LT(crash_inputs_idx, chunk.size());
+      const auto& new_crasher = chunk[crash_inputs_idx];
+      FUZZTEST_LOG(INFO) << "Crasher: size: " << new_crasher.size() << ": "
+                         << AsPrintableString(new_crasher, /*max_len=*/40);
+      state.AddCrasher({new_crasher.begin(), new_crasher.end()},
+                       std::move(batch_result.failure_description()));
+      break;
+    }
   }
 }
 
