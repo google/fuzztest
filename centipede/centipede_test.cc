@@ -1653,5 +1653,155 @@ TEST_F(CentipedeWithTemporaryLocalDir, EngineWorksInStandaloneMode) {
       ContainsRegex("Failure *: some_failure_description"));
 }
 
+// Tests how the engine worker handles diagnostics from the test adapter, using
+// a test binary that emits the diagnostics selected by the input content.
+class EngineWorkerDiagnosticsTest : public CentipedeWithTemporaryLocalDir {
+ protected:
+  EngineWorkerDiagnosticsTest() {
+    env_.binary = GetDataDependencyFilepath(
+        "centipede/testing/test_binary_for_engine_worker_diagnostics");
+    env_.test_name = "some_test";
+    env_.populate_binary_info = false;
+    env_.fork_server = true;
+    env_.persistent_mode = true;
+  }
+
+  // Executes a batch with `input` as the only input using `callbacks`.
+  bool ExecuteInput(CentipedeDefaultCallbacks& callbacks,
+                    std::string_view input, BatchResult& batch_result) {
+    const ByteArray input_bytes(input.begin(), input.end());
+    return callbacks.Execute(env_.binary, {input_bytes}, batch_result);
+  }
+
+  Environment env_;
+};
+
+TEST_F(EngineWorkerDiagnosticsTest, ReportsErrorAsSetupFailure) {
+  CentipedeDefaultCallbacks callbacks(env_, stop_condition);
+  BatchResult batch_result;
+
+  EXPECT_FALSE(ExecuteInput(callbacks, "error", batch_result));
+
+  EXPECT_TRUE(batch_result.IsSetupFailure());
+  EXPECT_EQ(batch_result.failure_description(),
+            "SETUP FAILURE: error_in_execute");
+}
+
+TEST_F(EngineWorkerDiagnosticsTest, IgnoresFindingAfterError) {
+  CentipedeDefaultCallbacks callbacks(env_, stop_condition);
+  BatchResult batch_result;
+
+  EXPECT_FALSE(ExecuteInput(callbacks, "error_then_finding", batch_result));
+
+  EXPECT_TRUE(batch_result.IsSetupFailure());
+  EXPECT_EQ(batch_result.failure_description(),
+            "SETUP FAILURE: error_in_execute");
+}
+
+TEST_F(EngineWorkerDiagnosticsTest, ExitsWorkerOnError) {
+  CentipedeDefaultCallbacks callbacks(env_, stop_condition);
+  BatchResult batch_result;
+
+  ASSERT_FALSE(ExecuteInput(callbacks, "error", batch_result));
+
+  // The input emits a finding only on the first execution of a worker process,
+  // so the finding is reported iff the worker with the error is not reused.
+  EXPECT_FALSE(
+      ExecuteInput(callbacks, "finding_on_first_execute", batch_result));
+  EXPECT_EQ(batch_result.failure_description(), "first_execute_description");
+}
+
+TEST_F(EngineWorkerDiagnosticsTest,
+       ReportsErrorAndExitsWorkerOnErrorAfterFindingInExecute) {
+  CentipedeDefaultCallbacks callbacks(env_, stop_condition);
+  BatchResult batch_result;
+
+  // The error takes precedence over the finding.
+  EXPECT_FALSE(ExecuteInput(callbacks, "finding_then_error", batch_result));
+  EXPECT_TRUE(batch_result.IsSetupFailure());
+  EXPECT_EQ(batch_result.failure_description(),
+            "SETUP FAILURE: error_in_execute");
+
+  // The error is fatal for the worker: a new worker reports the finding
+  // emitted only on the first execution of a worker process.
+  EXPECT_FALSE(
+      ExecuteInput(callbacks, "finding_on_first_execute", batch_result));
+  EXPECT_EQ(batch_result.failure_description(), "first_execute_description");
+}
+
+TEST_F(EngineWorkerDiagnosticsTest,
+       ReportsErrorAndExitsWorkerOnErrorFromFreeingInputAfterFinding) {
+  CentipedeDefaultCallbacks callbacks(env_, stop_condition);
+  BatchResult batch_result;
+
+  // The error takes precedence over the finding.
+  EXPECT_FALSE(
+      ExecuteInput(callbacks, "finding_then_error_on_free", batch_result));
+  EXPECT_TRUE(batch_result.IsSetupFailure());
+  EXPECT_EQ(batch_result.failure_description(),
+            "SETUP FAILURE: error_in_free_input");
+
+  // The error is fatal for the worker: a new worker reports the finding
+  // emitted only on the first execution of a worker process.
+  EXPECT_FALSE(
+      ExecuteInput(callbacks, "finding_on_first_execute", batch_result));
+  EXPECT_EQ(batch_result.failure_description(), "first_execute_description");
+}
+
+TEST_F(EngineWorkerDiagnosticsTest,
+       ReportsErrorEmittedBetweenBatchesAfterFindingAsSetupFailure) {
+  CentipedeDefaultCallbacks callbacks(env_, stop_condition);
+  BatchResult batch_result;
+  // The worker emits an error from a background thread once `trigger_path`
+  // exists, and then creates `error_emitted_path`.
+  const std::filesystem::path trigger_path =
+      std::filesystem::path(TemporaryLocalDirPath()) / "emit_error";
+  const std::filesystem::path error_emitted_path =
+      trigger_path.string() + ".error_emitted";
+
+  ASSERT_FALSE(ExecuteInput(
+      callbacks,
+      absl::StrCat("finding_then_error_on_file:", trigger_path.string()),
+      batch_result));
+  ASSERT_EQ(batch_result.failure_description(), "finding_description");
+
+  // Make the worker emit the error after the batch with the finding.
+  WriteToLocalFile(trigger_path.string(), "");
+  const absl::Time deadline = absl::Now() + absl::Seconds(60);
+  while (!std::filesystem::exists(error_emitted_path)) {
+    ASSERT_LT(absl::Now(), deadline) << "Timed out waiting for the error";
+    absl::SleepFor(absl::Milliseconds(10));
+  }
+
+  // The finding of the previous batch must not hide the error.
+  EXPECT_FALSE(ExecuteInput(callbacks, "ok", batch_result));
+  EXPECT_TRUE(batch_result.IsSetupFailure());
+  EXPECT_EQ(batch_result.failure_description(),
+            "SETUP FAILURE: error_after_batch");
+}
+
+TEST_F(EngineWorkerDiagnosticsTest,
+       ErrorRacingWithFindingIsReportedAsSetupFailureAndExitsWorker) {
+  CentipedeDefaultCallbacks callbacks(env_, stop_condition);
+  BatchResult batch_result;
+
+  for (int i = 0; i < 20; ++i) {
+    SCOPED_TRACE(absl::StrCat("Iteration ", i));
+    // The error takes precedence over the finding no matter which one is
+    // emitted first.
+    EXPECT_FALSE(
+        ExecuteInput(callbacks, "racing_error_and_finding", batch_result));
+    EXPECT_TRUE(batch_result.IsSetupFailure());
+    EXPECT_EQ(batch_result.failure_description(),
+              "SETUP FAILURE: error_in_execute");
+
+    // The error is fatal for the worker: a new worker reports the finding
+    // emitted only on the first execution of a worker process.
+    EXPECT_FALSE(
+        ExecuteInput(callbacks, "finding_on_first_execute", batch_result));
+    EXPECT_EQ(batch_result.failure_description(), "first_execute_description");
+  }
+}
+
 }  // namespace
 }  // namespace fuzztest::internal

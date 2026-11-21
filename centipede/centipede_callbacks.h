@@ -200,6 +200,11 @@ class CentipedeCallbacks {
       std::filesystem::path(temp_dir_).append("failure_description");
   std::string failure_signature_path_ =
       std::filesystem::path(temp_dir_).append("failure_signature");
+  // The file for the test binary to write the description of an unrecoverable
+  // error, separately from the failure (finding) description and signature to
+  // simplify worker.
+  std::string error_description_path_ =
+      std::filesystem::path(temp_dir_).append("error_description");
   const std::string shmem_name1_ = ProcessAndThreadUniqueID("/ctpd-shm1-");
   const std::string shmem_name2_ = ProcessAndThreadUniqueID("/ctpd-shm2-");
 

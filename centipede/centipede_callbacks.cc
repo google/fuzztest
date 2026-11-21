@@ -407,6 +407,7 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
           ":failure_description_path=",
           EscapeEngineFlag(failure_description_path_),
           ":failure_signature_path=", EscapeEngineFlag(failure_signature_path_),
+          ":error_description_path=", EscapeEngineFlag(error_description_path_),
           persistent_mode_server == nullptr
               ? ""
               : absl::StrCat(
@@ -475,6 +476,12 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
   int exit_code = EXIT_SUCCESS;
   const bool should_clean_up = [&] {
     if (!cmd.is_executing()) {
+      // Remove any failure and error outputs left by a previous process of the
+      // command, so that they are not taken as from the new process.
+      std::error_code ec;
+      std::filesystem::remove(failure_description_path_, ec);
+      std::filesystem::remove(failure_signature_path_, ec);
+      std::filesystem::remove(error_description_path_, ec);
       const bool execute_ret = cmd.ExecuteAsync();
       last_execute_log_path_ = cmd.stdout_file();
       if (!execute_ret) {
@@ -612,13 +619,42 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   if (exit_code != EXIT_SUCCESS) {
     ReadFromLocalFile(last_execute_log_path_, batch_result.log());
 
-    if (std::filesystem::exists(failure_description_path_)) {
-      ReadFromLocalFile(failure_description_path_,
-                        batch_result.failure_description());
-      if (std::filesystem::exists(failure_signature_path_)) {
-        std::string plain_signature;
-        ReadFromLocalFile(failure_signature_path_, plain_signature);
-        batch_result.failure_signature() = Hash(plain_signature);
+    // Takes the contents of the file at `path`, or returns std::nullopt if
+    // there is no such file. The file is renamed to a temporary path first,
+    // and is read and removed only if the renaming succeeds. A persistent
+    // process of the command can write the file at any time, so this makes
+    // sure that what is removed is exactly what is read, and nothing written
+    // in between is lost.
+    const auto take_file_contents =
+        [](const std::string& path) -> std::optional<std::string> {
+      const std::string taken_path = absl::StrCat(path, ".taken");
+      std::error_code ec;
+      std::filesystem::rename(path, taken_path, ec);
+      if (ec) return std::nullopt;
+      std::string contents;
+      ReadFromLocalFile(taken_path, contents);
+      std::filesystem::remove(taken_path, ec);
+      return contents;
+    };
+    // Take all the files, so that none of them stays until another failed
+    // execution.
+    const std::optional<std::string> error_description =
+        take_file_contents(error_description_path_);
+    std::optional<std::string> failure_description =
+        take_file_contents(failure_description_path_);
+    const std::optional<std::string> plain_signature =
+        take_file_contents(failure_signature_path_);
+
+    if (error_description.has_value()) {
+      // An unrecoverable error takes precedence over any finding.
+      batch_result.failure_description() =
+          absl::StrCat("SETUP FAILURE: ", *error_description);
+      batch_result.failure_signature() =
+          Hash(batch_result.failure_description());
+    } else if (failure_description.has_value()) {
+      batch_result.failure_description() = std::move(*failure_description);
+      if (plain_signature.has_value()) {
+        batch_result.failure_signature() = Hash(*plain_signature);
       } else {
         // Crash deduplication assumes that the failure signature contains no
         // dashes and that it can be used as a file name.
@@ -633,10 +669,6 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
       batch_result.failure_description() = kFallbackFailureDescription;
       batch_result.failure_signature() = *fallback_failure_signature;
     }
-    // Remove the failure description and signature files here so that they do
-    // not stay until another failed execution.
-    std::filesystem::remove(failure_description_path_);
-    std::filesystem::remove(failure_signature_path_);
   }
   FUZZTEST_VLOG(1) << __FUNCTION__ << " took " << (absl::Now() - start_time);
   return exit_code;
