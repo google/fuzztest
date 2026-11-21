@@ -17,6 +17,7 @@ use super::domains::GenericDomain;
 pub use fuzztest_registry::FuzzTestInfo;
 pub use fuzztest_registry::FuzzTestRegistration;
 use std::fmt::Write;
+use std::io::{self, Write as _};
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -42,10 +43,8 @@ pub trait FuzzTest {
     fn execute(&self, args: &GenericCorpusValue) -> bool;
     fn domains(&self) -> Arc<Mutex<dyn GenericDomain>>;
 
-    /// Formats and prints the counterexample finding report for `formatted_args` to `stderr`.
-    fn print_finding_report(&self, info: &FuzzTestInfo, formatted_args: &[String]) {
-        print_finding_report(info, formatted_args);
-    }
+    /// Formats and prints the counterexample finding report for `args` to `stderr`.
+    fn print_finding_report(&self, args: &GenericCorpusValue);
 }
 
 /// Formats the `=== BUG FOUND!` finding report block for the given fuzz test and formatted
@@ -78,11 +77,10 @@ fn format_finding_report(info: &FuzzTestInfo, formatted_args: &[String]) -> Stri
 }
 
 /// Prints the `=== BUG FOUND!` finding report block to `stderr`.
-fn print_finding_report(info: &FuzzTestInfo, formatted_args: &[String]) {
-    eprint!("{}", format_finding_report(info, formatted_args));
+pub fn print_finding_report(info: &FuzzTestInfo, formatted_args: &[String]) {
+    let report = format_finding_report(info, formatted_args);
+    let _ = io::stderr().write_all(report.as_bytes());
 }
-
-pub type BoxedFuzzTest = Box<dyn FuzzTest + Send + Sync>;
 
 pub struct InputStateAndDomain<I, D> {
     pub input_state: Option<I>,

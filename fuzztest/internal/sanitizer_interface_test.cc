@@ -15,8 +15,11 @@
 #include "./fuzztest/internal/sanitizer_interface.h"
 
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>  // IWYU pragma: keep
 #include <functional>
 #include <string>
+#include <thread>  // NOLINT
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -26,16 +29,9 @@
 #include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
-
-#if defined(ABSL_HAVE_THREAD_SANITIZER)
-#include <cstdio>
-#include <cstdlib>
-#include <thread>  // NOLINT
-
-#include "absl/strings/str_format.h"
-#endif
 
 namespace fuzztest::internal {
 
@@ -359,9 +355,11 @@ ABSL_ATTRIBUTE_NOINLINE void RaceThreadB(volatile int* shared) {
 namespace fuzztest::internal {
 namespace {
 
+using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Not;
 
 TEST(ParseCrashTypeFromSanitizerSummaryTest,
      ExtractsCrashTypeWhenItIsTheOnlyToken) {
@@ -632,6 +630,22 @@ TEST(FuzzTestSanitizerErrorSummaryCallbackTest,
   FuzzTestSetSanitizerErrorSummaryCallback(nullptr);
 }
 
+TEST(FuzzTestSanitizerDeathCallbackTest, ConcurrentRegistrationIsThreadSafe) {
+  std::thread t1([] {
+    for (int i = 0; i < 100; ++i) {
+      FuzzTestSetSanitizerDeathCallback([] {});
+    }
+  });
+  std::thread t2([] {
+    for (int i = 0; i < 100; ++i) {
+      FuzzTestSetSanitizerDeathCallback(nullptr);
+    }
+  });
+  t1.join();
+  t2.join();
+  FuzzTestSetSanitizerDeathCallback(nullptr);
+}
+
 absl::string_view FormatCrashDescription(absl::string_view prefix,
                                          absl::string_view crash_type,
                                          absl::string_view signature,
@@ -826,6 +840,51 @@ TEST(FuzzTestComputeSanitizerCrashSignatureDeathTest,
                 "test_app::RaceThreadA"));
 }
 #endif  // defined(ABSL_HAVE_THREAD_SANITIZER)
+
+ABSL_ATTRIBUTE_NOINLINE void TriggerSanitizerCrash() {
+#if defined(ABSL_HAVE_ADDRESS_SANITIZER)
+  int* volatile p = new int(0);
+  delete p;
+  volatile int x = *p;
+  (void)x;
+#elif defined(ABSL_HAVE_MEMORY_SANITIZER)
+  int* volatile p = new int;
+  if (*p != 0) {
+    std::_Exit(0);
+  }
+  delete p;
+#elif defined(ABSL_HAVE_THREAD_SANITIZER)
+  volatile int shared = 0;
+  std::thread t1(test_app::RaceThreadA, &shared);
+  std::thread t2(test_app::RaceThreadB, &shared);
+  t1.join();
+  t2.join();
+  std::exit(0);
+#endif
+}
+
+TEST(FuzzTestSanitizerDeathCallbackDeathTest,
+     InvokesLatestRegisteredCallbackOnSanitizerCrash) {
+#if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
+    !defined(ABSL_HAVE_MEMORY_SANITIZER) &&  \
+    !defined(ABSL_HAVE_THREAD_SANITIZER)
+  GTEST_SKIP() << "Requires ASan, MSan, or TSan.";
+#endif
+  EXPECT_DEATH(
+      {
+        FuzzTestSetSanitizerDeathCallback([] {
+          absl::FPrintF(stderr, "FIRST_DEATH_CALLBACK_INVOKED\n");
+          std::fflush(stderr);
+        });
+        FuzzTestSetSanitizerDeathCallback([] {
+          absl::FPrintF(stderr, "SECOND_DEATH_CALLBACK_INVOKED\n");
+          std::fflush(stderr);
+        });
+        TriggerSanitizerCrash();
+      },
+      AllOf(HasSubstr("SECOND_DEATH_CALLBACK_INVOKED"),
+            Not(HasSubstr("FIRST_DEATH_CALLBACK_INVOKED"))));
+}
 
 }  // namespace
 }  // namespace fuzztest::internal
