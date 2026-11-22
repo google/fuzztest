@@ -147,7 +147,9 @@ ByteArray PackFeaturesAndHash(ByteSpan data, const FeatureVec& features);
 ByteArray PackFeaturesAndHashAsRawBytes(ByteSpan data, ByteSpan features);
 
 // Given a `blob` created by `PackFeaturesAndHash`, unpack the features into
-// `features` and return the hash.
+// `features` and return the hash. If `blob` is too short to hold a hash or its
+// feature section is not a whole number of `feature_t`s, clears `features` and
+// returns an empty string.
 std::string UnpackFeaturesAndHash(ByteSpan blob,
                                   FeatureVec *absl_nonnull features);
 
