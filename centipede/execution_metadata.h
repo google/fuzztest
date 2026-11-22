@@ -30,12 +30,13 @@ namespace fuzztest::internal {
 struct ExecutionMetadata {
   // Appends a CMP entry comparing `a` and `b` to the metadata. Returns false if
   // the entry cannot be appended. Return true otherwise.
-  bool AppendCmpEntry(ByteSpan a, ByteSpan b);
+  bool AppendCmpEntry(ByteSpan a, ByteSpan b, bool is_integer = false);
 
   // Enumerates through all CMP entries in the metadata by calling
   // `callback` on each of them. Returns false if there are invalid
   // entries. Returns true otherwise.
-  bool ForEachCmpEntry(std::function<void(ByteSpan, ByteSpan)> callback) const;
+  bool ForEachCmpEntry(
+      const std::function<void(ByteSpan, ByteSpan, bool)>& callback) const;
 
   // Writes the contents to `outputs_blobseq` with header `tag`. Returns true
   // iff successful.
@@ -50,6 +51,7 @@ struct ExecutionMetadata {
   // CMP entries are stored in one large ByteArray to minimize RAM consumption.
   // One CMP arg pair is stored as
   //  * `size` (1-byte value)
+  //  * `is_integer` (1-byte value)
   //  * `value0` (`size` bytes)
   //  * `value1` (`size` bytes)
   ByteArray cmp_data;
