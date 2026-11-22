@@ -386,6 +386,9 @@ pub struct FuzzTestAdapter {
     >,
 
     /// [Optional] Updates the test `input` metadata from serialized `metadata`.
+    /// Called for mutation origins before `Mutate`/`CrossOver`, and for inputs
+    /// of execution requests that carry metadata (e.g. the expected values of
+    /// the incremental differential fuzzing validate mode) before `Execute`.
     pub update_input_metadata: Option<
         unsafe extern "C" fn(
             ctx: *mut FuzzTestAdapterCtx,
