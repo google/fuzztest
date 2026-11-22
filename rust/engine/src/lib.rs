@@ -66,7 +66,7 @@ impl DiagnosticSink {
     /// * `raw` is a non-null, properly aligned pointer to a valid `FuzzTestDiagnosticSink`.
     /// * `(*raw).ctx` is a valid context pointer.
     /// * The sink and its context remain valid for the duration of `DiagnosticSink`'s usage
-    ///   (guaranteed by the engine until `FreeCtx` is called on the adapter).
+    ///   (guaranteed by the engine until the `FreeCtx` call on the adapter has returned).
     pub unsafe fn from_raw(raw: *const engine_ffi::FuzzTestDiagnosticSink) -> Self {
         // SAFETY: Caller guarantees `raw` is a valid pointer to `FuzzTestDiagnosticSink`.
         let raw_sink = unsafe { *raw };
@@ -124,8 +124,8 @@ impl BytesSink {
     /// The caller must ensure that:
     /// * `raw` is a non-null, properly aligned pointer to a valid `FuzzTestBytesSink`.
     /// * `(*raw).ctx` is a valid context pointer.
-    /// * The sink and its context remain valid for the duration of `BytesSink`'s usage
-    ///   (guaranteed by the engine until `FreeCtx` is called on the adapter).
+    /// * The sink and its context remain valid for the duration of `BytesSink`'s usage (guaranteed
+    ///   by the engine until `FreeCtx` is called on the adapter).
     pub unsafe fn from_raw(raw: *const engine_ffi::FuzzTestBytesSink) -> Self {
         // SAFETY: Caller guarantees `raw` is a valid pointer to `FuzzTestBytesSink`.
         let raw_sink = unsafe { *raw };
@@ -158,8 +158,8 @@ impl InputSink {
     /// The caller must ensure that:
     /// * `raw` is a non-null, properly aligned pointer to a valid `FuzzTestInputSink`.
     /// * `(*raw).ctx` is a valid context pointer.
-    /// * The sink and its context remain valid for the duration of `InputSink`'s usage
-    ///   (guaranteed by the engine until `FreeCtx` is called on the adapter).
+    /// * The sink and its context remain valid for the duration of `InputSink`'s usage (guaranteed
+    ///   by the engine until `FreeCtx` is called on the adapter).
     pub unsafe fn from_raw(raw: *const engine_ffi::FuzzTestInputSink) -> Self {
         // SAFETY: Caller guarantees `raw` is a valid pointer to `FuzzTestInputSink`.
         let raw_sink = unsafe { *raw };
@@ -269,8 +269,8 @@ impl CoverageDomainRegistry {
     /// The caller must ensure that:
     /// * `raw` is a non-null, properly aligned pointer to a valid `FuzzTestCoverageDomainRegistry`.
     /// * `(*raw).ctx` is a valid context pointer.
-    /// * The registry and its context remain valid for the duration of `CoverageDomainRegistry`'s usage
-    ///   (guaranteed by the engine until `FreeCtx` is called on the adapter).
+    /// * The registry and its context remain valid for the duration of `CoverageDomainRegistry`'s
+    ///   usage (guaranteed by the engine until `FreeCtx` is called on the adapter).
     pub unsafe fn from_raw(raw: *const engine_ffi::FuzzTestCoverageDomainRegistry) -> Self {
         // SAFETY: Caller guarantees `raw` is a valid pointer to `FuzzTestCoverageDomainRegistry`.
         let raw_registry = unsafe { *raw };
