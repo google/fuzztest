@@ -290,7 +290,8 @@ void FailsWithDistinctFailureKeys(int x) {
   EXPECT_TRUE(false) << fuzztest::FailureKey(std::move(key)) << "x=" << x;
 }
 FUZZ_TEST(MySuite, FailsWithDistinctFailureKeys)
-    .WithDomains(fuzztest::InRange(0, 4));
+    .WithDomains(fuzztest::InRange(0, 4))
+    .WithSeeds({{1}, {3}, {2}, {4}});
 
 void UnconsumedFailureKeyClearsBeforeNextInput(int x) {
   static bool leaked_key_on_previous_input = false;
