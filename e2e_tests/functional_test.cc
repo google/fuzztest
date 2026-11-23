@@ -311,6 +311,16 @@ TEST_F(UnitTestModeTest,
       /*env=*/{{"ASAN_OPTIONS", "handle_abort=2"}}));
 }
 
+TEST_F(UnitTestModeTest, FailureKeyIsPrintedInReportInUnitTestMode) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.GoogleTestExpectWithFailureKey");
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("Assertion failure key: custom_gtest_key"));
+  EXPECT_THAT_LOG(
+      std_out, AllOf(HasSubstr("x was 1"), Not(HasSubstr("custom_gtest_key"))));
+}
+
 TEST_F(UnitTestModeTest, GlobalEnvironmentGoesThroughCompleteLifecycle) {
   auto [status, std_out, std_err] = Run("MySuite.GoogleTestNeverFails");
   EXPECT_GT(CountSubstrs(std_err, "<<GlobalEnvironment::GlobalEnvironment()>>"),
@@ -2306,6 +2316,86 @@ TEST_P(FuzzingModeCrashFindingTest, GTestCrashMetadataIsDumpedIfEnvVarIsSet) {
   EXPECT_THAT(ReadFile(crash_metadata_path),
               Optional(Eq("GoogleTest assertion failure\n"
                           "CRASH_SIGNATURE=GoogleTest assertion failure")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       GTestFailureKeyRefinesCrashSignatureWhileKeepingCategory) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.GoogleTestExpectWithFailureKey", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("GoogleTest assertion failure\n"
+                          "CRASH_SIGNATURE=GoogleTest assertion "
+                          "failure:custom_gtest_key")));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("Assertion failure key: custom_gtest_key"));
+#ifndef FUZZTEST_USE_CENTIPEDE
+  EXPECT_THAT_LOG(
+      std_out, AllOf(HasSubstr("x was 1"), Not(HasSubstr("custom_gtest_key"))));
+#else
+  EXPECT_THAT_LOG(std_err, HasSubstr("x was 1"));
+#endif
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       GTestEmptyFailureKeyLeavesDefaultSignatureUnchanged) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.GoogleTestExpectWithEmptyFailureKey", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("GoogleTest assertion failure\n"
+                          "CRASH_SIGNATURE=GoogleTest assertion failure")));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("Assertion failure key:")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest, UnconsumedFailureKeyClearsBeforeNextInput) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] = Run(
+      "MySuite.UnconsumedFailureKeyClearsBeforeNextInput", kDefaultTargetBinary,
+      {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("GoogleTest assertion failure\n"
+                          "CRASH_SIGNATURE=GoogleTest assertion failure")));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("Assertion failure key:")));
+  EXPECT_THAT_LOG(std_err, Not(HasSubstr("stale_leaked_key")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       CheckFailureKeyRefinesCrashSignatureWhileKeepingCategory) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.CheckFailsWithFailureKey", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("CHECK\n"
+                          "CRASH_SIGNATURE=CHECK:custom_check_key")));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("Assertion failure key: custom_check_key"));
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       LogFatalFailureKeyRefinesCrashSignatureWhileKeepingCategory) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.LogFatalFailsWithFailureKey", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("LOG(FATAL)\n"
+                          "CRASH_SIGNATURE=LOG(FATAL):custom_fatal_key")));
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("Assertion failure key: custom_fatal_key"));
 }
 
 TEST_P(FuzzingModeCrashFindingTest,

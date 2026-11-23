@@ -260,6 +260,7 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//framework_shared:crash_reporting",
         "@googletest//:gtest",
     ] + select({
         "@com_google_fuzztest//fuzztest:use_centipede": [":centipede_adaptor"],
@@ -462,6 +463,7 @@ cc_test(
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//framework_shared:crash_reporting",
         "@com_google_fuzztest//fuzztest:domain_core",
         "@googletest//:gtest_main",
     ],

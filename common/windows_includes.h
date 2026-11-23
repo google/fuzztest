@@ -31,6 +31,7 @@
 #endif
 
 #include <windows.h>
+#include <io.h>
 
 // clang-format on
 

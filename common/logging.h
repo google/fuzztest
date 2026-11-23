@@ -15,8 +15,11 @@
 #ifndef FUZZTEST_COMMON_LOGGING_H_
 #define FUZZTEST_COMMON_LOGGING_H_
 
+#include <type_traits>
+
 #include "absl/log/absl_check.h"
 #include "absl/log/absl_log.h"
+#include "absl/strings/string_view.h"
 
 // NOTE: these macros are for internal use within the FuzzTest codebase.
 #define FUZZTEST_CHECK(cond) ABSL_CHECK(cond)
@@ -45,5 +48,22 @@
 
 // Easy variable value logging: FUZZTEST_LOG(INFO) << VV(foo) << VV(bar);
 #define VV(x) #x ": " << (x) << " "
+
+namespace fuzztest::internal {
+
+void WriteSignalSafeStderr(absl::string_view sv);
+void SyncSignalSafeStderr();
+
+// Async-signal-safe and thread-safe logging to stderr (does not allocate).
+template <typename... Parts>
+void SignalSafeLog(const Parts&... parts) {
+  static_assert(
+      (std::is_convertible_v<const Parts&, absl::string_view> && ...));
+  (WriteSignalSafeStderr(parts), ...);
+  WriteSignalSafeStderr("\n");
+  SyncSignalSafeStderr();
+}
+
+}  // namespace fuzztest::internal
 
 #endif  // FUZZTEST_COMMON_LOGGING_H_

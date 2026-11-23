@@ -85,6 +85,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//framework_shared:crash_reporting",
         "@com_google_fuzztest//fuzztest/internal:fixture_driver",
         "@com_google_fuzztest//fuzztest/internal:fuzztest_macro_impl",
         "@com_google_fuzztest//fuzztest/internal:registration",
@@ -102,6 +103,7 @@ cc_test(
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:temp_dir",
+        "@com_google_fuzztest//framework_shared:crash_reporting",
         "@googletest//:gtest_main",
     ],
 )

@@ -23,10 +23,16 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
+#include <sstream>
+#include <string>
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "./fuzztest/fuzztest.h"
+#include "absl/log/absl_check.h"
+#include "absl/log/absl_log.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_format.h"
 #include "./fuzztest/googletest_fixture_adapter.h"
 #include "./fuzztest/internal/test_protobuf.pb.h"
 
@@ -246,5 +252,57 @@ class SkippedTestFixturePerIteration
 };
 bool SkippedTestFixturePerIteration::first_iteration_ = true;
 FUZZ_TEST_F(SkippedTestFixturePerIteration, SkippedTest);
+
+std::string HelperLoggingInfoMessage(int x) {
+  ABSL_LOG(INFO) << "Formatting failure details for x=" << x;
+  return absl::StrFormat("x was %d", x);
+}
+
+void GoogleTestExpectWithFailureKey(int x) {
+  [[maybe_unused]] const fuzztest::FailureKey unused_preconstructed_key(
+      "unused_key");
+  int side_effects = 0;
+  EXPECT_TRUE(true) << fuzztest::FailureKey((++side_effects, "must_not_run"));
+  ABSL_CHECK_EQ(side_effects, 0);
+  if (x > 0) {
+    EXPECT_EQ(x, 0) << fuzztest::FailureKey("custom_gtest_key")
+                    << HelperLoggingInfoMessage(x);
+  }
+}
+FUZZ_TEST(MySuite, GoogleTestExpectWithFailureKey).WithSeeds({{1}});
+
+void GoogleTestExpectWithEmptyFailureKey(int x) {
+  if (x > 0) {
+    EXPECT_EQ(x, 0) << fuzztest::FailureKey("") << "empty key fallback";
+  }
+}
+FUZZ_TEST(MySuite, GoogleTestExpectWithEmptyFailureKey).WithSeeds({{1}});
+
+void FailsWithDistinctFailureKeys(int x) {
+  std::string key;
+  if (x == 1 || x == 2) {
+    key = "key_1";
+  } else if (x == 3 || x == 4) {
+    key = "key_2";
+  } else {
+    return;
+  }
+  EXPECT_TRUE(false) << fuzztest::FailureKey(std::move(key)) << "x=" << x;
+}
+FUZZ_TEST(MySuite, FailsWithDistinctFailureKeys)
+    .WithDomains(fuzztest::InRange(0, 4));
+
+void UnconsumedFailureKeyClearsBeforeNextInput(int x) {
+  static bool leaked_key_on_previous_input = false;
+  if (!leaked_key_on_previous_input) {
+    leaked_key_on_previous_input = true;
+    std::ostringstream os;
+    os << fuzztest::FailureKey("stale_leaked_key");
+    return;
+  }
+  EXPECT_FALSE(true) << "unkeyed failure on later input x=" << x;
+}
+FUZZ_TEST(MySuite, UnconsumedFailureKeyClearsBeforeNextInput)
+    .WithSeeds({{0}, {1}});
 
 }  // namespace

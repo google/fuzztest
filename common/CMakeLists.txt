@@ -110,9 +110,13 @@ fuzztest_cc_library(
     common_logging
   HDRS
     "logging.h"
+  SRCS
+    "logging.cc"
   DEPS
+    fuzztest::windows_includes
     absl::absl_check
     absl::absl_log
+    absl::string_view
 )
 
 fuzztest_cc_library(

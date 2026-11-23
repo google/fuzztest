@@ -166,6 +166,7 @@ fuzztest_cc_library(
     fuzztest::fuzztest_macro_impl
     fuzztest::registration
     fuzztest::runtime
+    fuzztest::crash_reporting
 )
 
 fuzztest_cc_test(
@@ -180,6 +181,7 @@ fuzztest_cc_test(
     absl::statusor
     absl::strings
     fuzztest::common_logging
+    fuzztest::crash_reporting
     fuzztest::temp_dir
 )
 

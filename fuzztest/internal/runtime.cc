@@ -204,15 +204,25 @@ class FuzzTestFatalLogSink : public absl::LogSink {
   void Send(const absl::LogEntry& entry) override {
     if (entry.log_severity() != absl::LogSeverity::kFatal) return;
     Runtime& runtime = Runtime::instance();
-    if (!runtime.reporter_enabled()) return;
-    const bool is_check =
-        absl::StartsWith(entry.text_message(), "Check failed: ");
-    const absl::string_view crash_type = is_check ? "CHECK" : "LOG(FATAL)";
-    // Only compute the signature if this call set the crash type, so that both
-    // describe the same crash.
-    if (runtime.SetCrashTypeIfUnset(crash_type)) {
-      runtime.SetStackCrashSignatureIfUnset(crash_type);
+    if (runtime.reporter_enabled()) {
+      const bool is_check =
+          absl::StartsWith(entry.text_message(), "Check failed: ");
+      const absl::string_view crash_type = is_check ? "CHECK" : "LOG(FATAL)";
+      // Only compute the signature if this call set the crash type, so that
+      // both describe the same crash.
+      if (runtime.SetCrashTypeIfUnset(crash_type)) {
+        size_t key_size = 0;
+        if (const char* key_data =
+                FuzzTestGetPendingAssertionFailureKey(&key_size);
+            key_data != nullptr) {
+          runtime.SetAssertionCrashSignatureIfUnset(
+              crash_type, absl::string_view(key_data, key_size));
+        } else {
+          runtime.SetStackCrashSignatureIfUnset(crash_type);
+        }
+      }
     }
+    FuzzTestClearPendingAssertionFailureKey();
   }
 };
 
@@ -332,6 +342,31 @@ static void SleepForCrashHandling(absl::Duration duration) {
 uintptr_t GetCurrentThreadIdForCrashHandling() { return 0; }
 #endif  // __linux__ || __APPLE__
 
+void Runtime::SetAssertionCrashSignatureIfUnset(
+    absl::string_view crash_type, absl::string_view assertion_failure_key) {
+  crash_signature_.SetIfUnsetWith([&](absl::Span<char> out) {
+    SignalSafeBufferWriter writer(out);
+    writer.Append(crash_type);
+    if (!assertion_failure_key.empty()) {
+      writer.Append(":");
+      writer.Append(assertion_failure_key);
+      assertion_failure_key_.SetIfUnset(assertion_failure_key);
+    }
+    return writer.GetView().size();
+  });
+}
+
+void Runtime::ResetCrashType() {
+  FuzzTestClearAllPendingAssertionFailureKeys();
+  // If a thread (e.g., one that failed non-fatally during a previous input) is
+  // still computing the crash signature, keep the crash type as well, so that
+  // the type and signature stay consistent.
+  if (crash_signature_.is_being_written()) return;
+  crash_type_.Reset();
+  crash_signature_.Reset();
+  assertion_failure_key_.Reset();
+}
+
 void Runtime::SetStackCrashSignatureIfUnset(absl::string_view crash_type,
                                             const void* ucontext) {
   crash_signature_.SetIfUnsetWith([&](absl::Span<char> out) {
@@ -440,6 +475,10 @@ void Runtime::PrintReport(RawSink out) {
     absl::Format(out, "%s:%d: Counterexample found for %s.%s.\n",
                  current_test_->file(), current_test_->line(),
                  current_test_->suite_name(), current_test_->test_name());
+    if (const std::optional<absl::string_view> key = assertion_failure_key();
+        key.has_value()) {
+      absl::Format(out, "Assertion failure key: %s\n", *key);
+    }
     auto printer = current_args_->domain.GetPrinter();
     printer.PrintFormattedAggregateValue(
         current_args_->corpus_value, out, PrintMode::kHumanReadable,
@@ -489,6 +528,10 @@ void Runtime::PrintReport(RawSink out) {
     absl::Format(out, "%s:%d: There was a problem with %s.%s.",
                  current_test_->file(), current_test_->line(),
                  current_test_->suite_name(), current_test_->test_name());
+    if (const std::optional<absl::string_view> key = assertion_failure_key();
+        key.has_value()) {
+      absl::Format(out, "\nAssertion failure key: %s", *key);
+    }
     if (test_abort_message != nullptr) {
       absl::Format(out, "%s", *test_abort_message);
     }

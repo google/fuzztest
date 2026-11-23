@@ -29,7 +29,9 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <optional>
 
 #include "absl/base/attributes.h"
@@ -234,6 +236,53 @@ size_t CopyToBuffer(absl::string_view value, absl::Span<char> out_buffer) {
 std::atomic_flag crash_signature_scratch_busy = ATOMIC_FLAG_INIT;
 absl::string_view crash_signature_frame_storage[3];
 char crash_signature_symbol_storage[3 * 1024];
+
+constexpr size_t kMaxAssertionFailureKeySize = 256;
+
+// Starts at 1 so zero-initialized `PendingAssertionFailureKeyStorage`
+// (`epoch == 0`) is treated as unset without dynamic TLS initialization.
+ABSL_CONST_INIT std::atomic<uint64_t> assertion_failure_key_epoch{1};
+
+struct PendingAssertionFailureKeyStorage {
+  char data[kMaxAssertionFailureKeySize];
+  size_t size;
+  uint64_t epoch;
+};
+
+ABSL_CONST_INIT thread_local PendingAssertionFailureKeyStorage
+    pending_assertion_failure_key = {{}, 0, 0};
+
+size_t TruncateAssertionFailureKeySize(absl::string_view key, size_t max_size) {
+  if (key.size() <= max_size) return key.size();
+  // If `key[max_size]` is a UTF-8 continuation byte (`10xxxxxx`), step back up
+  // to 3 bytes to avoid splitting a valid multi-byte UTF-8 code point (so Rust
+  // `&str` consumers continue to observe valid UTF-8).
+  if ((static_cast<uint8_t>(key[max_size]) & 0xC0) == 0x80) {
+    for (size_t back = 1; back <= 3 && max_size >= back; ++back) {
+      const uint8_t b = static_cast<uint8_t>(key[max_size - back]);
+      if ((b & 0xC0) != 0x80) {
+        if ((back == 1 && b >= 0xC2) || (back == 2 && b >= 0xE0) ||
+            (back == 3 && b >= 0xF0)) {
+          return max_size - back;
+        }
+        break;
+      }
+    }
+  }
+  return max_size;
+}
+
+size_t SanitizeAssertionFailureKey(absl::string_view key,
+                                   absl::Span<char> out_buffer) {
+  const size_t max_size =
+      std::min(kMaxAssertionFailureKeySize, out_buffer.size());
+  const size_t size = TruncateAssertionFailureKeySize(key, max_size);
+  for (size_t i = 0; i < size; ++i) {
+    const uint8_t ch = static_cast<uint8_t>(key[i]);
+    out_buffer[i] = (ch < 0x20 || ch == 0x7F) ? '_' : key[i];
+  }
+  return size;
+}
 
 // Returns the PC of the code interrupted by a signal, given the `ucontext`
 // passed to the signal handler, or null if unknown. Async-signal-safe.
@@ -623,4 +672,58 @@ extern "C" size_t FuzzTestComputeSanitizerCrashSignature(
   return FuzzTestComputeStackCrashSignature(crash_type_data, crash_type_size,
                                             /*ucontext=*/nullptr, out,
                                             out_size);
+}
+
+extern "C" void FuzzTestSetPendingAssertionFailureKey(
+    const char* assertion_failure_key, size_t assertion_failure_key_size) {
+  if (assertion_failure_key == nullptr || assertion_failure_key_size == 0) {
+    return;
+  }
+  const uint64_t current_epoch =
+      fuzztest::internal::assertion_failure_key_epoch.load(
+          std::memory_order_acquire);
+  auto& pending = fuzztest::internal::pending_assertion_failure_key;
+  if (pending.size > 0 && pending.epoch == current_epoch) {
+    fuzztest::internal::SignalSafeLog(
+        "[!] WARNING: Overwriting unconsumed pending assertion failure key '",
+        absl::string_view(pending.data, pending.size), "' with '",
+        absl::string_view(assertion_failure_key, assertion_failure_key_size),
+        "'. FailureKey should only be streamed once into a failing assertion "
+        "or fatal check.");
+  }
+  pending.size = 0;
+  const size_t sanitized_size = fuzztest::internal::SanitizeAssertionFailureKey(
+      absl::string_view(assertion_failure_key, assertion_failure_key_size),
+      absl::Span<char>(pending.data));
+  pending.epoch = current_epoch;
+  pending.size = sanitized_size;
+}
+
+extern "C" const char* FuzzTestGetPendingAssertionFailureKey(size_t* out_size) {
+  if (out_size == nullptr) return nullptr;
+  const uint64_t current_epoch =
+      fuzztest::internal::assertion_failure_key_epoch.load(
+          std::memory_order_acquire);
+  const auto& pending = fuzztest::internal::pending_assertion_failure_key;
+  if (pending.size == 0 || pending.epoch != current_epoch) {
+    *out_size = 0;
+    return nullptr;
+  }
+  *out_size = pending.size;
+  return pending.data;
+}
+
+extern "C" void FuzzTestClearPendingAssertionFailureKey() {
+  fuzztest::internal::pending_assertion_failure_key.size = 0;
+}
+
+extern "C" void FuzzTestClearAllPendingAssertionFailureKeys() {
+  const uint64_t prev =
+      fuzztest::internal::assertion_failure_key_epoch.fetch_add(
+          1, std::memory_order_acq_rel);
+  if (prev >= std::numeric_limits<uint64_t>::max() - 1) {
+    fuzztest::internal::SignalSafeLog(
+        "[!] Assertion failure key epoch overflowed; aborting.");
+    std::abort();
+  }
 }
