@@ -18,24 +18,21 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <functional>
-#include <string>
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "./centipede/engine_abi.h"
 #include "./centipede/feature.h"
 #include "./centipede/pc_info.h"
 #include "./framework_shared/internal/execution_metadata.h"
 #include "./framework_shared/internal/int_utils.h"
 #include "./framework_shared/internal/runner_dl_info.h"
 #include "./framework_shared/internal/sancov_utils.h"
-#include "./framework_shared/sancov_runtime.h"
 
 __attribute__((weak)) extern fuzztest::internal::feature_t
     __start___centipede_extra_features;
@@ -53,13 +50,7 @@ __attribute__((weak)) void __lsan_register_root_region(const void* p,
                                                        size_t size) {}
 
 ExplicitLifetime<SancovState> sancov_state;
-
-void SancovRuntimeInitialize() {
-  [[maybe_unused]] static bool construct_once = [] {
-    sancov_state.Construct();
-    return true;
-  }();
-}
+std::atomic<StackLimitCallback> stack_limit_callback{nullptr};
 
 namespace {
 
@@ -120,12 +111,6 @@ class ThreadTerminationDetector {
 };
 
 thread_local ThreadTerminationDetector termination_detector;
-
-struct SancovStateManager {
-  SancovStateManager() { SancovRuntimeInitialize(); }
-};
-
-SancovStateManager sancov_state_manager __attribute__((init_priority(200)));
 
 }  // namespace
 
@@ -302,7 +287,8 @@ static void DumpDsoTable(const char *absl_nonnull output_path) {
   fclose(output_file);
 }
 
-SancovState::SancovState() {
+SancovState::SancovState(const char* absl_nullable sancov_flags)
+    : flag_helper(sancov_flags) {
   tls.OnThreadStart();
   // Compute main_object.
   main_object = GetDlInfo(flag_helper.GetStringFlag("dl_path_suffix="));
@@ -356,7 +342,7 @@ extern void CoverageInterceptor();
     &CoverageInterceptor;
 #endif  // FUZZTEST_REPLAY
 
-void MaybeAddFeature(feature_t feature) {
+static void MaybeAddFeature(feature_t feature) {
   if (!sancov_state->flags.skip_seen_features) {
     sancov_state->g_features.push_back(feature);
   } else if (!sancov_state->seen_features.get(feature)) {
@@ -525,9 +511,7 @@ void PostProcessSancov(bool reject_input) {
       }
     }
     const size_t sp_diff = tls.top_frame_sp - lowest_sp;
-    if (CheckStackLimit != nullptr) {
-      CheckStackLimit(sp_diff, /*is_current_stack=*/false);
-    }
+    MaybeCheckStackLimit(sp_diff, /*is_current_stack=*/false);
     if (sancov_state->flags.callstack_level != 0) {
       feature_handler(feature_domains::kCallStack.ConvertToMe(sp_diff));
     }
@@ -570,124 +554,8 @@ void PostProcessSancov(bool reject_input) {
   }
 }
 
-// Left-shifts the first `size` bits of `value` by `shift_by`.
-template <typename T>
-constexpr T GetShiftedBits(T value, size_t size, size_t shift_by) {
-  return (value & ((T{1} << size) - 1)) << shift_by;
-}
-
-void SanCovRuntimeConvertToEngineFeatures(feature_t* start, size_t size) {
-  using ::fuzztest::internal::feature_domains::CMPScoreFeatureIndex;
-  using ::fuzztest::internal::feature_domains::Domain;
-  using ::fuzztest::internal::feature_domains::IsComparisonScoreFeature;
-  using ::fuzztest::internal::feature_domains::kCMPScoreBitmask;
-  using ::fuzztest::internal::feature_domains::kCMPScoreBits;
-
-  for (size_t i = 0; i < size; ++i) {
-    auto& feature = start[i];
-    const auto domain_id = Domain::FeatureToDomainId(feature);
-    auto feature_id = Domain::FeatureToIndexInDomain(feature);
-    if (IsComparisonScoreFeature(feature)) {
-      const auto counter = feature_id & kCMPScoreBitmask;
-      feature_id >>= kCMPScoreBits;
-      feature = GetShiftedBits(domain_id, kFuzzTestCoverageDomainIdBitSize,
-                               kFuzzTestCoverageDomainIdStartBit) |
-                GetShiftedBits(feature_id, kFuzzTestCoverageFeatureIdBitSize,
-                               kFuzzTestCoverageFeatureIdStartBit) |
-                GetShiftedBits(counter, kFuzzTestCoverageCounterBitSize,
-                               kFuzzTestCoverageCounterStartBit);
-      continue;
-    }
-    feature = GetShiftedBits(domain_id, kFuzzTestCoverageDomainIdBitSize,
-                             kFuzzTestCoverageDomainIdStartBit) |
-              GetShiftedBits(feature_id, kFuzzTestCoverageFeatureIdBitSize,
-                             kFuzzTestCoverageFeatureIdStartBit);
-  }
-}
-
-SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures() {
-  return {fuzztest::internal::sancov_state->g_features.data(),
-          fuzztest::internal::sancov_state->g_features.size()};
-}
-
 const ExecutionMetadata& SanCovRuntimeGetExecutionMetadata() {
   return fuzztest::internal::sancov_state->metadata;
 }
 
 }  // namespace fuzztest::internal
-
-// Can be overridden to not depend explicitly on CENTIPEDE_RUNNER_FLAGS.
-extern "C" __attribute__((weak)) const char* absl_nullable GetSancovFlags() {
-  static const char* flags = []() -> const char* {
-    if (const char* sancov_flags_env = getenv("CENTIPEDE_RUNNER_FLAGS")) {
-      return strdup(sancov_flags_env);
-    }
-    return nullptr;
-  }();
-  return flags;
-}
-
-void SanCovRuntimeClearCoverage(bool full_clear) {
-  fuzztest::internal::CleanUpSancovTls();
-  fuzztest::internal::PrepareSancov(full_clear);
-}
-
-struct SanCovRuntimeRawFeatureParts SanCovRuntimeGetCoverage(
-    bool reject_input) {
-  fuzztest::internal::PostProcessSancov(reject_input);
-
-  return fuzztest::internal::SanCovRuntimeGetFeatures();
-}
-
-size_t SanCovRuntimeSetUpCoverageDomains(
-    const FuzzTestCoverageDomainRegistry* registry) {
-  using ::fuzztest::internal::feature_domains::Domain;
-  using ::fuzztest::internal::feature_domains::kCMPScoreBits;
-  using ::fuzztest::internal::feature_domains::kCMPScoreDomains;
-  using ::fuzztest::internal::feature_domains::kNumDomains;
-
-  static_assert(Domain::kDomainSize == 1 << 27);
-  static_assert(kNumDomains <= 100);
-  static_assert(kCMPScoreBits <= 27);
-  static_assert(kCMPScoreBits <= kFuzzTestCoverageCounterBitSize);
-
-  for (size_t domain_id = 0; domain_id < kNumDomains; ++domain_id) {
-    const bool is_scoring_domain =
-        domain_id >= kCMPScoreDomains.front().domain_id() &&
-        domain_id <= kCMPScoreDomains.back().domain_id();
-    std::string domain_name = "dom";
-    domain_name += '0' + domain_id / 10;
-    domain_name += '0' + domain_id % 10;
-    const FuzzTestCoverageDomain domain = {
-        static_cast<uint8_t>(domain_id),
-        FuzzTestBytesView{
-            reinterpret_cast<const uint8_t*>(domain_name.data()),
-            domain_name.size(),
-        },
-        /*feature_id_bit_size=*/
-        static_cast<uint8_t>(is_scoring_domain ? 27 - kCMPScoreBits : 27),
-        /*counter_bit_size=*/
-        static_cast<uint8_t>(is_scoring_domain ? kCMPScoreBits : 0),
-    };
-    registry->Register(registry->ctx, &domain);
-  }
-
-  return kNumDomains;
-}
-
-void SanCovRuntimePostProcessCoverage(bool reject_input) {
-  fuzztest::internal::PostProcessSancov(reject_input);
-}
-
-void SanCovRuntimeEmitFeatures(const FuzzTestFeedbackSink* sink) {
-  using ::fuzztest::internal::sancov_state;
-
-  fuzztest::internal::SanCovRuntimeConvertToEngineFeatures(
-      sancov_state->g_features.data(), sancov_state->g_features.size());
-  const FuzzTestUint64sView features = {
-      sancov_state->g_features.data(),
-      sancov_state->g_features.size(),
-  };
-  sink->EmitCoverageFeatures(sink->ctx, &features);
-  sancov_state->g_features.clear();
-}

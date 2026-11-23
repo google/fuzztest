@@ -85,6 +85,7 @@
 #include "./common/remote_file.h"
 #include "./common/temp_dir.h"
 #include "./framework_shared/internal/execution_metadata.h"
+#include "./framework_shared/sancov_runtime.h"
 #include "./fuzztest/internal/any.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/domains/domain.h"
@@ -466,9 +467,10 @@ int RunCentipede(const Environment& env,
     InProcessCentipedeCallbacksFactory factory(&adapter_manager);
     // Disable tracing outside of the input executions, which enable tracing by
     // themselves.
-    const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
+    const bool old_traced =
+        SanCovRuntimeSetCurrentThreadTraced(/*traced=*/false);
     const int result = CentipedeMain(env, factory, &global_stop_condition);
-    CentipedeSetCurrentThreadTraced(old_traced);
+    SanCovRuntimeSetCurrentThreadTraced(old_traced);
     return result;
   }
   static absl::NoDestructor<DefaultCallbacksFactory<CentipedeDefaultCallbacks>>
@@ -532,9 +534,10 @@ class CentipedeAdaptorRunnerCallbacks
 
     // Disable tracing until running the property function in
     // `CentipedeFxitureDriver::RunFuzzTestIteration()`
-    const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
+    const bool old_traced =
+        SanCovRuntimeSetCurrentThreadTraced(/*traced=*/false);
     absl::Cleanup tracing_restorer = [old_traced] {
-      CentipedeSetCurrentThreadTraced(old_traced);
+      SanCovRuntimeSetCurrentThreadTraced(old_traced);
     };
     if (runtime_.termination_requested()) {
       absl::FPrintF(GetStderr(),
@@ -736,9 +739,10 @@ class CentipedeFixtureDriver : public UntypedFixtureDriver {
   void RunFuzzTestIteration(
       absl::AnyInvocable<void() &&> run_iteration_once) override {
     // Enable tracing for the property function.
-    const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/1);
+    const bool old_traced =
+        SanCovRuntimeSetCurrentThreadTraced(/*traced=*/true);
     absl::Cleanup tracing_restorer = [old_traced] {
-      CentipedeSetCurrentThreadTraced(old_traced);
+      SanCovRuntimeSetCurrentThreadTraced(old_traced);
     };
     orig_fixture_driver_->RunFuzzTestIteration([&, this] {
       if (use_legacy_runtime_) CentipedePrepareProcessing();

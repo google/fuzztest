@@ -970,21 +970,9 @@ cc_library(
 #  e.g. feature.cc. These files are compiled by the engine and the runner
 #  separately, with different compiler flags.
 RUNNER_SOURCES_NO_MAIN = [
-    "pc_info.h",
     "runner.cc",
     "runner.h",
     "runner_interface.h",
-    "@com_google_fuzztest//framework_shared:sancov_runtime.h",
-    "@com_google_fuzztest//framework_shared/internal:coverage_interceptors.cc",
-    "@com_google_fuzztest//framework_shared/internal:reverse_pc_table.h",
-    "@com_google_fuzztest//framework_shared/internal:runner_dl_info.cc",
-    "@com_google_fuzztest//framework_shared/internal:runner_dl_info.h",
-    "@com_google_fuzztest//framework_shared/internal:runtime_interceptors.cc",
-    "@com_google_fuzztest//framework_shared/internal:sancov_callbacks.cc",
-    "@com_google_fuzztest//framework_shared/internal:sancov_object_array.cc",
-    "@com_google_fuzztest//framework_shared/internal:sancov_object_array.h",
-    "@com_google_fuzztest//framework_shared/internal:sancov_state.cc",
-    "@com_google_fuzztest//framework_shared/internal:sancov_state.h",
 ]
 
 # Disable sancov and sanitizer instrumentation.
@@ -1012,9 +1000,8 @@ RUNNER_LINKOPTS = [
     ],
 })
 
-# TODO: b/436308818 - Let the runner depend on sancov_runtime as well.
 # WARNING: be careful with more deps here. Use only the most trivial ones.
-RUNNER_DEPS = [
+RUNNER_COMMON_DEPS = [
     ":byte_array_mutator",
     ":engine_abi",
     ":engine_flag_helper",
@@ -1022,23 +1009,22 @@ RUNNER_DEPS = [
     ":feature",
     ":knobs",
     ":mutation_data",
-    ":runner_request",
     ":runner_result",
     ":shared_memory_blob_sequence",
     "@abseil-cpp//absl/base:core_headers",
     "@abseil-cpp//absl/base:no_destructor",
     "@abseil-cpp//absl/base:nullability",
-    "@abseil-cpp//absl/numeric:bits",
     "@abseil-cpp//absl/types:span",
     "@com_google_fuzztest//common:defs",
-    "@com_google_fuzztest//framework_shared/internal:callstack",
     "@com_google_fuzztest//framework_shared/internal:execution_metadata",
-    "@com_google_fuzztest//framework_shared/internal:foreach_nonzero",
-    "@com_google_fuzztest//framework_shared/internal:int_utils",
-    "@com_google_fuzztest//framework_shared/internal:interceptor_utils",
-    "@com_google_fuzztest//framework_shared/internal:rolling_hash",
-    "@com_google_fuzztest//framework_shared/internal:runner_cmp_trace",
-    "@com_google_fuzztest//framework_shared/internal:sancov_utils",
+]
+
+RUNNER_DEPS = RUNNER_COMMON_DEPS + [
+    "@com_google_fuzztest//framework_shared:sancov_runtime",
+]
+
+RUNNER_SANITIZED_DEPS = RUNNER_COMMON_DEPS + [
+    "@com_google_fuzztest//framework_shared:sancov_runtime_sanitized",
 ]
 
 cc_library(
@@ -1131,7 +1117,8 @@ cc_library(
     copts = RUNNER_SANITIZED_COPTS,
     linkopts = RUNNER_LINKOPTS,
     linkstatic = True,  # Must be linked statically even when dynamic_mode=on.
-    deps = RUNNER_DEPS,
+    deps = RUNNER_SANITIZED_DEPS,
+    alwayslink = 1,
 )
 
 # Same as :centipede_runner_no_main but as a DSO. Experimental.
@@ -1355,6 +1342,7 @@ cc_test(
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//framework_shared:sancov_runtime",
         "@com_google_fuzztest//framework_shared/internal:execution_metadata",
         "@googletest//:gtest_main",
     ],
