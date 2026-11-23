@@ -26,6 +26,7 @@ fuzztest_cc_library(
     "crash_reporting.cc"
   DEPS
     fuzztest::common_logging
+    fuzztest::crash_reporting_internal
     fuzztest::symbol_name_utils
     absl::config
     absl::core_headers
@@ -39,11 +40,23 @@ fuzztest_cc_library(
 
 fuzztest_cc_test(
   NAME
+    crash_reporting_c_test
+  SRCS
+    "crash_reporting_c_test.c"
+  COPTS
+    "-Werror=strict-prototypes"
+  DEPS
+    fuzztest::crash_reporting
+)
+
+fuzztest_cc_test(
+  NAME
     crash_reporting_test
   SRCS
     "crash_reporting_test.cc"
   DEPS
     fuzztest::crash_reporting
+    fuzztest::crash_reporting_internal
     absl::config
     absl::core_headers
     absl::span

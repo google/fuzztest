@@ -47,6 +47,7 @@
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "./common/logging.h"
+#include "./framework_shared/internal/crash_reporting_internal.h"
 #include "./framework_shared/internal/symbol_name_utils.h"
 
 #if defined(ABSL_HAVE_THREAD_SANITIZER)

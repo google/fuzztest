@@ -19,6 +19,18 @@ endif()
 
 fuzztest_cc_library(
   NAME
+    crash_reporting_internal
+  HDRS
+    "crash_reporting_internal.h"
+  DEPS
+    absl::core_headers
+    absl::span
+    absl::statusor
+    absl::string_view
+)
+
+fuzztest_cc_library(
+  NAME
     symbol_name_utils
   HDRS
     "symbol_name_utils.h"
