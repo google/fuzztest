@@ -867,6 +867,81 @@ TEST_F(UnitTestModeTest, FailsLoudlyWhenInitFuzzTestIsNotCalled) {
                          "InitFuzzTest was never called in main()."));
 }
 
+#ifdef FUZZTEST_USE_CENTIPEDE
+TEST_F(UnitTestModeTest, SingleProcessModePassesWithoutSpawningSubprocesses) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.PassesWithPositiveInput", kDefaultTargetBinary,
+          /*env=*/{{"FUZZTEST_SINGLE_PROCESS", "1"}},
+          /*fuzzer_flags=*/{{"fuzz_for", "1s"}});
+  EXPECT_THAT(status, Eq(ExitCode(0))) << std_err;
+  EXPECT_THAT_LOG(
+      std_err,
+      HasSubstr("[.] Single-process fuzzing (FUZZTEST_SINGLE_PROCESS)"));
+  EXPECT_EQ(CountTargetRuns(std_err), 1) << std_err;
+}
+
+TEST_F(UnitTestModeTest,
+       SingleProcessModeFailsWithBugFoundWithoutSpawningSubprocesses) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.GoogleTestExpect", kDefaultTargetBinary,
+          /*env=*/{{"FUZZTEST_SINGLE_PROCESS", "1"}});
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+  EXPECT_THAT_LOG(
+      std_err,
+      HasSubstr("[.] Single-process fuzzing (FUZZTEST_SINGLE_PROCESS)"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("=== BUG FOUND!"));
+  EXPECT_THAT_LOG(
+      std_err, HasSubstr("Counterexample found for MySuite.GoogleTestExpect"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] MySuite.GoogleTestExpect"));
+  EXPECT_EQ(CountTargetRuns(std_err), 1) << std_err;
+}
+
+TEST_F(UnitTestModeTest, SingleProcessModeHandlesSkippedTestAndContinues) {
+  auto [status, std_out, std_err] = Run(
+      "SkippedTestFixturePerTest.SkippedTest:MySuite.PassesWithPositiveInput",
+      kDefaultTargetBinary,
+      /*env=*/{{"FUZZTEST_SINGLE_PROCESS", "1"}},
+      /*fuzzer_flags=*/{{"fuzz_for", "1s"}});
+  EXPECT_THAT(status, Eq(ExitCode(0))) << std_err;
+  EXPECT_THAT_LOG(std_err,
+                  HasSubstr("Skipping SkippedTestFixturePerTest.SkippedTest"));
+  EXPECT_THAT_LOG(std_out, AllOf(HasSubstr("[  PASSED  ] 1 test"),
+                                 HasSubstr("[  SKIPPED ] 1 test")));
+  EXPECT_EQ(CountTargetRuns(std_err), 1) << std_err;
+}
+
+TEST_F(UnitTestModeTest, SingleProcessModeAppliesExtraCentipedeFlags) {
+  auto [status, std_out, std_err] =
+      Run("MySuite.PassesWithPositiveInput", kDefaultTargetBinary,
+          /*env=*/
+          {{"FUZZTEST_SINGLE_PROCESS", "1"},
+           {"FUZZTEST_EXTRA_CENTIPEDE_FLAGS",
+            "--batch_triage_suspect_only --replay_coverage_attempts=3 "
+            "--noexec_time_weight_scaling --unknown_flag=1 not_a_flag "
+            "--batch_size=50"}},
+          /*fuzzer_flags=*/{{"fuzz_for", "1s"}, {"jobs", "2"}});
+  EXPECT_THAT(status, Eq(ExitCode(0))) << std_err;
+  EXPECT_THAT_LOG(
+      std_err,
+      AllOf(
+          HasSubstr("[.] Applying --batch_triage_suspect_only=true from "
+                    "FUZZTEST_EXTRA_CENTIPEDE_FLAGS."),
+          HasSubstr("[.] Applying --replay_coverage_attempts=3 from "
+                    "FUZZTEST_EXTRA_CENTIPEDE_FLAGS."),
+          HasSubstr("[.] Applying --exec_time_weight_scaling=false from "
+                    "FUZZTEST_EXTRA_CENTIPEDE_FLAGS."),
+          HasSubstr("[!] Ignoring '--unknown_flag=1' in "
+                    "FUZZTEST_EXTRA_CENTIPEDE_FLAGS: unknown Centipede flag."),
+          HasSubstr("[!] Ignoring 'not_a_flag' in "
+                    "FUZZTEST_EXTRA_CENTIPEDE_FLAGS: not a flag."),
+          HasSubstr("[!] Single-process fuzzing: overriding num_threads, "
+                    "batch_size and persistent_mode."),
+          HasSubstr("[!] Single-process fuzzing (FUZZTEST_SINGLE_PROCESS) "
+                    "runs one job: ignoring --")));
+  EXPECT_EQ(CountTargetRuns(std_err), 1) << std_err;
+}
+#endif  // FUZZTEST_USE_CENTIPEDE
+
 // Tests for the FuzzTest command line interface.
 class GenericCommandLineInterfaceTest : public ::testing::Test {
  protected:
@@ -1025,6 +1100,68 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, LimitsFuzzingRunsWhenTimeoutIsSet) {
       {{"fuzz", "MySuite.PassesWithPositiveInput"}, {"fuzz_for", "1s"}});
   EXPECT_THAT_LOG(std_err, HasSubstr("Fuzzing timeout set to: 1s"));
 }
+
+#ifdef FUZZTEST_USE_CENTIPEDE
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       SingleProcessFuzzingFindsBugAndReportsFailureDescription) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping crash-finding test in replay mode.";
+#endif
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] = RunWith(
+      {{"fuzz", "MySuite.CrashOnFailingTestInput"}, {"fuzz_for", "30s"}},
+      {{"FUZZTEST_SINGLE_PROCESS", "1"},
+       {"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+  EXPECT_THAT_LOG(
+      std_err,
+      HasSubstr("[.] Single-process fuzzing (FUZZTEST_SINGLE_PROCESS)"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("=== BUG FOUND!"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"crashing"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("GoogleTest assertion failure"));
+  EXPECT_THAT(ReadFile(crash_metadata_path),
+              Optional(Eq("GoogleTest assertion failure\n"
+                          "CRASH_SIGNATURE=GoogleTest assertion failure")));
+  EXPECT_EQ(CountTargetRuns(std_err), 1) << std_err;
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       SingleProcessFuzzingContinuesAfterCrashWithStructuredDescription) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping crash-finding test in replay mode.";
+#endif
+  TempDir reproducers_dir;
+  auto [status, std_out, std_err] = RunWith(
+      {{"fuzz", "MySuite.GoogleTestExpect"}, {"continue_after_crash", "true"}},
+      {{"FUZZTEST_SINGLE_PROCESS", "1"},
+       {"FUZZTEST_MAX_FUZZING_RUNS", "10"},
+       {"FUZZTEST_REPRODUCERS_OUT_DIR", reproducers_dir.path()}});
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+  EXPECT_THAT_LOG(
+      std_err,
+      HasSubstr("[.] Single-process fuzzing (FUZZTEST_SINGLE_PROCESS)"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("GoogleTest assertion failure"));
+  EXPECT_THAT(ReadFileOrDirectory(reproducers_dir.path().c_str()),
+              Not(IsEmpty()));
+  EXPECT_EQ(CountTargetRuns(std_err), 1) << std_err;
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       SingleProcessFuzzingResetsExecutionResultOverrideAcrossInputs) {
+#ifdef FUZZTEST_REPLAY
+  GTEST_SKIP() << "Skipping crash-finding test in replay mode.";
+#endif
+  auto [status, std_out, std_err] = RunWith(
+      {{"fuzz", "MySuite.ExecutionResultOverrideDoesNotLeakAcrossInputs"},
+       {"fuzz_for", "30s"}},
+      {{"FUZZTEST_SINGLE_PROCESS", "1"}});
+  EXPECT_THAT(status, Ne(ExitCode(0)));
+  EXPECT_THAT_LOG(std_err, HasSubstr("=== BUG FOUND!"));
+  EXPECT_THAT_LOG(std_err, HasSubstr("argument 0: \"ResetMe!"));
+  EXPECT_EQ(CountTargetRuns(std_err), 1) << std_err;
+}
+#endif  // FUZZTEST_USE_CENTIPEDE
 
 TEST_F(FuzzingModeCommandLineInterfaceTest,
        ReproducerIsDumpedWhenReproducersOutDirEnvVarIsSet) {
