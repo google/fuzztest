@@ -75,6 +75,7 @@
 #include "./common/bazel.h"
 #include "./common/crashing_input_filename.h"
 #include "./common/logging.h"
+#include "./framework_shared/crash_reporting.h"
 #include "./fuzztest/internal/configuration.h"
 #include "./fuzztest/internal/corpus_database.h"
 #include "./fuzztest/internal/coverage.h"
@@ -84,7 +85,6 @@
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/printer.h"
-#include "./fuzztest/internal/sanitizer_interface.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
 

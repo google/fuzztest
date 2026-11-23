@@ -137,7 +137,7 @@ jobs:
         run: |
           # Timed wait and rusage is inaccurate for unknown reasons in MacOS for a few testing
           # environments, thus disabling a few related non-critical tests.
-          bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all \
+          bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all framework_shared/... \
                 -centipede:periodic_action_test -centipede:rusage_profiler_test -centipede:rusage_stats_test && \
           bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test && \
           bazel test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-RUsageMemoryTest.Accuracy' -- centipede:rusage_stats_test

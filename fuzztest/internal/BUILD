@@ -69,7 +69,6 @@ cc_library(
     deps = [
         ":any",
         ":configuration",
-        ":escaping",
         ":fixture_driver",
         ":flag_name",
         ":io",
@@ -99,7 +98,6 @@ cc_library(
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//centipede:engine_abi",
         "@com_google_fuzztest//centipede:environment",
-        "@com_google_fuzztest//centipede:execution_metadata",
         "@com_google_fuzztest//centipede:fuzztest_mutator",
         "@com_google_fuzztest//centipede:in_process_centipede_callbacks",
         "@com_google_fuzztest//centipede:mutation_data",
@@ -107,9 +105,11 @@ cc_library(
         "@com_google_fuzztest//centipede:stop",
         "@com_google_fuzztest//centipede:workdir",
         "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:escaping",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:temp_dir",
+        "@com_google_fuzztest//framework_shared/internal:execution_metadata",
         "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
     ],
 )
@@ -186,13 +186,6 @@ cc_library(
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:logging",
     ],
-)
-
-cc_library(
-    name = "escaping",
-    srcs = ["escaping.cc"],
-    hdrs = ["escaping.h"],
-    deps = ["@abseil-cpp//absl/strings"],
 )
 
 cc_library(
@@ -427,7 +420,6 @@ cc_library(
         ":logging",
         ":printer",
         ":registration",
-        ":sanitizer_interface",
         ":seed_seq",
         ":serialization",
         ":status",
@@ -452,6 +444,7 @@ cc_library(
         "@com_google_fuzztest//common:bazel",
         "@com_google_fuzztest//common:crashing_input_filename",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//framework_shared:crash_reporting",
         "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
     ],
 )
@@ -470,48 +463,6 @@ cc_test(
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//fuzztest:domain_core",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "sanitizer_interface",
-    srcs = ["sanitizer_interface.cc"],
-    hdrs = ["sanitizer_interface.h"],
-    # Link statically and unconditionally into the main executable so the
-    # strong sanitizer error summary hook overrides the default weak definition
-    # in the sanitizer runtime (which is also linked statically into the
-    # executable).
-    linkstatic = True,
-    deps = [
-        ":symbol_name_utils",
-        "@abseil-cpp//absl/base:config",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/debugging:stacktrace",
-        "@abseil-cpp//absl/debugging:symbolize",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:logging",
-    ] + select({
-        "//conditions:default": [],
-    }),
-    alwayslink = True,
-)
-
-cc_test(
-    name = "sanitizer_interface_test",
-    srcs = ["sanitizer_interface_test.cc"],
-    deps = [
-        ":sanitizer_interface",
-        "@abseil-cpp//absl/base:config",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/strings:string_view",
-        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
@@ -602,12 +553,6 @@ cc_test(
 )
 
 cc_library(
-    name = "symbol_name_utils",
-    hdrs = ["symbol_name_utils.h"],
-    deps = ["@abseil-cpp//absl/strings:string_view"],
-)
-
-cc_library(
     name = "table_of_recent_compares",
     hdrs = ["table_of_recent_compares.h"],
     deps = [
@@ -645,7 +590,6 @@ cc_library(
     deps = [
         ":meta",
         ":printer",
-        ":symbol_name_utils",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/debugging:symbolize",
         "@abseil-cpp//absl/functional:function_ref",
@@ -653,6 +597,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@com_google_fuzztest//framework_shared/internal:symbol_name_utils",
         "@com_google_fuzztest//fuzztest/internal/domains:absl_helpers",
     ],
 )

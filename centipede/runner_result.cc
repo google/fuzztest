@@ -20,11 +20,11 @@
 #include <string_view>
 #include <vector>
 
-#include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
+#include "./framework_shared/internal/execution_metadata.h"
 
 namespace fuzztest::internal {
 
@@ -72,7 +72,7 @@ bool BatchResult::WriteStats(const ExecutionResult::Stats &stats,
 
 bool BatchResult::WriteMetadata(const ExecutionMetadata &metadata,
                                 BlobSequence &blobseq) {
-  return metadata.Write(kTagMetadata, blobseq);
+  return WriteMetadata(metadata.cmp_data, blobseq);
 }
 
 bool BatchResult::WriteMetadata(ByteSpan bytes, BlobSequence &blobseq) {
@@ -109,7 +109,8 @@ bool BatchResult::Read(BlobSequence &blobseq) {
     }
     if (blob.tag == kTagMetadata) {
       if (current_execution_result == nullptr) return false;
-      current_execution_result->metadata().Read(blob);
+      current_execution_result->metadata().cmp_data.assign(
+          blob.data, blob.data + blob.size);
       continue;
     }
     if (blob.tag == kTagStats) {
