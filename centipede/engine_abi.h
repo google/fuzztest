@@ -75,6 +75,35 @@ typedef struct {
   void (*Emit)(FuzzTestBytesSinkCtx* ctx, const FuzzTestBytesView* view);
 } FuzzTestBytesSink;
 
+// Types of input metadata. The engine handles each type differently, and the
+// content of every type is opaque to the engine.
+typedef enum {
+  // Hints for mutating the input (e.g. the operands of comparisons seen when
+  // executing it). Kept in memory only, and passed back to the adapter for the
+  // origin inputs of mutations.
+  kFuzzTestInputMetadataMutationHints = 0,
+  // Metadata that the engine may store for the input and pass back to the
+  // adapter before a later execution of the same input.
+  kFuzzTestInputMetadataPersistent = 1,
+} FuzzTestInputMetadataType;
+
+// A piece of input metadata of a given type.
+typedef struct {
+  FuzzTestInputMetadataType type;
+  FuzzTestBytesView bytes;
+} FuzzTestInputMetadataView;
+
+// Sink for input metadata.
+typedef struct FuzzTestInputMetadataSinkCtx FuzzTestInputMetadataSinkCtx;
+typedef struct {
+  FuzzTestInputMetadataSinkCtx* ctx;
+
+  // Emits a piece of input metadata. Multiple emissions of the same type are
+  // concatenated. A type that is never emitted is treated as absent.
+  void (*Emit)(FuzzTestInputMetadataSinkCtx* ctx,
+               const FuzzTestInputMetadataView* metadata);
+} FuzzTestInputMetadataSink;
+
 // Sink for seed inputs.
 typedef struct FuzzTestInputSinkCtx FuzzTestInputSinkCtx;
 typedef struct {
@@ -215,14 +244,18 @@ typedef struct FuzzTestAdapter {
                                   const FuzzTestBytesView* content,
                                   const FuzzTestInputSink* sink);
 
-  // [Optional] Serializes the test `input` metadata into bytes using `sink`.
+  // [Optional] Serializes the test `input` metadata, of any type, using
+  // `sink`.
   void (*SerializeInputMetadata)(FuzzTestAdapterCtx* ctx,
                                  FuzzTestInputHandle input,
-                                 const FuzzTestBytesSink* sink);
+                                 const FuzzTestInputMetadataSink* sink);
 
-  // [Optional] Updates the test `input` metadata from serialized `metadata`.
+  // [Optional] Updates the test `input` metadata of type `metadata->type` from
+  // the serialized `metadata->bytes`. Called with the mutation hints of
+  // mutation origins before `Mutate`/`CrossOver`, and with the persistent
+  // metadata stored for `input` (if any) before `Execute`.
   void (*UpdateInputMetadata)(FuzzTestAdapterCtx* ctx,
-                              const FuzzTestBytesView* metadata,
+                              const FuzzTestInputMetadataView* metadata,
                               FuzzTestInputHandle input);
 
   // Callback to run when the engine is done with `input`.

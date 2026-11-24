@@ -49,6 +49,7 @@
 #include "./common/defs.h"
 #include "./common/hash.h"
 #include "./common/logging.h"
+#include "./framework_shared/internal/execution_metadata.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -77,6 +78,32 @@ FuzzTestBytesSink GetBytesSinkTo(std::vector<uint8_t>& bytes) {
       [](FuzzTestBytesSinkCtx* ctx, const FuzzTestBytesView* view) {
         auto* output = reinterpret_cast<std::vector<uint8_t>*>(ctx);
         output->insert(output->end(), view->data, view->data + view->size);
+      },
+  };
+}
+
+// Returns a sink that appends the emitted input metadata to the field of
+// `metadata` that corresponds to its type.
+FuzzTestInputMetadataSink GetInputMetadataSinkTo(ExecutionMetadata& metadata) {
+  return {
+      /*ctx=*/reinterpret_cast<FuzzTestInputMetadataSinkCtx*>(&metadata),
+      /*Emit=*/
+      [](FuzzTestInputMetadataSinkCtx* ctx,
+         const FuzzTestInputMetadataView* view) {
+        auto* output = reinterpret_cast<ExecutionMetadata*>(ctx);
+        ByteArray* bytes = nullptr;
+        switch (view->type) {
+          case kFuzzTestInputMetadataMutationHints:
+            bytes = &output->cmp_data;
+            break;
+          case kFuzzTestInputMetadataPersistent:
+            bytes = &output->persistent_data;
+            break;
+        }
+        // Ignore metadata of unknown types.
+        if (bytes == nullptr) return;
+        bytes->insert(bytes->end(), view->bytes.data,
+                      view->bytes.data + view->bytes.size);
       },
   };
 }
@@ -476,8 +503,9 @@ InProcessCentipedeCallbacks::Mutate(absl::Span<const MutationInputRef> inputs,
     FUZZTEST_CHECK_EQ(emitted_inputs.size(), 1)
         << "DeserializeInputContent must emit exactly one input";
     if (adapter_.UpdateInputMetadata != nullptr && input.metadata != nullptr) {
-      const FuzzTestBytesView input_metadata{input.metadata->cmp_data.data(),
-                                             input.metadata->cmp_data.size()};
+      const FuzzTestInputMetadataView input_metadata{
+          kFuzzTestInputMetadataMutationHints,
+          {input.metadata->cmp_data.data(), input.metadata->cmp_data.size()}};
       adapter_.UpdateInputMetadata(adapter_.ctx, &input_metadata,
                                    emitted_inputs[0]);
       if (CheckError()) {
@@ -609,8 +637,7 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI bool InProcessCentipedeCallbacks::Execute(
 
     ExecutionResult& exec_result = batch_result.results()[i];
     if (adapter_.SerializeInputMetadata != nullptr) {
-      const auto metadata_sink =
-          GetBytesSinkTo(exec_result.metadata().cmp_data);
+      const auto metadata_sink = GetInputMetadataSinkTo(exec_result.metadata());
       adapter_.SerializeInputMetadata(adapter_.ctx, input, &metadata_sink);
     }
     // Frees `input`, the only emitted input.

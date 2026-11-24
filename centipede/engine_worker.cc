@@ -398,6 +398,39 @@ FuzzTestBytesSink GetBytesSinkTo(std::vector<uint8_t>& bytes) {
       }};
 }
 
+// The serialized input metadata collected from an adapter, by type.
+struct SerializedInputMetadata {
+  std::vector<uint8_t> mutation_hints;
+  std::vector<uint8_t> persistent;
+
+  void clear() {
+    mutation_hints.clear();
+    persistent.clear();
+  }
+};
+
+FuzzTestInputMetadataSink GetInputMetadataSinkTo(
+    SerializedInputMetadata& metadata) {
+  return {/*ctx=*/reinterpret_cast<FuzzTestInputMetadataSinkCtx*>(&metadata),
+          /*Emit=*/[](FuzzTestInputMetadataSinkCtx* ctx,
+                      const FuzzTestInputMetadataView* view) {
+            auto* output = reinterpret_cast<SerializedInputMetadata*>(ctx);
+            std::vector<uint8_t>* bytes = nullptr;
+            switch (view->type) {
+              case kFuzzTestInputMetadataMutationHints:
+                bytes = &output->mutation_hints;
+                break;
+              case kFuzzTestInputMetadataPersistent:
+                bytes = &output->persistent;
+                break;
+            }
+            // Ignore metadata of unknown types.
+            if (bytes == nullptr) return;
+            bytes->insert(bytes->end(), view->bytes.data,
+                          view->bytes.data + view->bytes.size);
+          }};
+}
+
 FuzzTestInputSink GetInputSinkTo(std::vector<FuzzTestInputHandle>& inputs) {
   return {/*ctx=*/reinterpret_cast<FuzzTestInputSinkCtx*>(&inputs),
           /*Emit=*/[](FuzzTestInputSinkCtx* ctx, FuzzTestInputHandle input) {
@@ -512,8 +545,9 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoMutate(
     if (!IsDataInput(blob)) break;
     emitted_inputs.clear();
     auto input_content = FuzzTestBytesView{blob.data, blob.size};
-    auto input_metadata =
-        FuzzTestBytesView{metadata.cmp_data.data(), metadata.cmp_data.size()};
+    const auto input_metadata = FuzzTestInputMetadataView{
+        kFuzzTestInputMetadataMutationHints,
+        {metadata.cmp_data.data(), metadata.cmp_data.size()}};
     adapter.DeserializeInputContent(adapter.ctx, &input_content, &input_sink);
     WORKER_CHECK_FOR_ERROR();
     WorkerCheck(emitted_inputs.size() == 1,
@@ -655,7 +689,8 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
 
   // In-loop variables declared outside to save allocations.
   std::vector<uint64_t> features;
-  std::vector<uint8_t> serialized_metadata;
+  SerializedInputMetadata serialized_metadata;
+  const auto metadata_sink = GetInputMetadataSinkTo(serialized_metadata);
   std::vector<FuzzTestInputHandle> emitted_inputs;
   const auto input_sink = GetInputSinkTo(emitted_inputs);
 
@@ -670,8 +705,19 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
     // TODO(xinhaoyuan): Consider improving it. E.g. let user override stats.
     ExecutionResult::Stats stats = {};
     (void)timer.UsecSinceLast();
-    auto blob = inputs_blobseq->Read();
-    if (!blob.IsValid()) return;  // no more blobs to read.
+    const auto first_blob = inputs_blobseq->Read();
+    if (!first_blob.IsValid()) return;  // no more blobs to read.
+    // The data input may be preceded by its persistent metadata, which is
+    // passed to the adapter before `Execute`.
+    const bool has_persistent_metadata = IsPersistentMetadata(first_blob);
+    const auto persistent_metadata = FuzzTestInputMetadataView{
+        kFuzzTestInputMetadataPersistent,
+        {has_persistent_metadata ? first_blob.data : nullptr,
+         has_persistent_metadata ? first_blob.size : 0}};
+    const auto blob =
+        has_persistent_metadata ? inputs_blobseq->Read() : first_blob;
+    // The inputs blob sequence may have overflown between the two blobs.
+    if (!blob.IsValid()) return;
     WorkerCheck(IsDataInput(blob), "Must read data input");
 
     if (!BatchResult::WriteInputBegin(*outputs_blobseq)) {
@@ -686,6 +732,10 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
     WorkerCheck(emitted_inputs.size() == 1,
                 "Deserialize must emit exactly one input");
     auto input = emitted_inputs[0];
+    if (has_persistent_metadata && adapter.UpdateInputMetadata != nullptr) {
+      adapter.UpdateInputMetadata(adapter.ctx, &persistent_metadata, input);
+      WORKER_CHECK_FOR_ERROR();
+    }
 
     features.clear();
     FuzzTestFeedbackSink feedback_sink = {
@@ -706,7 +756,6 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
 
     serialized_metadata.clear();
     if (adapter.SerializeInputMetadata != nullptr) {
-      const auto metadata_sink = GetBytesSinkTo(serialized_metadata);
       adapter.SerializeInputMetadata(adapter.ctx, input, &metadata_sink);
     }
     adapter.FreeInput(adapter.ctx, input);
@@ -746,7 +795,10 @@ ABSL_ATTRIBUTE_NO_SANITIZE_CFI void WorkerDoExecute(
       WorkerLog("failed to write feedback");
       break;
     }
-    if (!BatchResult::WriteMetadata(serialized_metadata, *outputs_blobseq)) {
+    if (!BatchResult::WriteMetadata(serialized_metadata.mutation_hints,
+                                    *outputs_blobseq) ||
+        !BatchResult::WritePersistentMetadata(serialized_metadata.persistent,
+                                              *outputs_blobseq)) {
       WorkerLog("failed to write input metadata");
       break;
     }
