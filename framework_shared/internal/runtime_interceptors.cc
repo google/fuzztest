@@ -65,9 +65,13 @@ extern "C" ABSL_ATTRIBUTE_NO_SANITIZE_CFI int pthread_create(
   if (ABSL_PREDICT_FALSE(!tls.started)) {
     return FUZZTEST_REAL(pthread_create)(thread, attr, start_routine, arg);
   }
-  // Wrap the arguments. Will be deleted in MyThreadStart.
+  // Wrap the arguments. Owned by MyThreadStart if pthread_create succeeds.
   auto *wrapped_args = new ThreadCreateArgs{start_routine, arg};
   // Run the actual pthread_create.
-  return FUZZTEST_REAL(pthread_create)(thread, attr, MyThreadStart,
-                                       wrapped_args);
+  const int result =
+      FUZZTEST_REAL(pthread_create)(thread, attr, MyThreadStart, wrapped_args);
+  if (result != 0) {
+    delete wrapped_args;
+  }
+  return result;
 }

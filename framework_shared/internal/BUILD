@@ -215,6 +215,16 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "runtime_interceptors_test",
+    srcs = ["runtime_interceptors_test.cc"],
+    deps = [
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//framework_shared:sancov_runtime",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "sancov_utils",
     srcs = ["sancov_utils.cc"],

@@ -56,6 +56,18 @@ cc_library(
         "sancov_runtime.h",
     ],
     copts = DISABLE_SANCOV_COPTS,
+    linkopts = select({
+        "@platforms//os:macos": [
+            # For compatible behavior on weak symbols.
+            "-Wl,-undefined,dynamic_lookup",
+        ],
+        "//conditions:default": [],
+    }),
+    # Must be linked statically into the main executable: runner_dl_info checks
+    # that sancov_runtime's code/globals reside within the main executable, and
+    # the strong function interceptors must override weak aliases in statically
+    # linked sanitizer runtimes.
+    linkstatic = True,
     deps = [
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",
