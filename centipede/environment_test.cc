@@ -194,6 +194,7 @@ TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
   config.binary_identifier = "bin";
   config.stats_root = "stats";
   config.workdir_root = "workdir";
+  config.persistent_metadata_root = "metadata";
   config.seed_corpus_databases = {"seed_db1", "seed_db2"};
   config.only_replay = true;
   config.execution_id = "exec";
@@ -207,6 +208,7 @@ TEST(Environment, UpdatesFuzzTestFieldsFromTargetConfig) {
   EXPECT_EQ(env.fuzztest_binary_identifier, "bin");
   EXPECT_EQ(env.fuzztest_stats_root, "stats");
   EXPECT_EQ(env.fuzztest_workdir_root, "workdir");
+  EXPECT_EQ(env.fuzztest_persistent_metadata_root, "metadata");
   EXPECT_EQ(env.fuzztest_seed_corpus_databases,
             (std::vector<std::string>{"seed_db1", "seed_db2"}));
   EXPECT_TRUE(env.fuzztest_only_replay);

@@ -109,6 +109,40 @@ cc_test(
 )
 
 cc_library(
+    name = "record_or_diff",
+    srcs = ["record_or_diff.cc"],
+    hdrs = ["record_or_diff.h"],
+    deps = [
+        ":domain",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
+        "@com_google_fuzztest//fuzztest/internal:meta",
+        "@com_google_fuzztest//fuzztest/internal:printer",
+        "@com_google_fuzztest//fuzztest/internal:runtime",
+        "@com_google_fuzztest//fuzztest/internal:serialization",
+        "@com_google_fuzztest//fuzztest/internal:type_support",
+    ],
+)
+
+cc_test(
+    name = "record_or_diff_test",
+    srcs = ["record_or_diff_test.cc"],
+    deps = [
+        ":record_or_diff",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@com_google_fuzztest//fuzztest/internal:configuration",
+        "@com_google_fuzztest//fuzztest/internal:meta",
+        "@com_google_fuzztest//fuzztest/internal:runtime",
+        "@com_google_fuzztest//fuzztest/internal:serialization",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "fuzztest_gtest_main",
     testonly = 1,
     srcs = ["fuzztest_gtest_main.cc"],
@@ -136,6 +170,7 @@ cc_library(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//fuzztest/internal:configuration",
         "@com_google_fuzztest//fuzztest/internal:flag_name",
         "@com_google_fuzztest//fuzztest/internal:googletest_adaptor",

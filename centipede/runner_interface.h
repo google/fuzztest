@@ -189,6 +189,14 @@ class RunnerCallbacks {
   virtual void* DeserializeInput(ByteSpan bytes) = 0;
   // Called when the runner is done with `input`.
   virtual void FreeInput(void* input) = 0;
+  // Called before `Execute(input)` with the persistent metadata that the
+  // engine has stored for `input`, if any. `metadata` does not outlive the
+  // call. The default implementation ignores it.
+  virtual void SetPersistentMetadata(void* input, ByteSpan metadata);
+  // Called after `Execute(input)`. Returns the persistent metadata for the
+  // engine to store for `input`, or empty to store nothing. The default
+  // implementation returns empty.
+  virtual ByteArray TakePersistentMetadata(void* input);
   virtual ~RunnerCallbacks() = default;
 };
 

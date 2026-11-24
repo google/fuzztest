@@ -51,6 +51,13 @@ enum class IncludeEnd { kYes, kNo };
 // Default maximum size for FuzzTest containers/lists.
 inline constexpr size_t kDefaultContainerMaxSize = 5000;
 
+// Thread-local override allowing `RecordOrDiff` baseline deserialization to
+// validate element constraints without enforcing `kDefaultContainerMaxSize`.
+inline bool& SkipContainerMaxSizeValidationForCurrentThread() {
+  thread_local bool skip = false;
+  return skip;
+}
+
 // For cases where the type is a container, choose one of the elements in the
 // container.
 template <typename Container>
@@ -345,7 +352,9 @@ class ContainerOfImplBase
       return absl::InvalidArgumentError(absl::StrCat(
           "Invalid size: ", corpus_value.size(), ". Min size: ", min_size()));
     }
-    if (validate_max_size() && corpus_value.size() > max_size()) {
+    if (validate_max_size() &&
+        !SkipContainerMaxSizeValidationForCurrentThread() &&
+        corpus_value.size() > max_size()) {
       return absl::InvalidArgumentError(absl::StrCat(
           "Invalid size: ", corpus_value.size(), ". Max size: ", max_size()));
     }

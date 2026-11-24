@@ -34,16 +34,25 @@ enum Tags : Blob::SizeAndTagT {
   kTagNumMutants,
   kTagExecutionMetadata,
   kTagDataInput,
+  kTagPersistentMetadata,
 };
 
 // Writes `inputs` to `blobseq`, returns the number of inputs written.
+// `persistent_metadata` is either empty or has the same size as `inputs`; a
+// non-empty `persistent_metadata[i]` is written before `inputs[i]`.
 static size_t WriteInputs(absl::Span<const ByteSpan> inputs,
+                          absl::Span<const ByteSpan> persistent_metadata,
                           BlobSequence& blobseq) {
   size_t num_inputs = inputs.size();
   if (!blobseq.Write(kTagNumInputs, num_inputs)) return 0;
   size_t result = 0;
-  for (const auto &input : inputs) {
-    if (!blobseq.Write({kTagDataInput, input.size(), input.data()}))
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    if (i < persistent_metadata.size() && !persistent_metadata[i].empty() &&
+        !blobseq.Write({kTagPersistentMetadata, persistent_metadata[i].size(),
+                        persistent_metadata[i].data()})) {
+      return result;
+    }
+    if (!blobseq.Write({kTagDataInput, inputs[i].size(), inputs[i].data()}))
       return result;
     ++result;
   }
@@ -78,8 +87,18 @@ static size_t WriteInputs(absl::Span<const MutationInputRef> inputs,
 
 size_t RequestExecution(absl::Span<const ByteSpan> inputs,
                         BlobSequence& blobseq) {
+  return RequestExecution(inputs, /*persistent_metadata=*/{}, blobseq);
+}
+
+size_t RequestExecution(absl::Span<const ByteSpan> inputs,
+                        absl::Span<const ByteSpan> persistent_metadata,
+                        BlobSequence& blobseq) {
+  if (!persistent_metadata.empty() &&
+      persistent_metadata.size() != inputs.size()) {
+    return 0;
+  }
   if (!blobseq.Write({kTagExecution, 0, nullptr})) return 0;
-  return WriteInputs(inputs, blobseq);
+  return WriteInputs(inputs, persistent_metadata, blobseq);
 }
 
 size_t RequestMutation(size_t num_mutants,
@@ -112,6 +131,10 @@ bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata) {
   if (blob.tag != kTagExecutionMetadata) return false;
   metadata.cmp_data.assign(blob.data, blob.data + blob.size);
   return true;
+}
+
+bool IsPersistentMetadata(Blob blob) {
+  return blob.tag == kTagPersistentMetadata;
 }
 
 bool IsDataInput(Blob blob) { return blob.tag == kTagDataInput; }

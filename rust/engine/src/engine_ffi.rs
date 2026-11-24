@@ -146,6 +146,56 @@ pub struct FuzzTestBytesSink {
     >,
 }
 
+/// Types of input metadata. The engine handles each type differently, and the
+/// content of every type is opaque to the engine.
+///
+/// Represented as an integer rather than a Rust enum, since values received
+/// from the engine are not guaranteed to be one of the known constants.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct FuzzTestInputMetadataType(pub u32);
+
+impl FuzzTestInputMetadataType {
+    /// Hints for mutating the input (e.g. the operands of comparisons seen when
+    /// executing it). Kept in memory only, and passed back to the adapter for
+    /// the origin inputs of mutations.
+    pub const MUTATION_HINTS: Self = Self(0);
+    /// Metadata that the engine may store for the input and pass back to the
+    /// adapter before a later execution of the same input.
+    pub const PERSISTENT: Self = Self(1);
+}
+
+/// A piece of input metadata of a given type.
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct FuzzTestInputMetadataView {
+    pub metadata_type: FuzzTestInputMetadataType,
+    pub bytes: FuzzTestBytesView,
+}
+
+#[repr(C)]
+pub struct FuzzTestInputMetadataSinkCtx {
+    _opaque: (),
+    _not_send_nor_sync: PhantomData<*mut ()>,
+    _not_unpin: PhantomPinned,
+}
+
+/// Sink for input metadata.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct FuzzTestInputMetadataSink {
+    pub ctx: *mut FuzzTestInputMetadataSinkCtx,
+
+    /// Emits a piece of input metadata. Multiple emissions of the same type are
+    /// concatenated. A type that is never emitted is treated as absent.
+    pub emit: Option<
+        unsafe extern "C" fn(
+            ctx: *mut FuzzTestInputMetadataSinkCtx,
+            metadata: *const FuzzTestInputMetadataView,
+        ),
+    >,
+}
+
 #[repr(C)]
 pub struct FuzzTestInputSinkCtx {
     _opaque: (),
@@ -376,20 +426,25 @@ pub struct FuzzTestAdapter {
         ),
     >,
 
-    /// [Optional] Serializes the test `input` metadata into bytes using `sink`.
+    /// [Optional] Serializes the test `input` metadata, of any type, using
+    /// `sink`.
     pub serialize_input_metadata: Option<
         unsafe extern "C" fn(
             ctx: *mut FuzzTestAdapterCtx,
             input: FuzzTestInputHandle,
-            sink: *const FuzzTestBytesSink,
+            sink: *const FuzzTestInputMetadataSink,
         ),
     >,
 
-    /// [Optional] Updates the test `input` metadata from serialized `metadata`.
+    /// [Optional] Updates the test `input` metadata of type
+    /// `metadata.metadata_type` from the serialized `metadata.bytes`. Called
+    /// with the mutation hints of mutation origins before
+    /// `Mutate`/`CrossOver`, and with the persistent metadata stored for
+    /// `input` (if any) before `Execute`.
     pub update_input_metadata: Option<
         unsafe extern "C" fn(
             ctx: *mut FuzzTestAdapterCtx,
-            metadata: *const FuzzTestBytesView,
+            metadata: *const FuzzTestInputMetadataView,
             input: FuzzTestInputHandle,
         ),
     >,
