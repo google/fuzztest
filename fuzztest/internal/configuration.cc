@@ -218,7 +218,8 @@ std::string Configuration::Serialize() const {
       SpaceFor(time_limit_str) + SpaceFor(time_budget_type_str) +
       SpaceFor(jobs) + SpaceFor(centipede_command) +
       SpaceFor(crashing_input_to_reproduce) + SpaceFor(replay_crash_attempts) +
-      SpaceFor(reproduction_command_template));
+      SpaceFor(reproduction_command_template) +
+      SpaceFor(persistent_metadata_root));
   size_t offset = 0;
   offset = WriteString(out, offset, corpus_database);
   offset = WriteString(out, offset, stats_root);
@@ -246,6 +247,7 @@ std::string Configuration::Serialize() const {
   offset = WriteOptionalString(out, offset, crashing_input_to_reproduce);
   offset = WriteIntegral(out, offset, replay_crash_attempts);
   offset = WriteOptionalString(out, offset, reproduction_command_template);
+  offset = WriteString(out, offset, persistent_metadata_root);
   FUZZTEST_CHECK_EQ(offset, out.size());
   return out;
 }
@@ -283,6 +285,7 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
     ASSIGN_OR_RETURN(replay_crash_attempts, Consume<size_t>(serialized));
     ASSIGN_OR_RETURN(reproduction_command_template,
                      ConsumeOptionalString(serialized));
+    ASSIGN_OR_RETURN(persistent_metadata_root, ConsumeString(serialized));
     if (!serialized.empty()) {
       return absl::InvalidArgumentError(
           "Buffer is not empty after consuming a serialized configuration.");
@@ -319,7 +322,8 @@ absl::StatusOr<Configuration> Configuration::Deserialize(
                          *std::move(centipede_command),
                          *std::move(crashing_input_to_reproduce),
                          *replay_crash_attempts,
-                         *std::move(reproduction_command_template)};
+                         *std::move(reproduction_command_template),
+                         *std::move(persistent_metadata_root)};
   }();
 }
 

@@ -550,11 +550,25 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   outputs_blobseq_.Reset();
 
   size_t num_inputs_written = 0;
+  // The persistent input metadata is exchanged with the primary binary only,
+  // and needs the inputs to be passed via shared memory.
+  const bool use_input_metadata_store = input_metadata_store_.enabled() &&
+                                        binary == env_.binary &&
+                                        !env_.has_input_wildcards;
 
   if (env_.has_input_wildcards) {
     FUZZTEST_CHECK_EQ(inputs.size(), 1);
     WriteToLocalFile(temp_input_file_path_, inputs[0]);
     num_inputs_written = 1;
+  } else if (use_input_metadata_store) {
+    // Feed the inputs, each preceded by its stored persistent metadata (if
+    // any), to inputs_blobseq_.
+    const std::vector<ByteArray> stored_metadata =
+        input_metadata_store_.Load(inputs);
+    const std::vector<ByteSpan> persistent_metadata(stored_metadata.begin(),
+                                                    stored_metadata.end());
+    num_inputs_written =
+        RequestExecution(inputs, persistent_metadata, inputs_blobseq_);
   } else {
     // Feed the inputs to inputs_blobseq_.
     num_inputs_written = RequestExecution(inputs, inputs_blobseq_);
@@ -579,6 +593,11 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   const bool read_success = batch_result.Read(outputs_blobseq_);
   FUZZTEST_LOG_IF(ERROR, !read_success) << "Failed to read batch result!";
   outputs_blobseq_.ReleaseSharedMemory();  // Outputs are already consumed.
+  if (use_input_metadata_store) {
+    // Store the persistent metadata of the executed inputs, including those
+    // executed before a failure.
+    input_metadata_store_.Save(inputs.first(num_inputs_written), batch_result);
+  }
 
   // We may have fewer feature blobs than inputs if
   // * some inputs were not written (i.e. num_inputs_written < inputs.size).

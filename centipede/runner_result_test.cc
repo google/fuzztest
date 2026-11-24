@@ -38,6 +38,7 @@ namespace fuzztest::internal {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 
 TEST(ExecutionResult, WriteThenRead) {
   auto buffer = std::make_unique<uint8_t[]>(1000);
@@ -268,6 +269,51 @@ TEST(ExecutionResult, KeepArbitraryBytesFromMetadata) {
   // `ForEachEntry()` should fail but not crash.
   EXPECT_FALSE(batch_result.results()[0].metadata().ForEachCmpEntry(
       [](ByteSpan, ByteSpan) {}));
+}
+
+TEST(ExecutionResult, ReadsPersistentMetadataSeparatelyFromMutationHints) {
+  auto buffer = std::make_unique<uint8_t[]>(1000);
+  BlobSequence blobseq(buffer.get(), 1000);
+
+  ExecutionMetadata metadata;
+  metadata.cmp_data = {2, 1, 2, 3, 4};
+  metadata.persistent_data = {'p', 0, 'q'};
+  const ByteArray hints_only = {5, 6};
+
+  // Input 0 has both types, input 1 has only mutation hints.
+  EXPECT_TRUE(BatchResult::WriteInputBegin(blobseq));
+  EXPECT_TRUE(BatchResult::WriteMetadata(metadata, blobseq));
+  EXPECT_TRUE(BatchResult::WriteInputEnd(blobseq));
+  EXPECT_TRUE(BatchResult::WriteInputBegin(blobseq));
+  EXPECT_TRUE(BatchResult::WriteMetadata(hints_only, blobseq));
+  EXPECT_TRUE(BatchResult::WritePersistentMetadata({}, blobseq));
+  EXPECT_TRUE(BatchResult::WriteInputEnd(blobseq));
+  blobseq.Reset();
+
+  BatchResult batch_result;
+  batch_result.ClearAndResize(2);
+  EXPECT_TRUE(batch_result.Read(blobseq));
+  ASSERT_EQ(batch_result.num_outputs_read(), 2);
+  EXPECT_EQ(batch_result.results()[0].metadata().cmp_data, metadata.cmp_data);
+  EXPECT_EQ(batch_result.results()[0].metadata().persistent_data,
+            metadata.persistent_data);
+  EXPECT_EQ(batch_result.results()[1].metadata().cmp_data, hints_only);
+  EXPECT_THAT(batch_result.results()[1].metadata().persistent_data, IsEmpty());
+}
+
+TEST(ExecutionResult, EmptyPersistentMetadataDoesNotChangeTheWrittenBytes) {
+  std::vector<uint8_t> without(256, 0);
+  std::vector<uint8_t> with_empty(256, 0);
+  BlobSequence without_seq(without.data(), without.size());
+  BlobSequence with_empty_seq(with_empty.data(), with_empty.size());
+  const ByteArray hints = {13, 14};
+
+  EXPECT_TRUE(BatchResult::WriteMetadata(hints, without_seq));
+  EXPECT_TRUE(BatchResult::WriteMetadata(hints, with_empty_seq));
+  EXPECT_TRUE(BatchResult::WritePersistentMetadata({}, with_empty_seq));
+
+  EXPECT_EQ(without_seq.offset(), with_empty_seq.offset());
+  EXPECT_EQ(without, with_empty);
 }
 
 }  // namespace

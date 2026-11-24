@@ -515,6 +515,12 @@ CENTIPEDE_FLAG(std::string, fuzztest_workdir_root, "",
                "The root directory for Centipede workdirs for working on the "
                "corpus database.")
 CENTIPEDE_FLAG(
+    std::string, fuzztest_persistent_metadata_root, "",
+    "If set to non-empty, the root directory for storing the persistent input "
+    "metadata that tests attach to their inputs. The metadata of an input is "
+    "stored under <root>/<fuzztest_binary_identifier>/<test_name>/ and is "
+    "passed back to the test before the next execution of the same input.")
+CENTIPEDE_FLAG(
     std::vector<std::string>, fuzztest_seed_corpus_databases, {},
     "A comma-separated list of read-only corpus databases. When fuzzing with "
     "the corpus database, the coverage inputs of the test in these databases "

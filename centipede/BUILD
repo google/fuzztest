@@ -583,6 +583,36 @@ cc_library(
 )
 
 cc_library(
+    name = "input_metadata_store",
+    srcs = ["input_metadata_store.cc"],
+    hdrs = ["input_metadata_store.h"],
+    deps = [
+        ":environment",
+        ":runner_result",
+        "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//common:remote_file",
+    ],
+)
+
+cc_test(
+    name = "input_metadata_store_test",
+    srcs = ["input_metadata_store_test.cc"],
+    deps = [
+        ":environment",
+        ":input_metadata_store",
+        ":runner_result",
+        "@com_google_fuzztest//common:defs",
+        "@com_google_fuzztest//common:hash",
+        "@com_google_fuzztest//common:remote_file",
+        "@com_google_fuzztest//common:test_util",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "centipede_callbacks",
     srcs = ["centipede_callbacks.cc"],
     hdrs = ["centipede_callbacks.h"],
@@ -593,6 +623,7 @@ cc_library(
         ":control_flow",
         ":environment",
         ":fuzztest_mutator",
+        ":input_metadata_store",
         ":mutation_data",
         ":runner_request",
         ":runner_result",
@@ -1567,6 +1598,17 @@ cc_test(
 )
 
 cc_test(
+    name = "runner_request_test",
+    srcs = ["runner_request_test.cc"],
+    deps = [
+        ":runner_request",
+        ":shared_memory_blob_sequence",
+        "@com_google_fuzztest//common:defs",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "runner_result_test",
     srcs = ["runner_result_test.cc"],
     deps = [
@@ -1958,6 +2000,7 @@ cc_test(
         ":stop",
         ":util",
         ":workdir",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",

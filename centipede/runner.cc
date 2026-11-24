@@ -374,6 +374,10 @@ void* RunnerCallbacks::Mutate(void* origin,
   return DeserializeInput({0});
 }
 
+void RunnerCallbacks::SetPersistentMetadata(void* input, ByteSpan metadata) {}
+
+ByteArray RunnerCallbacks::TakePersistentMetadata(void* input) { return {}; }
+
 void* RunnerCallbacks::CrossOver(void* origin,
                                  const ExecutionMetadata& origin_metadata,
                                  void* other,
@@ -805,6 +809,8 @@ void Execute(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
   const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/1);
   RunOneInput(input->content, runner_ctx->callbacks);
   CentipedeSetCurrentThreadTraced(old_traced);
+  ByteArray persistent_metadata =
+      runner_ctx->callbacks.TakePersistentMetadata(input->content);
   {
     LockGuard lock(state->execution_result_override_mu);
     bool has_overridden_execution_result = false;
@@ -824,11 +830,13 @@ void Execute(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
       };
       sink->EmitCoverageFeatures(sink->ctx, &features);
       input->metadata = result.metadata();
+      input->metadata.persistent_data = std::move(persistent_metadata);
       return;
     }
   }
   SanCovRuntimeEmitFeatures(sink);
   input->metadata = SanCovRuntimeGetExecutionMetadata();
+  input->metadata.persistent_data = std::move(persistent_metadata);
 }
 
 void DeserializeInputContent(FuzzTestAdapterCtx* ctx,
@@ -843,10 +851,22 @@ void DeserializeInputContent(FuzzTestAdapterCtx* ctx,
   sink->Emit(sink->ctx, reinterpret_cast<FuzzTestInputHandle>(input));
 }
 
-void UpdateInputMetadata(FuzzTestAdapterCtx* ctx, const FuzzTestBytesView* view,
+void UpdateInputMetadata(FuzzTestAdapterCtx* ctx,
+                         const FuzzTestInputMetadataView* view,
                          FuzzTestInputHandle handle) {
   auto* input = reinterpret_cast<Input*>(handle);
-  input->metadata.cmp_data = {view->data, view->data + view->size};
+  switch (view->type) {
+    case kFuzzTestInputMetadataMutationHints:
+      input->metadata.cmp_data.assign(view->bytes.data,
+                                      view->bytes.data + view->bytes.size);
+      break;
+    case kFuzzTestInputMetadataPersistent: {
+      auto* runner_ctx = reinterpret_cast<RunnerAdapterCtx*>(ctx);
+      runner_ctx->callbacks.SetPersistentMetadata(
+          input->content, ByteSpan{view->bytes.data, view->bytes.size});
+      break;
+    }
+  }
 }
 
 void SerializeInputContent(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
@@ -863,13 +883,20 @@ void SerializeInputContent(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
 }
 
 void SerializeInputMetadata(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
-                            const FuzzTestBytesSink* sink) {
+                            const FuzzTestInputMetadataSink* sink) {
   auto* input = reinterpret_cast<Input*>(handle);
-  const auto input_bytes = FuzzTestBytesView{
-      reinterpret_cast<const uint8_t*>(input->metadata.cmp_data.data()),
-      input->metadata.cmp_data.size(),
+  const auto mutation_hints = FuzzTestInputMetadataView{
+      kFuzzTestInputMetadataMutationHints,
+      {input->metadata.cmp_data.data(), input->metadata.cmp_data.size()},
   };
-  sink->Emit(sink->ctx, &input_bytes);
+  sink->Emit(sink->ctx, &mutation_hints);
+  if (input->metadata.persistent_data.empty()) return;
+  const auto persistent = FuzzTestInputMetadataView{
+      kFuzzTestInputMetadataPersistent,
+      {input->metadata.persistent_data.data(),
+       input->metadata.persistent_data.size()},
+  };
+  sink->Emit(sink->ctx, &persistent);
 }
 
 void FreeInput(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle) {

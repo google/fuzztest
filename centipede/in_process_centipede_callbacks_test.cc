@@ -80,7 +80,11 @@ uint64_t MakeEngineFeature(uint32_t domain, uint32_t feature,
 
 struct FakeInput {
   std::string content;
+  // Mutation hints.
   std::string metadata;
+  // Persistent metadata: what the engine passed before `Execute` (if any),
+  // and what the adapter emits afterwards.
+  std::string persistent_metadata;
 };
 
 struct FakeAdapterState {
@@ -304,6 +308,12 @@ void FakeExecute(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle input,
     // = 44.
     features.push_back(MakeEngineFeature(1, 10, 0xB0));
     input_obj->metadata = "recorded_cmp_meta";
+  } else if (input_obj->content == "with_persistent_meta") {
+    features.push_back(MakeEngineFeature(0, 8, 0));
+    // Echo what the engine passed (if anything), so that tests can observe
+    // both directions.
+    input_obj->persistent_metadata =
+        absl::StrCat("persisted(", input_obj->persistent_metadata, ")");
   }
 
   const FuzzTestUint64sView features_view{features.data(), features.size()};
@@ -334,18 +344,31 @@ void FakeSerializeInputContent(FuzzTestAdapterCtx* ctx,
 
 void FakeSerializeInputMetadata(FuzzTestAdapterCtx* ctx,
                                 FuzzTestInputHandle input,
-                                const FuzzTestBytesSink* sink) {
+                                const FuzzTestInputMetadataSink* sink) {
   const auto* input_obj = reinterpret_cast<FakeInput*>(input);
-  const FuzzTestBytesView bytes = ToBytesView(input_obj->metadata);
-  sink->Emit(sink->ctx, &bytes);
+  const FuzzTestInputMetadataView metadata = {
+      kFuzzTestInputMetadataMutationHints, ToBytesView(input_obj->metadata)};
+  sink->Emit(sink->ctx, &metadata);
+  if (input_obj->persistent_metadata.empty()) return;
+  const FuzzTestInputMetadataView persistent_metadata = {
+      kFuzzTestInputMetadataPersistent,
+      ToBytesView(input_obj->persistent_metadata)};
+  sink->Emit(sink->ctx, &persistent_metadata);
 }
 
 void FakeUpdateInputMetadata(FuzzTestAdapterCtx* ctx,
-                             const FuzzTestBytesView* metadata,
+                             const FuzzTestInputMetadataView* metadata,
                              FuzzTestInputHandle input) {
   auto* input_obj = reinterpret_cast<FakeInput*>(input);
-  input_obj->metadata.assign(reinterpret_cast<const char*>(metadata->data),
-                             metadata->size);
+  if (metadata->type == kFuzzTestInputMetadataMutationHints) {
+    input_obj->metadata.assign(
+        reinterpret_cast<const char*>(metadata->bytes.data),
+        metadata->bytes.size);
+  } else if (metadata->type == kFuzzTestInputMetadataPersistent) {
+    input_obj->persistent_metadata.assign(
+        reinterpret_cast<const char*>(metadata->bytes.data),
+        metadata->bytes.size);
+  }
   MaybeEmitDiagnostic(reinterpret_cast<FakeAdapterState*>(ctx),
                       "UpdateInputMetadata");
 }
@@ -726,7 +749,86 @@ TEST(InProcessCentipedeCallbacksTest,
                               expected_counter_feature_id)));
   EXPECT_EQ(ToString(batch_result.results()[1].metadata().cmp_data),
             "recorded_cmp_meta");
+  EXPECT_THAT(batch_result.results()[1].metadata().persistent_data, IsEmpty());
   EXPECT_EQ(state.active_inputs, 0);
+}
+
+TEST(InProcessCentipedeCallbacksTest,
+     ExecuteSeparatesPersistentMetadataFromMutationHints) {
+  FakeAdapterState state;
+  const FuzzTestAdapterManager manager = MakeFakeAdapterManager(&state);
+
+  Environment env;
+  StopCondition stop_condition;
+  InProcessCentipedeCallbacks callbacks(env, stop_condition, &manager);
+
+  const ByteArray input = ToByteArray("with_persistent_meta");
+  BatchResult batch_result;
+  EXPECT_TRUE(callbacks.Execute("binary", {input}, batch_result));
+  ASSERT_EQ(batch_result.num_outputs_read(), 1);
+
+  const ExecutionMetadata& metadata = batch_result.results()[0].metadata();
+  EXPECT_THAT(metadata.cmp_data, IsEmpty());
+  EXPECT_EQ(ToString(metadata.persistent_data), "persisted()");
+  EXPECT_EQ(state.active_inputs, 0);
+}
+
+TEST(InProcessCentipedeCallbacksTest,
+     ExecutePassesBackTheStoredPersistentMetadata) {
+  TempDir temp_dir{test_info_->name()};
+  FakeAdapterState state;
+  const FuzzTestAdapterManager manager = MakeFakeAdapterManager(&state);
+
+  Environment env;
+  env.binary = "binary";
+  env.fuzztest_persistent_metadata_root = temp_dir.path().string();
+  env.fuzztest_binary_identifier = "binary_id";
+  StopCondition stop_condition;
+  InProcessCentipedeCallbacks callbacks(env, stop_condition, &manager);
+
+  const ByteArray input = ToByteArray("with_persistent_meta");
+  // An input that emits no persistent metadata.
+  const ByteArray other_input = ToByteArray("random_seed");
+  BatchResult batch_result;
+
+  // Nothing is stored for the first execution.
+  EXPECT_TRUE(callbacks.Execute("binary", {other_input, input}, batch_result));
+  ASSERT_EQ(batch_result.num_outputs_read(), 2);
+  EXPECT_THAT(batch_result.results()[0].metadata().persistent_data, IsEmpty());
+  EXPECT_EQ(ToString(batch_result.results()[1].metadata().persistent_data),
+            "persisted()");
+
+  // The second execution gets what the first one emitted, for the same input
+  // only.
+  EXPECT_TRUE(callbacks.Execute("binary", {input, other_input}, batch_result));
+  ASSERT_EQ(batch_result.num_outputs_read(), 2);
+  EXPECT_EQ(ToString(batch_result.results()[0].metadata().persistent_data),
+            "persisted(persisted())");
+  EXPECT_THAT(batch_result.results()[1].metadata().persistent_data, IsEmpty());
+  EXPECT_EQ(state.active_inputs, 0);
+}
+
+TEST(InProcessCentipedeCallbacksTest,
+     ExecuteDoesNotExchangePersistentMetadataWithOtherBinaries) {
+  TempDir temp_dir{test_info_->name()};
+  FakeAdapterState state;
+  const FuzzTestAdapterManager manager = MakeFakeAdapterManager(&state);
+
+  Environment env;
+  env.binary = "binary";
+  env.fuzztest_persistent_metadata_root = temp_dir.path().string();
+  StopCondition stop_condition;
+  InProcessCentipedeCallbacks callbacks(env, stop_condition, &manager);
+
+  const ByteArray input = ToByteArray("with_persistent_meta");
+  BatchResult batch_result;
+  EXPECT_TRUE(callbacks.Execute("extra_binary", {input}, batch_result));
+  EXPECT_TRUE(callbacks.Execute("extra_binary", {input}, batch_result));
+
+  // Nothing was stored by the first execution.
+  ASSERT_EQ(batch_result.num_outputs_read(), 1);
+  EXPECT_EQ(ToString(batch_result.results()[0].metadata().persistent_data),
+            "persisted()");
 }
 
 TEST(InProcessCentipedeCallbacksTest,

@@ -39,6 +39,16 @@ enum class PersistentModeRequest : char {
 size_t RequestExecution(absl::Span<const ByteSpan> inputs,
                         BlobSequence& blobseq);
 
+// Same as above, but also sends the persistent input metadata of the inputs:
+// a non-empty `persistent_metadata[i]` is sent as a separate blob immediately
+// before `inputs[i]`. `persistent_metadata` must be empty or have the same
+// size as `inputs`. Without any non-empty persistent metadata, the request is
+// byte-identical to the one sent by the overload above.
+// Returns the number of sent inputs.
+size_t RequestExecution(absl::Span<const ByteSpan> inputs,
+                        absl::Span<const ByteSpan> persistent_metadata,
+                        BlobSequence& blobseq);
+
 // Sends a request (via `blobseq`) to compute `num_mutants` mutants of `inputs`.
 // Returns the number of sent inputs, which would normally be inputs.size().
 size_t RequestMutation(size_t num_mutants,
@@ -62,6 +72,10 @@ bool IsNumMutants(Blob blob, size_t &num_mutants);
 // Returns true and read blob into `metadata` iff the blob indicates an
 // execution metadata.
 bool IsExecutionMetadata(Blob blob, ExecutionMetadata &metadata);
+
+// Returns true iff `blob` indicates the persistent metadata of the data input
+// that follows it in an execution request.
+bool IsPersistentMetadata(Blob blob);
 
 // Returns true iff `blob` indicates a data input.
 bool IsDataInput(Blob blob);
