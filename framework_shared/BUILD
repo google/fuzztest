@@ -63,13 +63,13 @@ cc_library(
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//centipede:engine_abi",
         "@com_google_fuzztest//centipede:feature",
-        "@com_google_fuzztest//centipede:runner_utils",
         "@com_google_fuzztest//framework_shared/internal:callstack",
         "@com_google_fuzztest//framework_shared/internal:execution_metadata",
         "@com_google_fuzztest//framework_shared/internal:foreach_nonzero",
         "@com_google_fuzztest//framework_shared/internal:int_utils",
         "@com_google_fuzztest//framework_shared/internal:interceptor_utils",
         "@com_google_fuzztest//framework_shared/internal:runner_cmp_trace",
+        "@com_google_fuzztest//framework_shared/internal:sancov_utils",
     ],
 )
 

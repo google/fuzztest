@@ -24,6 +24,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <new>
+#include <utility>
 
 #include "absl/base/const_init.h"
 #include "absl/base/nullability.h"
@@ -32,13 +34,13 @@
 #include "./centipede/concurrent_byteset.h"
 #include "./centipede/feature.h"
 #include "./centipede/hashed_ring_buffer.h"
-#include "./centipede/runner_utils.h"
 #include "./framework_shared/internal/callstack.h"
 #include "./framework_shared/internal/execution_metadata.h"
 #include "./framework_shared/internal/reverse_pc_table.h"
 #include "./framework_shared/internal/runner_cmp_trace.h"
 #include "./framework_shared/internal/runner_dl_info.h"
 #include "./framework_shared/internal/sancov_object_array.h"
+#include "./framework_shared/internal/sancov_utils.h"
 #include "./framework_shared/sancov_runtime.h"
 
 // Use this attribute for functions that must not be instrumented even if
@@ -60,6 +62,51 @@ class LockGuard {
 
  private:
   pthread_mutex_t &mu_;
+};
+
+// Leak sanitizer interface function.
+extern "C" void __lsan_register_root_region(const void* p, size_t size);
+
+// Wraps an object of `T` stored as a plain byte array with explicit
+// construction. Needed for sancov global state that needs extended lifetime.
+// (Alternatively we could use dynamic pointers, but that would introduce extra
+// pointer check/dereference on every use.)
+//
+// The lifetime manager of the actual object should be cautious to follow the
+// calling requirements of the methods below.
+//
+// The implementation is modified/simplified from `absl::NoDestructor`.
+template <typename T>
+class ExplicitLifetime {
+ public:
+  ExplicitLifetime() = default;
+
+  // No copying.
+  ExplicitLifetime(const ExplicitLifetime&) = delete;
+  ExplicitLifetime& operator=(const ExplicitLifetime&) = delete;
+
+  T& operator*() { return *get(); }
+  T* absl_nonnull operator->() { return get(); }
+
+  // Constructs the actual object with forwarded `args`.
+  //
+  // Must be called exactly once after creation of this ExplicitLifetime<>
+  // instance and before accessing the actual object.
+  template <typename... Args>
+  void Construct(Args&&... args) {
+    new (&space_) T(std::forward<Args>(args)...);
+    // Needed otherwise lsan may lose track of the pointers inside the object as
+    // it is in-place constructed from the byte array.
+    __lsan_register_root_region(&space_, sizeof(space_));
+  }
+
+  // Gets the pointer to the actual object backed by a plain byte array. Using
+  // the pointer before `Construct()` may result in accessing uninitialized
+  // data.
+  T* absl_nonnull get() { return std::launder(reinterpret_cast<T*>(&space_)); }
+
+ private:
+  alignas(T) unsigned char space_[sizeof(T)];
 };
 
 // Flags derived from CENTIPEDE_RUNNER_FLAGS.
@@ -153,7 +200,7 @@ struct SancovState {
   SancovState();
   ~SancovState();
 
-  EngineFlagHelper flag_helper = EngineFlagHelper(GetSancovFlags());
+  SancovFlagHelper flag_helper = SancovFlagHelper(GetSancovFlags());
 
   // TODO(xinhaoyuan): Change to use meaningful flag names instead of the
   // generic names arg1/2/3.

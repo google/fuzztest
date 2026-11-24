@@ -15,6 +15,7 @@
 #include "./framework_shared/internal/sancov_state.h"
 
 #include <pthread.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <cstddef>
@@ -30,10 +31,10 @@
 #include "./centipede/engine_abi.h"
 #include "./centipede/feature.h"
 #include "./centipede/pc_info.h"
-#include "./centipede/runner_utils.h"
 #include "./framework_shared/internal/execution_metadata.h"
 #include "./framework_shared/internal/int_utils.h"
 #include "./framework_shared/internal/runner_dl_info.h"
+#include "./framework_shared/internal/sancov_utils.h"
 #include "./framework_shared/sancov_runtime.h"
 
 __attribute__((weak)) extern fuzztest::internal::feature_t
@@ -46,6 +47,10 @@ __attribute__((visibility("default")))
 __attribute__((weak)) thread_local uintptr_t __sancov_lowest_stack;
 
 namespace fuzztest::internal {
+
+// Weak dummy definition of LSan interface in case LSan is missing.
+__attribute__((weak)) void __lsan_register_root_region(const void* p,
+                                                       size_t size) {}
 
 ExplicitLifetime<SancovState> sancov_state;
 
@@ -99,8 +104,8 @@ uintptr_t GetCurrentThreadStackRegionLow() {
   }
   pthread_attr_destroy(&attr);
   const auto stack_region_low = reinterpret_cast<uintptr_t>(stack_addr);
-  RunnerCheck(stack_region_low != 0,
-              "the current thread stack region starts from 0 - unexpected!");
+  SANCOV_CHECK(stack_region_low != 0,
+               "the current thread stack region starts from 0 - unexpected!");
   return stack_region_low;
 #endif  // __APPLE__
 }
@@ -236,41 +241,51 @@ static void MaybePopulateReversePcTable() {
   const char* pcs_file_path =
       sancov_state->flag_helper.GetStringFlag("pcs_file_path=");
   if (!pcs_file_path) return;
-  const auto pc_table = ReadBytesFromFilePath<PCInfo>(pcs_file_path);
+  FILE* pcs_file = fopen(pcs_file_path, "rb");
+  SANCOV_CHECK(pcs_file != nullptr, "can't open the pcs file");
+  struct stat statbuf = {};
+  SANCOV_CHECK(fstat(fileno(pcs_file), &statbuf) == 0, "fstat failed");
+  const size_t size_in_bytes = statbuf.st_size;
+  SANCOV_CHECK(size_in_bytes != 0, "empty file");
+  SANCOV_CHECK((size_in_bytes % sizeof(PCInfo)) == 0,
+               "file size is not multiple of PCInfo size");
+  std::vector<PCInfo> pc_table(size_in_bytes / sizeof(PCInfo));
+  const size_t num_bytes_read =
+      fread(pc_table.data(), 1, size_in_bytes, pcs_file);
+  SANCOV_CHECK(num_bytes_read == size_in_bytes, "read failed");
+  SANCOV_CHECK(fclose(pcs_file) == 0, "fclose failed");
   sancov_state->reverse_pc_table.SetFromPCs(pc_table);
 }
 
 // Dumps the pc table to `output_path`.
 // Requires that state.main_object is already computed.
 static void DumpPcTable(const char *absl_nonnull output_path) {
-  PrintErrorAndExitIf(!sancov_state->main_object.IsSet(),
-                      "main_object is not set");
+  SANCOV_CHECK(sancov_state->main_object.IsSet(), "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
-  PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
+  SANCOV_CHECK(output_file != nullptr, "can't open output file");
   std::vector<PCInfo> pcs = sancov_state->sancov_objects.CreatePCTable();
   // Dump the pc table.
   const auto data_size_in_bytes = pcs.size() * sizeof(PCInfo);
   auto num_bytes_written =
       fwrite(pcs.data(), 1, data_size_in_bytes, output_file);
-  PrintErrorAndExitIf(num_bytes_written != data_size_in_bytes,
-                      "wrong number of bytes written for pc table");
+  SANCOV_CHECK(num_bytes_written == data_size_in_bytes,
+               "wrong number of bytes written for pc table");
   fclose(output_file);
 }
 
 // Dumps the control-flow table to `output_path`.
 // Requires that state.main_object is already computed.
 static void DumpCfTable(const char *absl_nonnull output_path) {
-  PrintErrorAndExitIf(!sancov_state->main_object.IsSet(),
-                      "main_object is not set");
+  SANCOV_CHECK(sancov_state->main_object.IsSet(), "main_object is not set");
   FILE *output_file = fopen(output_path, "w");
-  PrintErrorAndExitIf(output_file == nullptr, "can't open output file");
+  SANCOV_CHECK(output_file != nullptr, "can't open output file");
   std::vector<uintptr_t> data = sancov_state->sancov_objects.CreateCfTable();
   size_t data_size_in_bytes = data.size() * sizeof(data[0]);
   // Dump the table.
   auto num_bytes_written =
       fwrite(data.data(), 1, data_size_in_bytes, output_file);
-  PrintErrorAndExitIf(num_bytes_written != data_size_in_bytes,
-                      "wrong number of bytes written for cf table");
+  SANCOV_CHECK(num_bytes_written == data_size_in_bytes,
+               "wrong number of bytes written for cf table");
   fclose(output_file);
 }
 
@@ -278,7 +293,7 @@ static void DumpCfTable(const char *absl_nonnull output_path) {
 // number of instrumented PCs.
 static void DumpDsoTable(const char *absl_nonnull output_path) {
   FILE *output_file = fopen(output_path, "w");
-  RunnerCheck(output_file != nullptr, "DumpDsoTable: can't open output file");
+  SANCOV_CHECK(output_file != nullptr, "DumpDsoTable: can't open output file");
   DsoTable dso_table = sancov_state->sancov_objects.CreateDsoTable();
   for (const auto &entry : dso_table) {
     fprintf(output_file, "%s %zd\n", entry.path.c_str(),
@@ -300,8 +315,7 @@ SancovState::SancovState() {
 
   // Dump the binary info tables.
   if (flag_helper.HasSwitchFlag("dump_binary_info")) {
-    RunnerCheck(arg1 && arg2 && arg3, "dump_binary_info requires 3 arguments");
-    if (!arg1 || !arg2 || !arg3) _exit(EXIT_FAILURE);
+    SANCOV_CHECK(arg1 && arg2 && arg3, "dump_binary_info requires 3 arguments");
     DumpPcTable(arg1);
     DumpCfTable(arg2);
     DumpDsoTable(arg3);
@@ -367,8 +381,8 @@ void CleanUpSancovTls() {
       tls.cmp_trace8.Clear();
       tls.cmp_traceN.Clear();
     }
-    RunnerCheck(tls.sancov_lowest_sp != nullptr,
-                "sancov_lowest_sp is null for a live thread");
+    SANCOV_CHECK(tls.sancov_lowest_sp != nullptr,
+                 "sancov_lowest_sp is null for a live thread");
     *tls.sancov_lowest_sp = tls.lowest_sp = tls.top_frame_sp;
   });
 }
@@ -498,8 +512,8 @@ void PostProcessSancov(bool reject_input) {
 
   // Iterate all threads and get features from TLS data.
   sancov_state->ForEachTls([&feature_handler](ThreadLocalSancovState& tls) {
-    RunnerCheck(tls.top_frame_sp >= tls.lowest_sp,
-                "bad values of tls.top_frame_sp and tls.lowest_sp");
+    SANCOV_CHECK(tls.top_frame_sp >= tls.lowest_sp,
+                 "bad values of tls.top_frame_sp and tls.lowest_sp");
     uintptr_t lowest_sp = tls.lowest_sp;
     if (tls.sancov_lowest_sp != nullptr) {
       const uintptr_t sancov_lowest_sp = *tls.sancov_lowest_sp;

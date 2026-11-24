@@ -34,13 +34,14 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "absl/base/no_destructor.h"
 #include "absl/base/nullability.h"
 #include "./centipede/engine_abi.h"
+#include "./centipede/engine_flag_helper.h"
 #include "./centipede/engine_worker_abi.h"
 #include "./centipede/feature.h"
 #include "./centipede/runner_request.h"
 #include "./centipede/runner_result.h"
-#include "./centipede/runner_utils.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 #include "./framework_shared/internal/execution_metadata.h"
@@ -122,16 +123,8 @@ const char* absl_nullable GetWorkerFlagsEnv() {
 // allocates memory (enforced by `WorkerInitEarly`). After that it would be
 // signal-safe.
 const EngineFlagHelper& GetWorkerFlags() {
-  static ExplicitLifetime<EngineFlagHelper> worker_flags;
-  [[maybe_unused]] static bool construct_once = [] {
-    worker_flags.Construct(GetWorkerFlagsEnv());
-    if (worker_flags->HasAllocationFailure()) {
-      // This should rarely happen.
-      WorkerLog("Failed to process the flags due to allocation failure.");
-      std::_Exit(1);
-    }
-    return true;
-  }();
+  static const absl::NoDestructor<EngineFlagHelper> worker_flags(
+      GetWorkerFlagsEnv());
   return *worker_flags;
 }
 
@@ -216,12 +209,8 @@ struct WorkerState {
 };
 
 WorkerState& GetWorkerState() {
-  static ExplicitLifetime<WorkerState> worker_state;
-  [[maybe_unused]] static bool construct_once = [] {
-    worker_state.Construct();
-    return true;
-  }();
-  return *worker_state;
+  static WorkerState worker_state;
+  return worker_state;
 }
 
 #define WORKER_STRINGIFY_EXPANDED(o) #o
@@ -768,6 +757,42 @@ const char* FuzzTestWorkerGetTestName() {
     return GetWorkerFlags().GetStringFlag(kWorkerTestNameFlagHeader);
   }();
   return test_name;
+}
+
+// Reads `size` bytes to `data` from `fd` with retries (assuming `fd` is
+// blocking so there is no busy-spinning). Returns true if all bytes are
+// read, false otherwise due to errors.
+bool ReadAll(int fd, char* data, size_t size) {
+  while (size > 0) {
+    ssize_t r = read(fd, data, size);
+    if (r > 0) {
+      // read() guarantees r <= size
+      data += r;
+      size -= r;
+      continue;
+    }
+    if (r == -1 && errno == EINTR) continue;
+    return false;
+  }
+  return true;
+}
+
+// Writes `size` bytes from `data` to `fd` with retries (assuming `fd` is
+// blocking so there is no busy-spinning). Returns true if all bytes are
+// written, false otherwise due to errors.
+bool WriteAll(int fd, const char* data, size_t size) {
+  while (size > 0) {
+    ssize_t r = write(fd, data, size);
+    if (r > 0) {
+      // write() guarantees r <= size
+      data += r;
+      size -= r;
+      continue;
+    }
+    if (r == -1 && errno == EINTR) continue;
+    return false;
+  }
+  return true;
 }
 
 void HandlePersistentMode(const FuzzTestAdapter& adapter) {

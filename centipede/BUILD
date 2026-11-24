@@ -1017,14 +1017,16 @@ RUNNER_LINKOPTS = [
 RUNNER_DEPS = [
     ":byte_array_mutator",
     ":engine_abi",
+    ":engine_flag_helper",
     ":engine_worker",
     ":feature",
     ":knobs",
     ":mutation_data",
     ":runner_request",
     ":runner_result",
-    ":runner_utils",
+    ":shared_memory_blob_sequence",
     "@abseil-cpp//absl/base:core_headers",
+    "@abseil-cpp//absl/base:no_destructor",
     "@abseil-cpp//absl/base:nullability",
     "@abseil-cpp//absl/numeric:bits",
     "@abseil-cpp//absl/types:span",
@@ -1036,8 +1038,19 @@ RUNNER_DEPS = [
     "@com_google_fuzztest//framework_shared/internal:interceptor_utils",
     "@com_google_fuzztest//framework_shared/internal:rolling_hash",
     "@com_google_fuzztest//framework_shared/internal:runner_cmp_trace",
-    ":shared_memory_blob_sequence",
+    "@com_google_fuzztest//framework_shared/internal:sancov_utils",
 ]
+
+cc_library(
+    name = "engine_flag_helper",
+    srcs = ["engine_flag_helper.cc"],
+    hdrs = ["engine_flag_helper.h"],
+    copts = DISABLE_SANCOV_COPTS,
+    visibility = ["//visibility:private"],
+    deps = [
+        "@abseil-cpp//absl/base:nullability",
+    ],
+)
 
 cc_library(
     name = "engine_worker",
@@ -1048,13 +1061,14 @@ cc_library(
     copts = RUNNER_COPTS,
     deps = [
         ":engine_abi",
+        ":engine_flag_helper",
         ":feature",
         ":runner_fork_server",
         ":runner_request",
         ":runner_result",
-        ":runner_utils",
         ":shared_memory_blob_sequence",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//framework_shared/internal:execution_metadata",
@@ -1690,10 +1704,10 @@ cc_test(
 )
 
 cc_test(
-    name = "runner_utils_test",
-    srcs = ["runner_utils_test.cc"],
+    name = "engine_flag_helper_test",
+    srcs = ["engine_flag_helper_test.cc"],
     deps = [
-        ":runner_utils",
+        ":engine_flag_helper",
         "@googletest//:gtest_main",
     ],
 )
@@ -1982,16 +1996,6 @@ sh_test(
     env = {
         "TEST_UTIL_SH": "$(rootpath :test_util_sh)",
     },
-)
-
-cc_library(
-    name = "runner_utils",
-    srcs = ["runner_utils.cc"],
-    hdrs = ["runner_utils.h"],
-    copts = DISABLE_SANCOV_COPTS,
-    deps = [
-        "@abseil-cpp//absl/base:nullability",
-    ],
 )
 
 cc_static_library(

@@ -27,6 +27,7 @@
 #include <sched.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -48,17 +49,18 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/types/span.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/engine_abi.h"
+#include "./centipede/engine_flag_helper.h"
 #include "./centipede/engine_worker_abi.h"
 #include "./centipede/feature.h"
 #include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
-#include "./centipede/runner_utils.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 #include "./framework_shared/internal/execution_metadata.h"
@@ -67,13 +69,11 @@
 
 namespace fuzztest::internal {
 
-ExplicitLifetime<GlobalRunnerState> state;
+absl::NoDestructor<GlobalRunnerState> state __attribute__((init_priority(200)));
 
 namespace {
 
 struct GlobalRunnerStateManager {
-  GlobalRunnerStateManager() { state.Construct(); }
-
   ~GlobalRunnerStateManager() { state->OnTermination(); }
 };
 
@@ -116,6 +116,14 @@ class SpinlockGuard {
 };
 
 }  // namespace
+
+// A rough equivalent of "FUZZTEST_CHECK(condition) << error;".
+static void RunnerCheck(bool condition, const char* absl_nonnull error) {
+  if (!condition) {
+    fprintf(stderr, "error: %s\n", error);
+    exit(1);
+  }
+}
 
 static size_t GetPeakRSSMb() {
   struct rusage usage = {};
@@ -335,8 +343,8 @@ static void WriteFeaturesToFile(FILE* file, const feature_t* features,
                                 size_t size) {
   if (!size) return;
   auto bytes_written = fwrite(features, 1, sizeof(features[0]) * size, file);
-  PrintErrorAndExitIf(bytes_written != size * sizeof(features[0]),
-                      "wrong number of bytes written for coverage");
+  RunnerCheck(bytes_written == size * sizeof(features[0]),
+              "wrong number of bytes written for coverage");
 }
 
 // Clears all coverage data.
@@ -391,13 +399,11 @@ class LegacyRunnerCallbacks : public RunnerCallbacks {
         custom_crossover_cb_(custom_crossover_cb) {}
 
   bool Execute(void* input) override {
-    PrintErrorAndExitIf(test_one_input_cb_ == nullptr,
-                        "missing test_on_input_cb");
+    RunnerCheck(test_one_input_cb_ != nullptr, "missing test_on_input_cb");
     const auto* input_ba = reinterpret_cast<const ByteArray*>(input);
     const int retval = test_one_input_cb_(input_ba->data(), input_ba->size());
-    PrintErrorAndExitIf(
-        retval != -1 && retval != 0,
-        "test_on_input_cb returns invalid value other than -1 and 0");
+    RunnerCheck(retval == -1 || retval == 0,
+                "test_on_input_cb returns invalid value other than -1 and 0");
     return retval == 0;
   }
 
@@ -453,13 +459,28 @@ static void RunOneInput(void* input, RunnerCallbacks& callbacks) {
   state->stats.peak_rss_mb = GetPeakRSSMb();
 }
 
+static std::vector<uint8_t> ReadBytesFromFilePath(const char* input_path) {
+  FILE* input_file = fopen(input_path, "rb");
+  RunnerCheck(input_file != nullptr, "can't open the input file");
+  struct stat statbuf = {};
+  RunnerCheck(fstat(fileno(input_file), &statbuf) == 0, "fstat failed");
+  const size_t size_in_bytes = statbuf.st_size;
+  RunnerCheck(size_in_bytes != 0, "empty file");
+  std::vector<uint8_t> data(size_in_bytes);
+  const size_t num_bytes_read =
+      fread(data.data(), 1, size_in_bytes, input_file);
+  RunnerCheck(num_bytes_read == size_in_bytes, "read failed");
+  RunnerCheck(fclose(input_file) == 0, "fclose failed");
+  return data;
+}
+
 // Runs one input provided in file `input_path`.
 // Produces coverage data in file `input_path`-features.
 __attribute__((noinline))  // so that we see it in profile.
 static void ReadOneInputExecuteItAndDumpCoverage(const char* input_path,
                                                  RunnerCallbacks& callbacks) {
   // Read the input.
-  auto data = ReadBytesFromFilePath<uint8_t>(input_path);
+  const std::vector<uint8_t> data = ReadBytesFromFilePath(input_path);
 
   void* input = callbacks.DeserializeInput(data);
   RunOneInput(input, callbacks);
@@ -470,7 +491,7 @@ static void ReadOneInputExecuteItAndDumpCoverage(const char* input_path,
   snprintf(features_file_path, sizeof(features_file_path), "%s-features",
            input_path);
   FILE* features_file = fopen(features_file_path, "w");
-  PrintErrorAndExitIf(features_file == nullptr, "can't open coverage file");
+  RunnerCheck(features_file != nullptr, "can't open coverage file");
 
   const SanCovRuntimeRawFeatureParts sancov_features =
       SanCovRuntimeGetFeatures();
@@ -549,8 +570,8 @@ static void DumpSerializedTargetConfigToFile(RunnerCallbacks& callbacks,
   FILE* output_file = fopen(output_file_path, "w");
   const size_t num_bytes_written =
       fwrite(config.data(), 1, config.size(), output_file);
-  PrintErrorAndExitIf(
-      num_bytes_written != config.size(),
+  RunnerCheck(
+      num_bytes_written == config.size(),
       "wrong number of bytes written for serialized target configuration");
   fclose(output_file);
 }

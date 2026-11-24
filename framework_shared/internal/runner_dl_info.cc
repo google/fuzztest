@@ -35,7 +35,7 @@
 #endif  // __APPLE__
 
 #include "absl/base/nullability.h"
-#include "./centipede/runner_utils.h"
+#include "./framework_shared/internal/sancov_utils.h"
 
 namespace fuzztest::internal {
 
@@ -71,7 +71,7 @@ void FindSegment(const mach_header* header,
     cmd = reinterpret_cast<const load_command*>(
         reinterpret_cast<const char*>(header) + sizeof(mach_header_64));
   }
-  RunnerCheck(cmd != nullptr, "bad magic number of mach image header");
+  SANCOV_CHECK(cmd != nullptr, "bad magic number of mach image header");
   for (size_t cmd_index = 0; cmd_index < header->ncmds;
        ++cmd_index, cmd = reinterpret_cast<const load_command*>(
                         reinterpret_cast<const char*>(cmd) + cmd->cmdsize)) {
@@ -116,9 +116,9 @@ DlInfo GetDlInfoFromImage(
   const auto image_count = _dyld_image_count();
   for (uint32_t i = 0; i < image_count; ++i) {
     const mach_header* header = _dyld_get_image_header(i);
-    RunnerCheck(header != nullptr, "failed to get image header");
+    SANCOV_CHECK(header != nullptr, "failed to get image header");
     const char* name = _dyld_get_image_name(i);
-    RunnerCheck(name != nullptr, "bad image name");
+    SANCOV_CHECK(name != nullptr, "bad image name");
     if constexpr (kDlDebug) {
       fprintf(stderr, "%s image header at %p, name %s\n", __func__, header,
               name);
@@ -135,7 +135,7 @@ DlInfo GetDlInfoFromImage(
     result.link_offset = _dyld_get_image_vmaddr_slide(i);
     result.start_address = image_start + result.link_offset;
     result.size = image_end - image_start;
-    RunnerCheck(result.size > 0, "bad image size");
+    SANCOV_CHECK(result.size > 0, "bad image size");
     std::strncpy(result.path, name, sizeof(result.path));
     break;
   }
@@ -242,7 +242,7 @@ int DlIteratePhdrCallback(struct dl_phdr_info *absl_nonnull info, size_t size,
                           void *absl_nonnull param_voidptr) {
   const DlCallbackParam *param = static_cast<DlCallbackParam *>(param_voidptr);
   DlInfo &result = param->result;
-  RunnerCheck(!result.IsSet(), "result is already set");
+  SANCOV_CHECK(!result.IsSet(), "result is already set");
   // Skip uninteresting info.
   if (param->dl_path_suffix != nullptr &&
       !StringEndsWithSuffix(info->dlpi_name, param->dl_path_suffix)) {
@@ -269,19 +269,20 @@ int DlIteratePhdrCallback(struct dl_phdr_info *absl_nonnull info, size_t size,
             some_global_address);
   }
 
-  RunnerCheck(result.size != 0,
-              "DlIteratePhdrCallback failed to compute result.size");
+  SANCOV_CHECK(result.size != 0,
+               "DlIteratePhdrCallback failed to compute result.size");
   if (param->dl_path_suffix == nullptr) {
     // When the main binary is coverage-instrumented, we currently only support
     // statically linking this runner. Which means, that the runner itself
     // is part of the main binary, and we can do additional checks, which we
     // can't do if the runner is a separate library.
-    RunnerCheck(result.InBounds(some_code_address),
-                "DlIteratePhdrCallback: a sample code address is not in bounds "
-                "of main executable");
-    RunnerCheck(result.InBounds(some_global_address),
-                "DlIteratePhdrCallback: a sample global address is not in "
-                "bounds of main executable");
+    SANCOV_CHECK(
+        result.InBounds(some_code_address),
+        "DlIteratePhdrCallback: a sample code address is not in bounds "
+        "of main executable");
+    SANCOV_CHECK(result.InBounds(some_global_address),
+                 "DlIteratePhdrCallback: a sample global address is not in "
+                 "bounds of main executable");
   }
   return result.IsSet();  // return 1 if we found what we were looking for.
 }
@@ -305,7 +306,7 @@ int DlIteratePhdrPCCallback(struct dl_phdr_info *absl_nonnull info,
   } else {
     // dlpi_name is empty, this is the main binary, get path via /proc/self/exe.
     int res = readlink("/proc/self/exe", result.path, sizeof(result.path));
-    RunnerCheck(res > 0, "readlink(\"/proc/self/exe\") failed");
+    SANCOV_CHECK(res > 0, "readlink(\"/proc/self/exe\") failed");
   }
   result.path[sizeof(result.path) - 1] = 0;
   return 0;  // Found what we are looking for.

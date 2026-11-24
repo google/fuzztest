@@ -1,4 +1,4 @@
-// Copyright 2022 The Centipede Authors.
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./centipede/runner_utils.h"
+#include "./framework_shared/internal/sancov_utils.h"
 
-#include <unistd.h>
-
-#include <cerrno>
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string_view>
@@ -26,50 +23,16 @@
 #include "absl/base/nullability.h"
 
 namespace fuzztest::internal {
+namespace {
 
-// Weak dummy definition of LSan interface in case LSan is missing.
-__attribute__((weak)) void __lsan_register_root_region(const void* p,
-                                                       size_t size) {}
-__attribute__((weak)) void __lsan_unregister_root_region(const void* p,
-                                                         size_t size) {}
-
-void PrintErrorAndExitIf(bool condition, const char* absl_nonnull error) {
-  if (!condition) return;
-  fprintf(stderr, "error: %s\n", error);
-  exit(1);
-}
-
-bool ReadAll(int fd, char* data, size_t size) {
-  while (size > 0) {
-    ssize_t r = read(fd, data, size);
-    if (r > 0) {
-      // read() guarantees r <= size
-      data += r;
-      size -= r;
-      continue;
-    }
-    if (r == -1 && errno == EINTR) continue;
-    return false;
-  }
-  return true;
-}
-
-bool WriteAll(int fd, const char* data, size_t size) {
-  while (size > 0) {
-    ssize_t r = write(fd, data, size);
-    if (r > 0) {
-      // write() guarantees r <= size
-      data += r;
-      size -= r;
-      continue;
-    }
-    if (r == -1 && errno == EINTR) continue;
-    return false;
-  }
-  return true;
-}
-
-size_t ProcessEngineFlags(char* flags, size_t size) {
+// Processes the `flags` buffer in-place, which comes with the format of
+// :(NAME=VALUE:|NAME:)+, where NAME and VALUE can contain escaped chars with
+// backslash (\). It drops any chars before the first colon or after the last
+// unescaped colon, drops any empty flags, and replaces unescaped colons with
+// '\0'. Returns the number of chars in the processed result.
+//
+// Returns 0 if no proper flags are found in the `flags` buffer.
+size_t ProcessSancovFlags(char* flags, size_t size) {
   size_t r = 0;
   size_t w = 0;
   size_t cur_flag_beg = 0;
@@ -94,46 +57,41 @@ size_t ProcessEngineFlags(char* flags, size_t size) {
   return cur_flag_beg;
 }
 
-EngineFlagHelper::EngineFlagHelper(const char* absl_nullable flags)
-    : flags_(nullptr), size_(0), has_allocation_failure_(false) {
+}  // namespace
+
+SancovFlagHelper::SancovFlagHelper(const char* absl_nullable flags)
+    : flags_(nullptr), size_(0) {
   if (flags == nullptr) return;
   flags_ = strdup(flags);
-  if (flags_ == nullptr) {
-    has_allocation_failure_ = true;
-    return;
-  }
-  size_ = ProcessEngineFlags(flags_, strlen(flags_));
+  SANCOV_CHECK(flags_ != nullptr, "strdup failed");
+  size_ = ProcessSancovFlags(flags_, strlen(flags_));
 }
 
-EngineFlagHelper::~EngineFlagHelper() {
+SancovFlagHelper::~SancovFlagHelper() {
   if (flags_) {
     free(flags_);
   }
 }
 
-bool EngineFlagHelper::HasAllocationFailure() const {
-  return has_allocation_failure_;
-}
-
-bool EngineFlagHelper::HasSwitchFlag(std::string_view flag) const {
+bool SancovFlagHelper::HasSwitchFlag(std::string_view flag) const {
   return FindEntry(flag, /*match_whole=*/true) != nullptr;
 }
 
-uint64_t EngineFlagHelper::GetIntFlag(std::string_view header,
+uint64_t SancovFlagHelper::GetIntFlag(std::string_view header,
                                       uint64_t default_value) const {
   const char* absl_nullable flag = GetStringFlag(header);
   if (flag == nullptr) return default_value;
-  return atoll(flag);  // NOLINT: can't use strto64, etc.
+  return std::strtoull(flag, nullptr, 10);  // NOLINT(runtime/deprecated_fn)
 }
 
-const char* absl_nullable EngineFlagHelper::GetStringFlag(
+const char* absl_nullable SancovFlagHelper::GetStringFlag(
     std::string_view header) const {
   const char* absl_nullable entry = FindEntry(header);
   if (entry == nullptr) return nullptr;
   return entry + header.size();
 }
 
-const char* absl_nullable EngineFlagHelper::FindEntry(std::string_view flag,
+const char* absl_nullable SancovFlagHelper::FindEntry(std::string_view flag,
                                                       bool match_whole) const {
   if (flags_ == nullptr || flag.empty()) return nullptr;
   auto flags = std::string_view{flags_, size_};

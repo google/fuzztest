@@ -32,6 +32,7 @@ exports_files(
     srcs = [
         "coverage_interceptors.cc",
         "reverse_pc_table.h",
+        # TODO(b/587478278): Rename legacy runner_* files.
         "runner_dl_info.cc",
         "runner_dl_info.h",
         "runtime_interceptors.cc",
@@ -192,6 +193,7 @@ cc_test(
     ],
 )
 
+# TODO(b/587478278): Rename legacy runner_* targets and files.
 cc_library(
     name = "runner_cmp_trace",
     hdrs = ["runner_cmp_trace.h"],
@@ -210,6 +212,21 @@ cc_test(
         ":runner_cmp_trace",
         "@abseil-cpp//absl/base:nullability",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "sancov_utils",
+    srcs = ["sancov_utils.cc"],
+    hdrs = ["sancov_utils.h"],
+    copts = DISABLE_SANCOV_COPTS,
+    # TODO(b/436308818): Drop centipede visibility once centipede_runner depends on :sancov_runtime.
+    visibility = DEFAULT_VISIBILITY + [
+        "@com_google_fuzztest//centipede:__pkg__",
+    ],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
     ],
 )
 

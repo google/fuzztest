@@ -22,12 +22,13 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "absl/base/no_destructor.h"
 #include "./centipede/byte_array_mutator.h"
 #include "./centipede/engine_abi.h"
+#include "./centipede/engine_flag_helper.h"
 #include "./centipede/knobs.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
-#include "./centipede/runner_utils.h"
 
 namespace fuzztest::internal {
 
@@ -121,7 +122,7 @@ struct GlobalRunnerState {
   const FuzzTestDiagnosticSink* diagnostic_sink;
 };
 
-extern ExplicitLifetime<GlobalRunnerState> state;
+extern absl::NoDestructor<GlobalRunnerState> state;
 
 }  // namespace fuzztest::internal
 
