@@ -34,7 +34,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cerrno>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -46,7 +45,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/base/no_destructor.h"
@@ -58,13 +56,11 @@
 #include "./centipede/engine_flag_helper.h"
 #include "./centipede/engine_worker_abi.h"
 #include "./centipede/feature.h"
-#include "./centipede/mutation_data.h"
 #include "./centipede/runner_interface.h"
 #include "./centipede/runner_result.h"
 #include "./centipede/shared_memory_blob_sequence.h"
 #include "./common/defs.h"
 #include "./framework_shared/internal/execution_metadata.h"
-#include "./framework_shared/internal/sancov_state.h"
 #include "./framework_shared/sancov_runtime.h"
 
 namespace fuzztest::internal {
@@ -113,6 +109,18 @@ class SpinlockGuard {
  private:
   explicit SpinlockGuard(std::atomic<bool>* lock) : lock_(lock) {}
   std::atomic<bool>* lock_;
+};
+
+// Like std::lock_guard, but for pthread_mutex_t.
+class LockGuard {
+ public:
+  LockGuard(const LockGuard&) = delete;
+  LockGuard& operator=(const LockGuard&) = delete;
+  explicit LockGuard(pthread_mutex_t& mu) : mu_(mu) { pthread_mutex_lock(&mu); }
+  ~LockGuard() { pthread_mutex_unlock(&mu_); }
+
+ private:
+  pthread_mutex_t& mu_;
 };
 
 }  // namespace
@@ -236,8 +244,8 @@ static void CheckWatchdogLimits() {
 [[noreturn]] static void* WatchdogThread(void* unused) {
   // Since the watchdog is internal and does not execute user code, disable
   // SanCov tracing and TLS traversal.
-  tls.traced = false;
-  tls.ignore = true;
+  SanCovRuntimeSetCurrentThreadTraced(false);
+  SanCovRuntimeSetCurrentThreadIgnored(true);
   state->watchdog_thread_started = true;
   while (true) {
     sleep(1);
@@ -251,8 +259,8 @@ static void CheckWatchdogLimits() {
   }
 }
 
-__attribute__((noinline)) void CheckStackLimit(size_t stack_usage,
-                                               bool is_current_stack) {
+__attribute__((noinline)) static void CheckStackLimit(size_t stack_usage,
+                                                      bool is_current_stack) {
   static std::atomic_flag stack_limit_exceeded = ATOMIC_FLAG_INIT;
   const size_t stack_limit = state->run_time_flags.stack_limit_kb.load() << 10;
   // Check for the stack limit only if sp is inside the stack region.
@@ -336,9 +344,6 @@ extern "C" size_t LLVMFuzzerMutate(uint8_t* data, size_t size,
   return CentipedeLLVMFuzzerMutateCallback(data, size, max_size);
 }
 
-// An arbitrary large size for input data.
-static const size_t kMaxDataSize = 1 << 20;
-
 static void WriteFeaturesToFile(FILE* file, const feature_t* features,
                                 size_t size) {
   if (!size) return;
@@ -353,14 +358,13 @@ static void WriteFeaturesToFile(FILE* file, const feature_t* features,
 // coverage accumulated during startup.
 __attribute__((noinline))  // so that we see it in profile.
 static void PrepareCoverage(bool full_clear) {
-  CleanUpSancovTls();
   {
-    fuzztest::internal::LockGuard lock(state->execution_result_override_mu);
+    LockGuard lock(state->execution_result_override_mu);
     if (state->execution_result_override != nullptr) {
       state->execution_result_override->ClearAndResize(0);
     }
   }
-  PrepareSancov(full_clear);
+  SanCovRuntimeClearCoverage(full_clear);
 }
 
 void RunnerCallbacks::GetPresetSeedInputs(
@@ -452,7 +456,7 @@ static void RunOneInput(void* input, RunnerCallbacks& callbacks) {
   state->stats.exec_time_usec = UsecSinceLast();
   CheckWatchdogLimits();
   if (fuzztest::internal::state->input_start_time.exchange(0) != 0) {
-    PostProcessSancov(target_return_value == -1);
+    SanCovRuntimePostProcessCoverage(target_return_value == -1);
   }
   WaitWatchdogThreadIdle();
   state->stats.post_time_usec = UsecSinceLast();
@@ -494,7 +498,7 @@ static void ReadOneInputExecuteItAndDumpCoverage(const char* input_path,
   RunnerCheck(features_file != nullptr, "can't open coverage file");
 
   const SanCovRuntimeRawFeatureParts sancov_features =
-      SanCovRuntimeGetFeatures();
+      SanCovRuntimeGetRawFeatures();
   WriteFeaturesToFile(features_file, sancov_features.features,
                       sancov_features.num_features);
   fclose(features_file);
@@ -510,7 +514,7 @@ static bool StartSendingOutputsToEngine(BlobSequence& outputs_blobseq) {
 // Returns the byte size of sancov features.
 static size_t CopyFeatures(uint8_t* data, size_t capacity) {
   const SanCovRuntimeRawFeatureParts sancov_features =
-      SanCovRuntimeGetFeatures();
+      SanCovRuntimeGetRawFeatures();
   const size_t features_len_in_bytes =
       sancov_features.num_features * sizeof(feature_t);
   if (features_len_in_bytes > capacity) return 0;
@@ -542,7 +546,7 @@ static bool FinishSendingOutputsToEngine(BlobSequence& outputs_blobseq) {
   }
 
   const SanCovRuntimeRawFeatureParts sancov_features =
-      SanCovRuntimeGetFeatures();
+      SanCovRuntimeGetRawFeatures();
   // Copy features to shared memory.
   if (!BatchResult::WriteOneFeatureVec(sancov_features.features,
                                        sancov_features.num_features,
@@ -550,7 +554,8 @@ static bool FinishSendingOutputsToEngine(BlobSequence& outputs_blobseq) {
     return false;
   }
 
-  if (!BatchResult::WriteMetadata(SanCovRuntimeGetExecutionMetadata(),
+  const FuzzTestBytesView cmp_data = SanCovRuntimeGetCmpData();
+  if (!BatchResult::WriteMetadata({cmp_data.data, cmp_data.size},
                                   outputs_blobseq)) {
     return false;
   }
@@ -693,7 +698,8 @@ static void SetLimits() {
 
 GlobalRunnerState::GlobalRunnerState() {
   FuzzTestWorkerInitEarly();
-  SancovRuntimeInitialize();
+  SanCovRuntimeInitialize();
+  SanCovRuntimeSetStackLimitCallback(CheckStackLimit);
 
   // TODO(kcc): move some code from CentipedeRunnerMain() here so that it works
   // even if CentipedeRunnerMain() is not called.
@@ -708,9 +714,10 @@ void GlobalRunnerState::OnTermination() {
   // report the coverage now.
   if (!state->centipede_runner_main_executed &&
       state->run_time_flags.shmem_size_mb != 0) {
-    PostProcessSancov();  // TODO(xinhaoyuan): do we know our exit status?
+    // TODO(xinhaoyuan): do we know our exit status?
+    SanCovRuntimePostProcessCoverage(/*reject_input=*/false);
     SharedMemoryBlobSequence outputs_blobseq(
-        sancov_state->arg2, state->run_time_flags.shmem_size_mb << 20);
+        state->arg2, state->run_time_flags.shmem_size_mb << 20);
     StartSendingOutputsToEngine(outputs_blobseq);
     FinishSendingOutputsToEngine(outputs_blobseq);
   }
@@ -733,7 +740,7 @@ struct Input {
 struct RunnerAdapterCtx {
   bool need_full_cleanup;
   // The traced state of the constructing thread to restore in `FreeCtx`.
-  int old_traced;
+  bool old_traced;
   RunnerCallbacks& callbacks;
 };
 
@@ -772,13 +779,12 @@ void NotifyControllerAndExitIfNoCustomMutator(RunnerCallbacks& callbacks) {
     // needed by the LLVM fuzzer runners (used by some engine tests). We
     // cannot remove it until the LLVM fuzzers can be migrated to use
     // the FuzzTest LLVM fuzzer wrapper.
-    RunnerCheck(sancov_state->arg2 != nullptr,
+    RunnerCheck(state->arg2 != nullptr,
                 "no custom mutator, and no outputs blobseq specified to notify "
                 "the engine - built-in mutator fallback requires running as an "
                 "engine worker");
     SharedMemoryBlobSequence outputs_blobseq(
-        sancov_state->arg2,
-        sancov_state->flag_helper.GetIntFlag("shmem_size_mb=", 0) << 20);
+        state->arg2, state->run_time_flags.shmem_size_mb << 20);
     RunnerCheck(MutationResult::WriteHasCustomMutator(false, outputs_blobseq),
                 "Failed to write the indicator for no custom mutator");
     std::_Exit(0);
@@ -823,9 +829,9 @@ void Execute(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
   if (runner_ctx->need_full_cleanup) {
     runner_ctx->need_full_cleanup = false;
   }
-  const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/1);
+  const bool old_traced = SanCovRuntimeSetCurrentThreadTraced(/*traced=*/true);
   RunOneInput(input->content, runner_ctx->callbacks);
-  CentipedeSetCurrentThreadTraced(old_traced);
+  SanCovRuntimeSetCurrentThreadTraced(old_traced);
   {
     LockGuard lock(state->execution_result_override_mu);
     bool has_overridden_execution_result = false;
@@ -849,7 +855,13 @@ void Execute(FuzzTestAdapterCtx* ctx, FuzzTestInputHandle handle,
     }
   }
   SanCovRuntimeEmitFeatures(sink);
-  input->metadata = SanCovRuntimeGetExecutionMetadata();
+  const FuzzTestBytesView cmp_data = SanCovRuntimeGetCmpData();
+  if (cmp_data.size > 0) {
+    input->metadata.cmp_data.assign(cmp_data.data,
+                                    cmp_data.data + cmp_data.size);
+  } else {
+    input->metadata.cmp_data.clear();
+  }
 }
 
 void DeserializeInputContent(FuzzTestAdapterCtx* ctx,
@@ -904,7 +916,7 @@ void FreeCtx(FuzzTestAdapterCtx* ctx) {
   auto* runner_ctx = reinterpret_cast<RunnerAdapterCtx*>(ctx);
   // The engine invokes the callbacks on the same thread, so this restores the
   // state of the thread that called `ConstructAdapter`.
-  CentipedeSetCurrentThreadTraced(runner_ctx->old_traced);
+  SanCovRuntimeSetCurrentThreadTraced(runner_ctx->old_traced);
   delete runner_ctx;
   {
     auto guard = SpinlockGuard::Acquire(state->diagnostic_sink_spinlock);
@@ -943,7 +955,7 @@ void ConstructAdapter(FuzzTestAdapterManagerCtx* ctx,
   // executions, which enable tracing by themselves, so that the code running
   // between executions does not pollute the execution feedback. The engine
   // invokes the callbacks on the same thread, so `FreeCtx` restores it.
-  const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
+  const bool old_traced = SanCovRuntimeSetCurrentThreadTraced(/*traced=*/false);
   adapter_out->ctx = reinterpret_cast<FuzzTestAdapterCtx*>(new RunnerAdapterCtx{
       /*need_full_cleanup=*/true,
       /*old_traced=*/old_traced,
@@ -990,7 +1002,7 @@ int RunnerMain(int argc, char** argv, RunnerCallbacks& callbacks) {
 
   if (state->flag_helper.HasSwitchFlag("dump_configuration")) {
     DumpSerializedTargetConfigToFile(callbacks,
-                                     /*output_file_path=*/sancov_state->arg1);
+                                     /*output_file_path=*/state->arg1);
     return EXIT_SUCCESS;
   }
 
@@ -1050,7 +1062,7 @@ CentipedeGetRunnerFlags() {
 }
 
 // TODO: xinhaoyuan - write test for this.
-extern "C" const char* absl_nullable GetSancovFlags() {
+extern "C" const char* GetSancovFlags(void) {
   return CentipedeGetRunnerFlags();
 }
 
@@ -1086,14 +1098,8 @@ extern "C" void CentipedePrepareProcessing() {
 extern "C" void CentipedeFinalizeProcessing() {
   fuzztest::internal::CheckWatchdogLimits();
   if (fuzztest::internal::state->input_start_time.exchange(0) != 0) {
-    fuzztest::internal::PostProcessSancov();
+    SanCovRuntimePostProcessCoverage(/*reject_input=*/false);
   }
-}
-
-extern "C" int CentipedeSetCurrentThreadTraced(int traced) {
-  const int old_traced = fuzztest::internal::tls.traced;
-  fuzztest::internal::tls.traced = traced;
-  return old_traced;
 }
 
 extern "C" size_t CentipedeGetExecutionResult(uint8_t* data, size_t capacity) {

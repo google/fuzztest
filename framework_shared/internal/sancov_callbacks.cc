@@ -276,11 +276,8 @@ static ENFORCE_INLINE void UpdateLowestStackAndCheckLimit(uintptr_t sp) {
                          sp >= tls.stack_region_low &&
                          tls.stack_region_low > 0)) {
     tls.lowest_sp = sp;
-    if (fuzztest::internal::CheckStackLimit == nullptr) {
-      return;
-    }
-    fuzztest::internal::CheckStackLimit(tls.top_frame_sp - sp,
-                                        /*is_current_stack=*/true);
+    fuzztest::internal::MaybeCheckStackLimit(tls.top_frame_sp - sp,
+                                             /*is_current_stack=*/true);
   }
 }
 

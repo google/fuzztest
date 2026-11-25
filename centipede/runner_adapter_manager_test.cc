@@ -36,6 +36,7 @@
 #include "./centipede/stop.h"
 #include "./common/defs.h"
 #include "./framework_shared/internal/execution_metadata.h"
+#include "./framework_shared/sancov_runtime.h"
 
 namespace fuzztest::internal {
 namespace {
@@ -110,9 +111,9 @@ class FakeRunnerCallbacksWithoutCustomMutator : public FakeRunnerCallbacks {
 };
 
 // Returns whether the current thread is traced without changing it.
-int GetCurrentThreadTraced() {
-  const int traced = CentipedeSetCurrentThreadTraced(/*traced=*/0);
-  CentipedeSetCurrentThreadTraced(traced);
+bool GetCurrentThreadTraced() {
+  const bool traced = SanCovRuntimeSetCurrentThreadTraced(/*traced=*/false);
+  SanCovRuntimeSetCurrentThreadTraced(traced);
   return traced;
 }
 
@@ -154,9 +155,9 @@ TEST(CreateFuzzTestAdapterManagerTest, WorksWithInProcessCentipedeCallbacks) {
 }
 
 TEST(CreateFuzzTestAdapterManagerTest, AdapterDisablesTracingWhileAlive) {
-  const int old_traced = CentipedeSetCurrentThreadTraced(/*traced=*/1);
+  const bool old_traced = SanCovRuntimeSetCurrentThreadTraced(/*traced=*/true);
   const absl::Cleanup tracing_restorer = [old_traced] {
-    CentipedeSetCurrentThreadTraced(old_traced);
+    SanCovRuntimeSetCurrentThreadTraced(old_traced);
   };
 
   FakeRunnerCallbacks runner_callbacks;
@@ -166,16 +167,16 @@ TEST(CreateFuzzTestAdapterManagerTest, AdapterDisablesTracingWhileAlive) {
   StopCondition stop_condition;
   {
     InProcessCentipedeCallbacks callbacks(env, stop_condition, &manager);
-    EXPECT_EQ(GetCurrentThreadTraced(), 0);
+    EXPECT_FALSE(GetCurrentThreadTraced());
 
     std::vector<ByteArray> seeds;
     callbacks.GetSeeds(/*num_seeds=*/1, seeds);
     ASSERT_THAT(seeds, SizeIs(1));
     BatchResult batch_result;
     EXPECT_TRUE(callbacks.Execute("binary", {seeds[0]}, batch_result));
-    EXPECT_EQ(GetCurrentThreadTraced(), 0);
+    EXPECT_FALSE(GetCurrentThreadTraced());
   }
-  EXPECT_EQ(GetCurrentThreadTraced(), 1);
+  EXPECT_TRUE(GetCurrentThreadTraced());
 }
 
 TEST(CreateFuzzTestAdapterManagerTest, AllowsAdaptersAliveOneAtATime) {
