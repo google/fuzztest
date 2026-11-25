@@ -1563,6 +1563,7 @@ cc_test(
         ":analyze_corpora",
         ":binary_info",
         ":environment",
+        ":pc_info",
         ":symbol_table",
         ":test_coverage_util",
         "@com_google_fuzztest//common:logging",
