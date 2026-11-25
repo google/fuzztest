@@ -935,6 +935,7 @@ cc_library(
 cc_library(
     name = "weak_sancov_stubs",
     srcs = ["weak_sancov_stubs.cc"],
+    copts = DISABLE_SANCOV_COPTS,
     visibility = ["//visibility:public"],
     alwayslink = 1,
 )
