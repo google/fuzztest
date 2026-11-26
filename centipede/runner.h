@@ -84,6 +84,11 @@ struct GlobalRunnerState {
 
   std::atomic<bool> has_failure_description;
 
+  // TODO(xinhaoyuan): Change to use meaningful flag names instead of the
+  // generic names arg1/2.
+  const char* arg1 = flag_helper.GetStringFlag("arg1=");
+  const char* arg2 = flag_helper.GetStringFlag("arg2=");
+
   const char* persistent_mode_socket_path =
       flag_helper.GetStringFlag("persistent_mode_socket=");
   int persistent_mode_socket = 0;

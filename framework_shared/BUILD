@@ -24,64 +24,123 @@ package(default_visibility = DEFAULT_VISIBILITY)
 
 licenses(["notice"])
 
-# Centipede runner needs access to this file until it depends on
-# :sancov_runtime (b/436308818).
-exports_files(
-    srcs = ["sancov_runtime.h"],
-    visibility = ["@com_google_fuzztest//centipede:__pkg__"],
-)
-
 # TODO(b/436366556): Remove and replace once this is standardized.
 DISABLE_SANCOV_COPTS = [
     "-fsanitize-coverage=0",
 ]
 
+# Disable sancov and sanitizer instrumentation.
+#
+# Need to allow MSAN to avoid false positives when interacting with dependencies.
+SANCOV_RUNTIME_COPTS = [
+    "-fsanitize-coverage=0",
+    "-fno-sanitize=address,hwaddress,thread,undefined",
+]
+
+SANCOV_RUNTIME_SRCS = [
+    "sancov_runtime.cc",
+    "@com_google_fuzztest//centipede:pc_info.h",
+    "@com_google_fuzztest//common:defs.h",
+    "@com_google_fuzztest//framework_shared/internal:coverage_interceptors.cc",
+    "@com_google_fuzztest//framework_shared/internal:reverse_pc_table.h",
+    "@com_google_fuzztest//framework_shared/internal:runner_dl_info.cc",
+    "@com_google_fuzztest//framework_shared/internal:runner_dl_info.h",
+    "@com_google_fuzztest//framework_shared/internal:runtime_interceptors.cc",
+    "@com_google_fuzztest//framework_shared/internal:sancov_callbacks.cc",
+    "@com_google_fuzztest//framework_shared/internal:sancov_object_array.cc",
+    "@com_google_fuzztest//framework_shared/internal:sancov_object_array.h",
+    "@com_google_fuzztest//framework_shared/internal:sancov_state.cc",
+    "@com_google_fuzztest//framework_shared/internal:sancov_state.h",
+]
+
+SANCOV_RUNTIME_LINKOPTS = [
+    "-ldl",  # for dlsym
+    "-lpthread",  # for pthread_once
+] + select({
+    "@platforms//os:macos": [
+        # For compatible behavior on weak symbols.
+        "-Wl,-undefined,dynamic_lookup",
+    ],
+    "//conditions:default": [],
+})
+
+SANCOV_RUNTIME_DEPS = [
+    "@abseil-cpp//absl/base:core_headers",
+    "@abseil-cpp//absl/base:nullability",
+    "@abseil-cpp//absl/numeric:bits",
+    "@abseil-cpp//absl/types:span",
+    "@com_google_fuzztest//centipede:engine_abi",
+    "@com_google_fuzztest//centipede:feature",
+    "@com_google_fuzztest//framework_shared/internal:callstack",
+    "@com_google_fuzztest//framework_shared/internal:execution_metadata",
+    "@com_google_fuzztest//framework_shared/internal:foreach_nonzero",
+    "@com_google_fuzztest//framework_shared/internal:int_utils",
+    "@com_google_fuzztest//framework_shared/internal:interceptor_utils",
+    "@com_google_fuzztest//framework_shared/internal:runner_cmp_trace",
+    "@com_google_fuzztest//framework_shared/internal:sancov_utils",
+]
+
 cc_library(
     name = "sancov_runtime",
-    srcs = [
-        "@com_google_fuzztest//centipede:pc_info.h",
-        "@com_google_fuzztest//common:defs.h",
-        "@com_google_fuzztest//framework_shared/internal:coverage_interceptors.cc",
-        "@com_google_fuzztest//framework_shared/internal:reverse_pc_table.h",
-        "@com_google_fuzztest//framework_shared/internal:runner_dl_info.cc",
-        "@com_google_fuzztest//framework_shared/internal:runner_dl_info.h",
-        "@com_google_fuzztest//framework_shared/internal:runtime_interceptors.cc",
-        "@com_google_fuzztest//framework_shared/internal:sancov_callbacks.cc",
-        "@com_google_fuzztest//framework_shared/internal:sancov_object_array.cc",
-        "@com_google_fuzztest//framework_shared/internal:sancov_object_array.h",
-        "@com_google_fuzztest//framework_shared/internal:sancov_state.cc",
-        "@com_google_fuzztest//framework_shared/internal:sancov_state.h",
-    ],
+    srcs = SANCOV_RUNTIME_SRCS,
     hdrs = [
         "sancov_runtime.h",
     ],
-    copts = DISABLE_SANCOV_COPTS,
-    linkopts = select({
-        "@platforms//os:macos": [
-            # For compatible behavior on weak symbols.
-            "-Wl,-undefined,dynamic_lookup",
-        ],
-        "//conditions:default": [],
-    }),
+    copts = SANCOV_RUNTIME_COPTS,
+    linkopts = SANCOV_RUNTIME_LINKOPTS,
     # Must be linked statically into the main executable: runner_dl_info checks
     # that sancov_runtime's code/globals reside within the main executable, and
     # the strong function interceptors must override weak aliases in statically
     # linked sanitizer runtimes.
     linkstatic = True,
+    deps = SANCOV_RUNTIME_DEPS,
+    alwayslink = True,
+)
+
+# Same as :sancov_runtime, except it can be sanitized to avoid false positives
+# like AddressSanitizerContainerOverflow when linked with
+# @com_google_fuzztest//centipede:centipede_runner_no_main_sanitized.
+cc_library(
+    name = "sancov_runtime_sanitized",
+    srcs = SANCOV_RUNTIME_SRCS,
+    hdrs = [
+        "sancov_runtime.h",
+    ],
+    copts = DISABLE_SANCOV_COPTS,
+    linkopts = SANCOV_RUNTIME_LINKOPTS,
+    linkstatic = True,
+    visibility = ["@com_google_fuzztest//centipede:__pkg__"],
+    deps = SANCOV_RUNTIME_DEPS,
+    alwayslink = True,
+)
+
+cc_test(
+    name = "sancov_runtime_test",
+    srcs = ["sancov_runtime_test.cc"],
+    copts = DISABLE_SANCOV_COPTS,
+    env = {
+        "CENTIPEDE_RUNNER_FLAGS": ":use_cmp_features:use_auto_dictionary:",
+    },
     deps = [
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/base:nullability",
-        "@abseil-cpp//absl/numeric:bits",
-        "@abseil-cpp//absl/types:span",
+        ":sancov_runtime",
         "@com_google_fuzztest//centipede:engine_abi",
         "@com_google_fuzztest//centipede:feature",
-        "@com_google_fuzztest//framework_shared/internal:callstack",
-        "@com_google_fuzztest//framework_shared/internal:execution_metadata",
-        "@com_google_fuzztest//framework_shared/internal:foreach_nonzero",
-        "@com_google_fuzztest//framework_shared/internal:int_utils",
-        "@com_google_fuzztest//framework_shared/internal:interceptor_utils",
-        "@com_google_fuzztest//framework_shared/internal:runner_cmp_trace",
-        "@com_google_fuzztest//framework_shared/internal:sancov_utils",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "sancov_runtime_sanitized_test",
+    srcs = ["sancov_runtime_test.cc"],
+    copts = DISABLE_SANCOV_COPTS,
+    env = {
+        "CENTIPEDE_RUNNER_FLAGS": ":use_cmp_features:use_auto_dictionary:",
+    },
+    deps = [
+        ":sancov_runtime_sanitized",
+        "@com_google_fuzztest//centipede:engine_abi",
+        "@com_google_fuzztest//centipede:feature",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -104,11 +163,30 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:logging",
+        "@com_google_fuzztest//framework_shared/internal:crash_reporting_internal",
         "@com_google_fuzztest//framework_shared/internal:symbol_name_utils",
     ] + select({
         "//conditions:default": [],
     }),
     alwayslink = True,
+)
+
+cc_test(
+    name = "crash_reporting_c_test",
+    srcs = ["crash_reporting_c_test.c"],
+    copts = ["-Werror=strict-prototypes"],
+    deps = [
+        ":crash_reporting",
+    ],
+)
+
+cc_test(
+    name = "sancov_runtime_c_test",
+    srcs = ["sancov_runtime_c_test.c"],
+    copts = DISABLE_SANCOV_COPTS + ["-Werror=strict-prototypes"],
+    deps = [
+        ":sancov_runtime",
+    ],
 )
 
 cc_test(
@@ -123,6 +201,7 @@ cc_test(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//framework_shared/internal:crash_reporting_internal",
         "@googletest//:gtest_main",
     ],
 )

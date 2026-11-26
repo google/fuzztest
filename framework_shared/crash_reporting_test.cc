@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "./framework_shared/internal/crash_reporting_internal.h"
 
 #if defined(ABSL_HAVE_THREAD_SANITIZER)
 #include <cstdio>

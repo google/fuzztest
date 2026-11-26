@@ -18,6 +18,7 @@
 #include <pthread.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -27,6 +28,7 @@
 #include <new>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/const_init.h"
 #include "absl/base/nullability.h"
 #include "absl/numeric/bits.h"
@@ -41,13 +43,10 @@
 #include "./framework_shared/internal/runner_dl_info.h"
 #include "./framework_shared/internal/sancov_object_array.h"
 #include "./framework_shared/internal/sancov_utils.h"
-#include "./framework_shared/sancov_runtime.h"
 
 // Use this attribute for functions that must not be instrumented even if
 // the library is built with sanitizers (asan, etc).
 #define FUZZTEST_NO_SANITIZE __attribute__((no_sanitize("all")))
-
-extern "C" const char* absl_nullable GetSancovFlags();
 
 namespace fuzztest::internal {
 
@@ -197,10 +196,10 @@ struct ThreadLocalSancovState {
 };
 
 struct SancovState {
-  SancovState();
+  explicit SancovState(const char* absl_nullable sancov_flags);
   ~SancovState();
 
-  SancovFlagHelper flag_helper = SancovFlagHelper(GetSancovFlags());
+  SancovFlagHelper flag_helper;
 
   // TODO(xinhaoyuan): Change to use meaningful flag names instead of the
   // generic names arg1/2/3.
@@ -355,29 +354,23 @@ void PrepareSancov(bool full_clear);
 __attribute__((noinline))  // so that we see it in profile.
 void PostProcessSancov(bool reject_input = false);
 
-void MaybeAddFeature(feature_t feature);
+using StackLimitCallback = void (*)(size_t stack_usage, bool is_current_stack);
 
-// Returns a pointer to `g_features` and its length.
-SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures();
+// Registered callback for stack-limit checks.
+extern std::atomic<StackLimitCallback> stack_limit_callback;
 
-// Gets the execution metadata gathered in `PostProcessSancov`.
-const ExecutionMetadata& SanCovRuntimeGetExecutionMetadata();
-
-// Convert Centipede features in `{start, start + size}` to the engine feature
-// layout as in `engine_abi.h`.
-void SanCovRuntimeConvertToEngineFeatures(feature_t* start, size_t size);
-
-// Check for stack limit for `stack_usage`, with `is_current_stack` set if it
-// is for the current calling stack.
-__attribute__((weak)) void CheckStackLimit(size_t stack_usage,
-                                           bool is_current_stack);
+// Invokes the registered stack-limit callback, if any.
+ABSL_ATTRIBUTE_NO_SANITIZE_CFI inline void MaybeCheckStackLimit(
+    size_t stack_usage, bool is_current_stack) {
+  if (StackLimitCallback callback =
+          stack_limit_callback.load(std::memory_order_acquire);
+      callback != nullptr) {
+    callback(stack_usage, is_current_stack);
+  }
+}
 
 extern ExplicitLifetime<SancovState> sancov_state;
 extern __thread ThreadLocalSancovState tls;
-
-// Initializes the sancov runtime. Must be called before using it. It can be
-// called multiple times while only the first time is effective.
-void SancovRuntimeInitialize();
 
 }  // namespace fuzztest::internal
 

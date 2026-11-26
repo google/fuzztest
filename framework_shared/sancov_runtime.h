@@ -34,6 +34,41 @@ struct SanCovRuntimeRawFeatureParts {
   size_t num_features;
 };
 
+// Callback invoked when the observed stack usage of a thread increases or
+// during coverage post-processing. `is_current_stack` is true when called
+// synchronously on the thread whose stack grew, and false when called during
+// post-processing for a thread's recorded stack usage.
+typedef void (*SanCovRuntimeStackLimitCallback)(size_t stack_usage,
+                                                bool is_current_stack);
+
+// An overridable hook to get the SanCov runtime flags during initialization.
+// The default weak implementation reads the `CENTIPEDE_RUNNER_FLAGS`
+// environment variable.
+//
+// Should return either NULL or a constant string valid for the lifetime of the
+// process. Multiple calls should always return the same value.
+const char* GetSancovFlags(void);
+
+// Initializes the SanCov runtime. Can be called multiple times; only the first
+// call takes effect. Call this before using the runtime during static
+// initialization (when initialization order across translation units is
+// unspecified).
+void SanCovRuntimeInitialize(void);
+
+// Registers a callback for checking stack usage limits, or clears it when
+// `callback` is NULL.
+void SanCovRuntimeSetStackLimitCallback(
+    SanCovRuntimeStackLimitCallback callback);
+
+// Enables (if `traced` is true) or disables (if `traced` is false) SanCov
+// feedback tracing on the current thread. Returns the previous `traced` value.
+bool SanCovRuntimeSetCurrentThreadTraced(bool traced);
+
+// Sets whether the current thread is ignored when iterating thread-local
+// SanCov states (e.g., for internal helper threads that do not execute user
+// code).
+void SanCovRuntimeSetCurrentThreadIgnored(bool ignored);
+
 // Clears coverage data accumulated so far from sancov callbacks and/or
 // interceptors.
 //
@@ -56,20 +91,41 @@ void SanCovRuntimeClearCoverage(bool full_clear);
 // `SanCovRuntimeEmitFeatures` to work with the engine.
 struct SanCovRuntimeRawFeatureParts SanCovRuntimeGetCoverage(bool reject_input);
 
+// Returns the post-processed features in the raw Centipede layout from the
+// most recent `SanCovRuntimePostProcessCoverage` call.
+//
+// DEPRECATED: the features here are in the raw Centipede layout instead of
+// the standard engine layout. Use `SanCovRuntimePostProcessCoverage` +
+// `SanCovRuntimeEmitFeatures` to work with the engine.
+struct SanCovRuntimeRawFeatureParts SanCovRuntimeGetRawFeatures(void);
+
+// Converts raw Centipede features in `[features, features + num_features)`
+// in-place to the engine feature layout defined in `engine_abi.h`.
+//
+// DEPRECATED: only needed for legacy `CentipedeSetExecutionResult` support.
+void SanCovRuntimeConvertToEngineFeatures(uint64_t* features,
+                                          size_t num_features);
+
+// Returns the serialized CMP metadata gathered by the most recent
+// `SanCovRuntimePostProcessCoverage` call, as packed entries of the form
+// `[size: uint8_t][value0: size bytes][value1: size bytes]...`. The returned
+// view remains valid until the next `SanCovRuntimePostProcessCoverage` call.
+FuzzTestBytesView SanCovRuntimeGetCmpData(void);
+
 // Registers the SanCov coverage domains. Returns next available domain ID.
 size_t SanCovRuntimeSetUpCoverageDomains(
     const FuzzTestCoverageDomainRegistry* registry);
 
 // Post-processes all coverage data, and saves it internally for later emission
-// and retrival.
+// and retrieval.
 //
 // If `reject_input==true`, no coverage would be saved.
 void SanCovRuntimePostProcessCoverage(bool reject_input);
 
 // Emits post-processed SanCov coverage features into the engine `sink`.
 //
-// Should be called at most once after `SanCovPostProcessCoverage` - later calls
-// will emit empty coverage.
+// Should be called at most once after `SanCovRuntimePostProcessCoverage` -
+// later calls will emit empty coverage.
 void SanCovRuntimeEmitFeatures(const FuzzTestFeedbackSink* sink);
 
 #ifdef __cplusplus

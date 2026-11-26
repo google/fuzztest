@@ -26,8 +26,7 @@ package(default_visibility = DEFAULT_VISIBILITY)
 
 licenses(["notice"])
 
-# Both :sancov_runtime (in framework_shared) and centipede_runner
-# (TODO(b/436308818)) compile these files directly with specific flags.
+# Compiled directly by @com_google_fuzztest//framework_shared:sancov_runtime.
 exports_files(
     srcs = [
         "coverage_interceptors.cc",
@@ -42,9 +41,7 @@ exports_files(
         "sancov_state.cc",
         "sancov_state.h",
     ],
-    visibility = DEFAULT_VISIBILITY + [
-        "@com_google_fuzztest//centipede:__pkg__",
-    ],
+    visibility = DEFAULT_VISIBILITY,
 )
 
 # TODO(b/436366556): Remove and replace once this is standardized.
@@ -56,10 +53,6 @@ cc_library(
     name = "callstack",
     hdrs = ["callstack.h"],
     copts = DISABLE_SANCOV_COPTS,
-    # TODO(b/436308818): Drop centipede visibility once centipede_runner depends on :sancov_runtime.
-    visibility = DEFAULT_VISIBILITY + [
-        "@com_google_fuzztest//centipede:__pkg__",
-    ],
     # Avoid non-trivial dependencies here, as this library will be linked to target binaries.
     deps = [
         ":rolling_hash",
@@ -75,6 +68,17 @@ cc_test(
         "@abseil-cpp//absl/container:flat_hash_set",
         "@com_google_fuzztest//common:defs",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "crash_reporting_internal",
+    hdrs = ["crash_reporting_internal.h"],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:string_view",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -108,10 +112,6 @@ cc_library(
     name = "foreach_nonzero",
     hdrs = ["foreach_nonzero.h"],
     copts = DISABLE_SANCOV_COPTS,
-    # TODO(b/436308818): Drop centipede visibility once centipede_runner depends on :sancov_runtime.
-    visibility = DEFAULT_VISIBILITY + [
-        "@com_google_fuzztest//centipede:__pkg__",
-    ],
 )
 
 cc_test(
@@ -128,10 +128,6 @@ cc_library(
     name = "int_utils",
     hdrs = ["int_utils.h"],
     copts = DISABLE_SANCOV_COPTS,
-    # TODO(b/436308818): Drop centipede visibility once centipede_runner depends on :sancov_runtime.
-    visibility = DEFAULT_VISIBILITY + [
-        "@com_google_fuzztest//centipede:__pkg__",
-    ],
 )
 
 cc_test(
@@ -149,10 +145,6 @@ cc_library(
     hdrs = ["interceptor_utils.h"],
     copts = DISABLE_SANCOV_COPTS,
     linkopts = ["-ldl"],  # for dlsym
-    # TODO(b/436308818): Drop centipede visibility once centipede_runner depends on :sancov_runtime.
-    visibility = DEFAULT_VISIBILITY + [
-        "@com_google_fuzztest//centipede:__pkg__",
-    ],
 )
 
 cc_library(
@@ -177,7 +169,7 @@ cc_library(
     name = "rolling_hash",
     hdrs = ["rolling_hash.h"],
     copts = DISABLE_SANCOV_COPTS,
-    # Used by centipede:feature (hashed_ring_buffer.h) and centipede_runner (b/436308818).
+    # Used by centipede:feature (hashed_ring_buffer.h).
     visibility = DEFAULT_VISIBILITY + [
         "@com_google_fuzztest//centipede:__pkg__",
     ],
@@ -198,7 +190,7 @@ cc_library(
     name = "runner_cmp_trace",
     hdrs = ["runner_cmp_trace.h"],
     copts = DISABLE_SANCOV_COPTS,
-    # Used by centipede:byte_array_mutator_test and centipede_runner (b/436308818).
+    # Used by centipede:byte_array_mutator_test.
     visibility = DEFAULT_VISIBILITY + [
         "@com_google_fuzztest//centipede:__pkg__",
     ],
@@ -230,10 +222,6 @@ cc_library(
     srcs = ["sancov_utils.cc"],
     hdrs = ["sancov_utils.h"],
     copts = DISABLE_SANCOV_COPTS,
-    # TODO(b/436308818): Drop centipede visibility once centipede_runner depends on :sancov_runtime.
-    visibility = DEFAULT_VISIBILITY + [
-        "@com_google_fuzztest//centipede:__pkg__",
-    ],
     deps = [
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",

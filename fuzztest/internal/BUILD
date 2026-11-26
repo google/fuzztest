@@ -109,6 +109,7 @@ cc_library(
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:temp_dir",
+        "@com_google_fuzztest//framework_shared:sancov_runtime",
         "@com_google_fuzztest//framework_shared/internal:execution_metadata",
         "@com_google_fuzztest//fuzztest/internal/domains:core_domains_impl",
     ],
