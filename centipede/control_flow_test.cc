@@ -98,6 +98,15 @@ TEST(CFTable, MakeCfgFromCfTable) {
   FUZZTEST_CHECK_EQ(cfg.GetCyclomaticComplexity(1), 2);
 }
 
+TEST(CFTableDeathTest, MakeCfgFromTruncatedCfTable) {
+  // The record for PC 1 is missing both of its delimiters, which is what a
+  // partially written cf-table file looks like.
+  static const CFTable truncated_cf_table = {1, 2, 3};
+  ControlFlowGraph cfg;
+  EXPECT_DEATH(cfg.InitializeControlFlowGraph(truncated_cf_table, g_pc_table),
+               "Malformed CF table");
+}
+
 TEST(CFTable, SerializesAndDeserializesCfTable) {
   std::stringstream stream;
   WriteCfTable(g_cf_table, stream);

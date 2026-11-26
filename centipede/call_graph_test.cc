@@ -72,6 +72,15 @@ TEST(CallGraphDeathTest, CgNoneExistentPc) {
   EXPECT_DEATH(call_graph.GetBasicBlockCallees(666), "");
 }
 
+TEST(CallGraphDeathTest, CgTruncatedCfTable) {
+  // The record for PC 1 is missing both of its delimiters, which is what a
+  // partially written cf-table file looks like.
+  static const CFTable truncated_cf_table = {1, 2, 3};
+  CallGraph call_graph;
+  EXPECT_DEATH(call_graph.InitializeCallGraph(truncated_cf_table, g_pc_table),
+               "Malformed CF table");
+}
+
 TEST(CallGraph, BuildCgFromCfTable) {
   CallGraph call_graph;
   call_graph.InitializeCallGraph(g_cf_table, g_pc_table);
