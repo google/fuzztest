@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::domains::GenericCorpusValue;
+use super::domains::{GenericCorpusValue, GenericDomain};
 use super::internal::{BoxedFuzzTest, FuzzTest};
 use super::options::{self, CentipedeArgs, ExecutionAction};
 use ::engine::engine_ffi;
@@ -21,13 +21,12 @@ use ::engine::{
 };
 use spin::Mutex;
 use std::env;
-use std::ffi::c_int;
-use std::ffi::CString;
+use std::ffi::{c_int, OsStr};
 use std::fs;
+use std::io::{self, Write as _};
 use std::path::Path;
 use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::LazyLock;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -92,7 +91,6 @@ pub(crate) fn emit_finding(description: &str, signature: &str) {
 /// - it could not get the lock on DiagnosticSink.
 /// - it got the lock but the global DiagnosticSink was not set.
 /// - diagnostic sink was set but the test was not executing.
-#[allow(dead_code)]
 pub(crate) fn try_emit_finding(description: &str, signature: &str) -> bool {
     let Some(diagnostic_guard) = DIAGNOSTIC_SINK.try_lock() else {
         return false;
@@ -110,9 +108,9 @@ pub(crate) fn try_emit_finding(description: &str, signature: &str) -> bool {
     true
 }
 
-// We double-box the input because `GenericCorpusValue` is a fat pointer (`Box<dyn Any>`),
+// We double-box the input because `GenericCorpusValue` is a fat pointer (`Box<dyn CloneAny>`),
 // which cannot be directly represented as a single `usize` in `FuzzTestInputHandle` for FFI.
-// By boxing it again, we get a thin pointer (`Box<Box<dyn Any>>`) that can be safely cast
+// By boxing it again, we get a thin pointer (`Box<Box<dyn CloneAny>>`) that can be safely cast
 // to `usize`.
 // The memory is reclaimed when the engine calls `free_input`, which reconstructs the outer
 // box using `Box::from_raw` and drops it, thereby dropping the inner box and the value.
@@ -143,39 +141,42 @@ impl Drop for ExecutionGuard {
     }
 }
 
+/// Drives one [`FuzzTest`] instance for the fuzzing engine.
 pub struct RustFuzzTestAdapter {
     fuzz_test: BoxedFuzzTest,
 }
 
 impl RustFuzzTestAdapter {
+    /// Runs `f` with the domains of the fuzz test locked.
+    ///
+    /// The lock is released before this returns, so callers never hold it while they call back
+    /// into the engine.
+    fn with_domains<R>(&self, f: impl FnOnce(&mut dyn GenericDomain) -> R) -> R {
+        let domains = self.fuzz_test.domains();
+        // The lock is only poisoned if a `Domain` method panicked while holding it. In worker
+        // mode that panic already aborted the process, because it unwound into an `extern "C"`
+        // callback.
+        let mut guard = domains.lock().expect("a Domain method panicked while holding the lock");
+        f(&mut *guard)
+    }
+
     pub fn set_up_coverage_domains(&self, registry: &mut CoverageDomainRegistry) {
         registry.set_up_sancov_domains();
     }
 
     pub fn get_random_seed_input(&self, sink: &mut InputSink) {
-        let domains = self.fuzz_test.domains();
-        let mut domains_guard = domains.lock().expect("Failed to lock domains");
-        match domains_guard.init(&mut rand::rng()) {
-            Ok(val) => {
-                sink.emit(pack_input(val));
-            }
-            Err(e) => {
-                emit_error(&format!("Failed to initialize random seed: {:?}", e));
-            }
+        match self.with_domains(|domains| domains.init(&mut rand::rng())) {
+            Ok(value) => sink.emit(pack_input(value)),
+            Err(e) => emit_error(&format!("Failed to initialize random seed: {:?}", e)),
         }
     }
 
     pub fn mutate(&self, origin: &GenericCorpusValue, shrink: bool, sink: &mut InputSink) {
         let mut mutant = origin.clone();
-        let domains = self.fuzz_test.domains();
-        let mut domains_guard = domains.lock().expect("Failed to lock domains");
-
-        if let Err(e) = domains_guard.mutate(&mut mutant, &mut rand::rng(), shrink) {
-            emit_error(&format!("Failed to mutate: {:?}", e));
-            return;
+        match self.with_domains(|domains| domains.mutate(&mut mutant, &mut rand::rng(), shrink)) {
+            Ok(()) => sink.emit(pack_input(mutant)),
+            Err(e) => emit_error(&format!("Failed to mutate: {:?}", e)),
         }
-
-        sink.emit(pack_input(mutant));
     }
 
     pub fn execute(&self, input: &GenericCorpusValue, sink: &mut FeedbackSink) {
@@ -203,28 +204,16 @@ impl RustFuzzTestAdapter {
     }
 
     pub fn serialize_input_content(&self, input: &GenericCorpusValue, sink: &mut BytesSink) {
-        let domains = self.fuzz_test.domains();
-        let domains_guard = domains.lock().expect("Failed to lock domains");
-        match domains_guard.serialize_corpus(input) {
-            Ok(serialized) => {
-                sink.emit(&serialized);
-            }
-            Err(e) => {
-                emit_error(&format!("Failed to serialize input: {:?}", e));
-            }
+        match self.with_domains(|domains| domains.serialize_corpus(input)) {
+            Ok(serialized) => sink.emit(&serialized),
+            Err(e) => emit_error(&format!("Failed to serialize input: {:?}", e)),
         }
     }
 
     pub fn deserialize_input_content(&self, content: &[u8], sink: &mut InputSink) {
-        let domains = self.fuzz_test.domains();
-        let domains_guard = domains.lock().expect("Failed to lock domains");
-        match domains_guard.parse_corpus(content) {
-            Ok(val) => {
-                sink.emit(pack_input(val));
-            }
-            Err(e) => {
-                emit_error(&format!("Failed to deserialize input: {:?}", e));
-            }
+        match self.with_domains(|domains| domains.parse_corpus(content)) {
+            Ok(value) => sink.emit(pack_input(value)),
+            Err(e) => emit_error(&format!("Failed to deserialize input: {:?}", e)),
         }
     }
 
@@ -240,23 +229,25 @@ impl RustFuzzTestAdapter {
     }
 }
 
+/// Identifies a registered fuzz test and constructs its [`FuzzTest`] instances.
 pub struct RustFuzzTestAdapterManager {
+    /// Rust module-qualified name of the fuzz test.
     pub test_name: &'static str,
+    /// Factory that constructs a fresh [`BoxedFuzzTest`] for the test.
     pub fuzz_test_factory: fn() -> BoxedFuzzTest,
+}
+
+fn binary_id_from_argv0(argv0: Option<&OsStr>) -> &[u8] {
+    argv0.and_then(|arg| Path::new(arg).file_name()).unwrap_or_default().as_encoded_bytes()
 }
 
 impl RustFuzzTestAdapterManager {
     pub fn get_binary_id(&self, sink: &mut BytesSink) {
-        static ARGV0: LazyLock<CString> = LazyLock::new(|| {
-            CString::new(
-                Path::new(&env::args().next().unwrap())
-                    .file_name()
-                    .and_then(|f| f.to_str())
-                    .unwrap_or(""),
-            )
-            .expect("argv[0] should not contain null bytes")
-        });
-        sink.emit(ARGV0.as_bytes());
+        // The engine asks for the binary ID at most once per process, so nothing is cached. A
+        // missing `argv[0]` yields an empty ID and a non-UTF-8 one is emitted as is: this runs
+        // inside an `extern "C"` callback and must not panic.
+        let argv0 = env::args_os().next();
+        sink.emit(binary_id_from_argv0(argv0.as_deref()));
     }
 
     // Replaces "::" with "." to avoid parsing issues in Centipede. Centipede uses ":" as a
@@ -268,10 +259,10 @@ impl RustFuzzTestAdapterManager {
     }
 
     pub fn construct_adapter(&self) -> RustFuzzTestAdapter {
-        let fuzz_test = (self.fuzz_test_factory)();
-        RustFuzzTestAdapter { fuzz_test }
+        RustFuzzTestAdapter { fuzz_test: self.construct_fuzz_test() }
     }
 
+    /// Constructs a new [`BoxedFuzzTest`] instance for this test.
     pub fn construct_fuzz_test(&self) -> BoxedFuzzTest {
         (self.fuzz_test_factory)()
     }
@@ -527,37 +518,41 @@ pub unsafe extern "C" fn free_ctx_callback(ctx: *mut engine_ffi::FuzzTestAdapter
     }
 }
 
+/// Runs `fuzztest` locally with random mutations for a short fixed duration.
+///
+/// # Panics
+///
+/// Panics if locking, initializing, or mutating the test domains fails, or if the property
+/// function fails on a generated input.
 pub fn run_smoke_test(fuzztest: &dyn FuzzTest) {
-    let start_time = Instant::now();
-
     // TODO(the-shank): these should be configurable externally.
-    let smoke_test_duration = Duration::from_secs(1);
-    let only_shrink = false;
+    const SMOKE_TEST_DURATION: Duration = Duration::from_secs(1);
+    const ONLY_SHRINK: bool = false;
 
+    let deadline = Instant::now() + SMOKE_TEST_DURATION;
+    let domains = fuzztest.domains();
     // TODO(the-shank): the rng seed should be configurable
     let mut rng = rand::rng();
 
-    let mut generic_corpus_value = fuzztest
-        .domains()
+    let mut corpus_value = domains
         .lock()
         .expect("Failed to lock domains")
         .init(&mut rng)
         .expect("domain initialization should succeed to provide an initial corpus value");
-
-    let result = fuzztest.execute(&generic_corpus_value);
-    // DISCUSS: probably need a more "googletest" approach to handling the result here?
-    assert!(result);
-
-    while start_time.elapsed() < smoke_test_duration {
-        fuzztest
-            .domains()
+    loop {
+        // DISCUSS: probably need a more "googletest" approach to handling the result here?
+        assert!(
+            fuzztest.execute(&corpus_value),
+            "the property function failed; see the counterexample reported above"
+        );
+        if Instant::now() >= deadline {
+            break;
+        }
+        domains
             .lock()
             .expect("Failed to lock domains")
-            .mutate(&mut generic_corpus_value, &mut rng, only_shrink)
+            .mutate(&mut corpus_value, &mut rng, ONLY_SHRINK)
             .expect("domain mutation should succeed");
-        let result = fuzztest.execute(&generic_corpus_value);
-        // DISCUSS: probably need a more "googletest" approach to handling the result here?
-        assert!(result);
     }
 }
 
@@ -568,78 +563,86 @@ pub enum WorkerStatus {
 
 /// Processes and executes a fuzz test using the provided [`RustFuzzTestAdapterManager`].
 ///
-/// This function serves as the primary entry point for running a fuzz test. It manages test
-/// execution across two operational modes:
+/// This function serves as the primary entry point for running a fuzz test:
 ///
-/// 1. Worker Mode: Registers signal/sanitizer crash handlers and attempts to hand off execution to
-///    the external fuzzing engine (e.g., Centipede) via [`maybe_run_as_worker`].
+/// 1. Worker mode: registers the sanitizer crash handler and offers the test to the fuzzing engine.
 ///    - If the binary was spawned as a worker process by the fuzzing engine, control remains in the
-///      engine loop until complete.
-///    - Returns cleanly on [`WorkerStatus::Success`], or panics on [`WorkerStatus::Failure`] to
-///      signal test failure to the harness.
-/// 2. Smoke Test Mode: If worker mode is not active (e.g., during standard `blaze test` or `cargo
-///    test` unit test runs), falls back to executing a short local smoke test using sample inputs
-///    and mutation iterations to verify property function sanity.
+///      engine loop until it completes.
+///    - Returns cleanly on [`WorkerStatus::Success`], so that the harness continues with the next
+///      test, and exits the process with status 1 on [`WorkerStatus::Failure`].
+/// 2. Otherwise, runs the action selected by the FuzzTest options: runs the fuzzing controller
+///    (standalone fuzzing or crash replay), or falls back to a short local smoke test, as in
+///    standard `blaze test` or `cargo test` runs.
+///
+/// # Panics
+///
+/// Panics if the FuzzTest options cannot be turned into an execution action, if the controller
+/// reports a failure (when fuzzing or listing crashes), or if the smoke test panics (see
+/// [`run_smoke_test`]).
 pub fn process(manager: RustFuzzTestAdapterManager) {
     super::crash_handler::register_crash_handler();
 
-    // box it to get a stable heap address.
-    let manager = Box::new(manager);
-
-    if let Some(status) = maybe_run_as_worker(&manager) {
-        match status {
-            WorkerStatus::Success => {
-                // do nothing, the harness would continue to the next test
-                return;
-            }
-            WorkerStatus::Failure => {
-                process::exit(1);
-            }
-        }
+    match maybe_run_as_worker(&manager) {
+        // The harness continues with the next test.
+        Some(WorkerStatus::Success) => return,
+        Some(WorkerStatus::Failure) => process::exit(1),
+        // Worker mode was not requested.
+        None => {}
     }
 
-    // worker mode was not run -- determine what to do next.
     match options::determine_execution_action(manager.test_name) {
-        ExecutionAction::Standalone(centipede_args) => {
-            let status = run_standalone_mode(&manager, centipede_args);
-            if status == engine_ffi::FuzzTestControllerStatus::Failure {
-                panic!("FuzzTest controller reported failure");
-            }
-        }
+        ExecutionAction::Standalone(args) => run_controller(&manager, args),
         ExecutionAction::ReplayAllCrashes { args, list_file } => {
-            let status = run_standalone_mode(&manager, args);
-            if status == engine_ffi::FuzzTestControllerStatus::Failure {
-                panic!("FuzzTest controller reported failure");
-            }
-
-            // Now read the file and replay each crash
-            if let Ok(contents) = fs::read_to_string(list_file.path()) {
-                let options = options::get_fuzztest_options();
-                for crash_id in contents.lines() {
-                    let crash_id = crash_id.trim();
-                    if crash_id.is_empty() {
-                        continue;
-                    }
-                    let replay_mode =
-                        options::ExecutionMode::ReplayCrash(options::ReplayCrashOptions {
-                            replay_id: crash_id.to_string(),
-                        });
-                    if let Ok(Some(replay_args)) = CentipedeArgs::from_execution_mode(
-                        &replay_mode,
-                        options,
-                        manager.test_name,
-                        None,
-                    ) {
-                        // We ignore the result here because replaying a crash is expected to fail
-                        // (report failure). We want to continue replaying other crashes.
-                        let _ = run_standalone_mode(&manager, replay_args);
-                    }
-                }
-            }
+            run_controller(&manager, args);
+            replay_listed_crashes(&manager, list_file.path());
         }
         ExecutionAction::SmokeTest => {
             let fuzz_test = manager.construct_fuzz_test();
             run_smoke_test(fuzz_test.as_ref());
+        }
+    }
+}
+
+/// Runs the controller and panics if it reports a failure, which fails the test in the harness.
+fn run_controller(manager: &RustFuzzTestAdapterManager, args: CentipedeArgs) {
+    let status = run_standalone_mode(manager, args);
+    if status == engine_ffi::FuzzTestControllerStatus::Failure {
+        panic!("FuzzTest controller reported failure");
+    }
+}
+
+/// Replays every crash listed in `list_file`, with one controller run per crash ID.
+///
+/// A list that cannot be read and a replay that cannot be prepared are reported as warnings.
+/// They do not fail the test, in the same way that a crash that reproduces does not: this mode
+/// replays as much as it can.
+fn replay_listed_crashes(manager: &RustFuzzTestAdapterManager, list_file: &Path) {
+    let crash_ids = match fs::read_to_string(list_file) {
+        Ok(crash_ids) => crash_ids,
+        Err(e) => {
+            let _ = writeln!(
+                io::stderr(),
+                "warning: no crash was replayed, cannot read the crash list {}: {e}",
+                list_file.display()
+            );
+            return;
+        }
+    };
+    let options = options::get_fuzztest_options();
+    for crash_id in crash_ids.lines().map(str::trim).filter(|crash_id| !crash_id.is_empty()) {
+        let replay_mode = options::ExecutionMode::ReplayCrash(options::ReplayCrashOptions {
+            replay_id: crash_id.to_string(),
+        });
+        match CentipedeArgs::from_execution_mode(&replay_mode, options, manager.test_name, None) {
+            Ok(Some(replay_args)) => {
+                // The status is ignored: replaying a crash is expected to report a failure, and
+                // the remaining crashes should still be replayed.
+                let _ = run_standalone_mode(manager, replay_args);
+            }
+            Ok(None) => unreachable!("replaying a crash always runs Centipede"),
+            Err(e) => {
+                let _ = writeln!(io::stderr(), "warning: crash {crash_id} was not replayed: {e:#}");
+            }
         }
     }
 }
@@ -666,13 +669,14 @@ fn make_ffi_manager(manager: &RustFuzzTestAdapterManager) -> engine_ffi::FuzzTes
 /// # Returns
 /// - `Some(WorkerStatus::Success)`: The process ran in worker mode and completed successfully.
 /// - `Some(WorkerStatus::Failure)`: The process ran in worker mode and encountered a failure.
-/// - `None`: Worker mode was not requested (`kFuzzTestWorkerNotRequired`). The caller should fall
-///   back to standalone smoke-test execution.
+/// - `None`: Worker mode was not requested (`kFuzzTestWorkerNotRequired`). The caller decides what
+///   to run instead.
 fn maybe_run_as_worker(manager: &RustFuzzTestAdapterManager) -> Option<WorkerStatus> {
     let ffi_manager = make_ffi_manager(manager);
 
-    // SAFETY: `manager` is a valid heap-allocated `RustFuzzTestAdapterManager`,
-    // and `ffi_manager` contains valid C-compatible function pointer callbacks.
+    // SAFETY: `ffi_manager` wraps `manager`, which is alive for the duration of this call, and
+    // `FuzzTestWorkerMaybeRun` does not retain `ffi_manager` or its context after it returns.
+    // `ffi_manager` contains valid C-compatible function pointer callbacks.
     let status = unsafe { engine_ffi::FuzzTestWorkerMaybeRun(&ffi_manager) };
 
     match status {
@@ -692,4 +696,219 @@ fn run_standalone_mode(
     // alive until the end of this function, since we have the ownership, ensuring that the
     // pointers passed to `FuzzTestControllerRun` remain valid.
     unsafe { engine_ffi::FuzzTestControllerRun(&ffi_manager, &centipede_args.as_bytes_views()) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use googletest::prelude::*;
+    use std::sync::{Arc, Mutex};
+
+    struct FakeDomain;
+
+    impl GenericDomain for FakeDomain {
+        fn init(&mut self, _rng: &mut dyn rand::Rng) -> anyhow::Result<GenericCorpusValue> {
+            Ok(Box::new(42u32))
+        }
+
+        fn mutate(
+            &mut self,
+            corpus_value: &mut GenericCorpusValue,
+            _rng: &mut dyn rand::Rng,
+            _only_shrink: bool,
+        ) -> anyhow::Result<()> {
+            let value =
+                corpus_value.downcast_mut::<u32>().expect("FakeDomain corpus value should be u32");
+            *value += 1;
+            Ok(())
+        }
+
+        fn parse_corpus(&self, data: &[u8]) -> anyhow::Result<GenericCorpusValue> {
+            let value = u32::try_from(data.len()).unwrap_or(0);
+            Ok(Box::new(value))
+        }
+
+        fn serialize_corpus(&self, val: &GenericCorpusValue) -> anyhow::Result<Vec<u8>> {
+            let value = val.downcast_ref::<u32>().expect("FakeDomain corpus value should be u32");
+            Ok(value.to_le_bytes().to_vec())
+        }
+    }
+
+    struct FakeFuzzTest {
+        domains: Arc<Mutex<FakeDomain>>,
+    }
+
+    impl FuzzTest for FakeFuzzTest {
+        fn name(&self) -> &'static str {
+            "fake_fuzz_test"
+        }
+
+        fn activate(&mut self) {}
+
+        fn mutate(&mut self) {}
+
+        fn execute(&self, _args: &GenericCorpusValue) -> bool {
+            true
+        }
+
+        fn domains(&self) -> Arc<Mutex<dyn GenericDomain>> {
+            Arc::clone(&self.domains) as Arc<Mutex<dyn GenericDomain>>
+        }
+    }
+
+    struct InputProbe {
+        domains: Arc<Mutex<dyn GenericDomain>>,
+        lock_was_released: bool,
+        emitted: Vec<engine_ffi::FuzzTestInputHandle>,
+    }
+
+    struct BytesProbe {
+        domains: Arc<Mutex<dyn GenericDomain>>,
+        lock_was_released: bool,
+        emitted: Vec<u8>,
+    }
+
+    /// Records `input` in the [`InputProbe`] pointed to by `ctx` and checks that `domains` is
+    /// unlocked during the callback.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `ctx` is a non-null, properly aligned pointer to a live, valid
+    /// [`InputProbe`] that is exclusively accessed on the current thread for the duration of this
+    /// call (with no overlapping [`InputProbe`] borrows).
+    unsafe extern "C" fn record_input(
+        ctx: *mut engine_ffi::FuzzTestInputSinkCtx,
+        input: engine_ffi::FuzzTestInputHandle,
+    ) {
+        // SAFETY: The caller guarantees `ctx` points to a live, valid, exclusively accessed
+        // `InputProbe` on this thread for the duration of this call.
+        let probe = unsafe { &mut *(ctx as *mut InputProbe) };
+        probe.lock_was_released = probe.domains.try_lock().is_ok();
+        probe.emitted.push(input);
+    }
+
+    /// Records serialized bytes in the [`BytesProbe`] pointed to by `ctx` and checks that
+    /// `domains` is unlocked during the callback.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that:
+    /// * `ctx` is a non-null, properly aligned pointer to a live, valid [`BytesProbe`] that is
+    ///   exclusively accessed on the current thread for the duration of this call (with no
+    ///   overlapping [`BytesProbe`] borrows).
+    /// * `view` is a non-null, properly aligned pointer to an initialized `FuzzTestBytesView` whose
+    ///   slice (`(*view).to_bytes()`) is valid for reads of `u8` for the duration of this call.
+    unsafe extern "C" fn record_bytes(
+        ctx: *mut engine_ffi::FuzzTestBytesSinkCtx,
+        view: *const engine_ffi::FuzzTestBytesView,
+    ) {
+        // SAFETY: The caller guarantees `ctx` points to a live, valid, exclusively accessed
+        // `BytesProbe` on this thread for the duration of this call.
+        let probe = unsafe { &mut *(ctx as *mut BytesProbe) };
+        // SAFETY: The caller guarantees `view` points to a valid `FuzzTestBytesView` whose
+        // backing byte slice is valid for reads for the duration of this call.
+        let bytes = unsafe { &*(*view).to_bytes() };
+        probe.lock_was_released = probe.domains.try_lock().is_ok();
+        probe.emitted.extend_from_slice(bytes);
+    }
+
+    fn make_fake_adapter() -> (RustFuzzTestAdapter, Arc<Mutex<dyn GenericDomain>>) {
+        let domains = Arc::new(Mutex::new(FakeDomain));
+        let domains_dyn: Arc<Mutex<dyn GenericDomain>> =
+            Arc::clone(&domains) as Arc<Mutex<dyn GenericDomain>>;
+        let adapter = RustFuzzTestAdapter { fuzz_test: Box::new(FakeFuzzTest { domains }) };
+        (adapter, domains_dyn)
+    }
+
+    #[gtest]
+    fn binary_id_from_argv0_extracts_file_name_and_handles_edge_cases() {
+        expect_eq!(
+            binary_id_from_argv0(Some(OsStr::new("/usr/local/bin/my_fuzzer"))),
+            b"my_fuzzer"
+        );
+        expect_eq!(binary_id_from_argv0(None), b"");
+        expect_eq!(binary_id_from_argv0(Some(OsStr::new(""))), b"");
+        expect_eq!(binary_id_from_argv0(Some(OsStr::new("/"))), b"");
+    }
+
+    #[cfg(unix)]
+    #[gtest]
+    fn binary_id_from_argv0_preserves_non_utf8_bytes() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt as _;
+
+        let raw = OsString::from_vec(b"/tmp/fuzz_\xff_bin".to_vec());
+        expect_eq!(binary_id_from_argv0(Some(raw.as_os_str())), b"fuzz_\xff_bin");
+    }
+
+    fn assert_input_sink_releases_lock(
+        adapter: &RustFuzzTestAdapter,
+        domains: Arc<Mutex<dyn GenericDomain>>,
+        call: impl FnOnce(&mut InputSink),
+    ) {
+        let mut probe = InputProbe { domains, lock_was_released: false, emitted: Vec::new() };
+        let raw_sink = engine_ffi::FuzzTestInputSink {
+            ctx: (&raw mut probe) as *mut engine_ffi::FuzzTestInputSinkCtx,
+            emit: Some(record_input),
+        };
+        {
+            // SAFETY: `raw_sink` points to a valid local `FuzzTestInputSink`, `raw_sink.ctx`
+            // points to `probe`, and `record_input` upholds `InputSink`'s contract while `probe`
+            // remains alive and is only accessed via `sink` on this thread until this block ends.
+            let mut sink = unsafe { InputSink::from_raw(&raw_sink) };
+            call(&mut sink);
+        }
+
+        expect_true!(probe.lock_was_released);
+        expect_eq!(probe.emitted.len(), 1);
+        for handle in probe.emitted {
+            adapter.free_input(handle);
+        }
+    }
+
+    #[gtest]
+    fn get_random_seed_input_releases_domains_lock_before_sink() {
+        let (adapter, domains) = make_fake_adapter();
+        assert_input_sink_releases_lock(&adapter, domains, |sink| {
+            adapter.get_random_seed_input(sink);
+        });
+    }
+
+    #[gtest]
+    fn mutate_releases_domains_lock_before_sink() {
+        let (adapter, domains) = make_fake_adapter();
+        let origin: GenericCorpusValue = Box::new(10u32);
+        assert_input_sink_releases_lock(&adapter, domains, |sink| {
+            adapter.mutate(&origin, false, sink);
+        });
+    }
+
+    #[gtest]
+    fn serialize_input_content_releases_domains_lock_before_sink() {
+        let (adapter, domains) = make_fake_adapter();
+        let input: GenericCorpusValue = Box::new(42u32);
+        let mut probe = BytesProbe { domains, lock_was_released: false, emitted: Vec::new() };
+        let raw_sink = engine_ffi::FuzzTestBytesSink {
+            ctx: (&raw mut probe) as *mut engine_ffi::FuzzTestBytesSinkCtx,
+            emit: Some(record_bytes),
+        };
+        {
+            // SAFETY: `raw_sink` points to a valid local `FuzzTestBytesSink`, `raw_sink.ctx`
+            // points to `probe`, and `record_bytes` upholds `BytesSink`'s contract while `probe`
+            // remains alive and is only accessed via `sink` on this thread until this block ends.
+            let mut sink = unsafe { BytesSink::from_raw(&raw_sink) };
+            adapter.serialize_input_content(&input, &mut sink);
+        }
+
+        expect_true!(probe.lock_was_released);
+        expect_eq!(probe.emitted, 42u32.to_le_bytes());
+    }
+
+    #[gtest]
+    fn deserialize_input_content_releases_domains_lock_before_sink() {
+        let (adapter, domains) = make_fake_adapter();
+        assert_input_sink_releases_lock(&adapter, domains, |sink| {
+            adapter.deserialize_input_content(b"abcd", sink);
+        });
+    }
 }
