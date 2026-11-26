@@ -867,6 +867,70 @@ TEST_F(UnitTestModeTest, FailsLoudlyWhenInitFuzzTestIsNotCalled) {
                          "InitFuzzTest was never called in main()."));
 }
 
+TEST_F(UnitTestModeTest, UnguidedFuzzForHonorsDurationAndRunsRegularTests) {
+  const absl::Time start = absl::Now();
+  auto [status, std_out, std_err] = RunWithExactFuzzerFlags(
+      "*", "testdata/unit_test_and_fuzz_tests", /*env=*/{},
+      /*fuzzer_flags=*/
+      {{"unguided", "true"}, {"fuzz_for", "3s"}, {"corpus_database", ""}});
+  const absl::Duration elapsed = absl::Now() - start;
+
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+  EXPECT_GE(elapsed, absl::Seconds(5));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Fuzzing timeout set to: 3s"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[       OK ] UnitTest.AlwaysPasses"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[       OK ] FuzzTest.AlwaysPasses"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[       OK ] FuzzTest.AlsoAlwaysPasses"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("3 tests from 2 test suites ran."));
+}
+
+TEST_F(UnitTestModeTest, UnguidedFuzzForOverridesFuzzTestFuzzForEnvVar) {
+  const absl::Time start = absl::Now();
+  auto [status, std_out, std_err] = RunWithExactFuzzerFlags(
+      "FuzzTest.AlwaysPasses", "testdata/unit_test_and_fuzz_tests",
+      /*env=*/{{"FUZZTEST_FUZZ_FOR", "0s"}},
+      /*fuzzer_flags=*/
+      {{"unguided", "true"}, {"fuzz_for", "2s"}, {"corpus_database", ""}});
+  const absl::Duration elapsed = absl::Now() - start;
+
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+  EXPECT_GE(elapsed, absl::Milliseconds(1500));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Fuzzing timeout set to: 2s"));
+}
+
+TEST_F(UnitTestModeTest, UnguidedFuzzForSplitsTotalTimeBudgetAcrossFuzzTests) {
+  const absl::Time start = absl::Now();
+  auto [status, std_out, std_err] = RunWithExactFuzzerFlags(
+      "*", "testdata/unit_test_and_fuzz_tests", /*env=*/{},
+      /*fuzzer_flags=*/
+      {{"unguided", "true"},
+       {"fuzz_for", "6s"},
+       {"time_budget_type", "total"},
+       {"corpus_database", ""}});
+  const absl::Duration elapsed = absl::Now() - start;
+
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+  EXPECT_GE(elapsed, absl::Seconds(5));
+  EXPECT_THAT_LOG(std_err, HasSubstr("Fuzzing timeout set to: 3s"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("[       OK ] UnitTest.AlwaysPasses"));
+  EXPECT_THAT_LOG(std_out, HasSubstr("3 tests from 2 test suites ran."));
+}
+
+TEST_F(UnitTestModeTest, ReplayCorpusForDoesNotExtendUnitTestSmokeDuration) {
+  const absl::Time start = absl::Now();
+  auto [status, std_out, std_err] = RunWithExactFuzzerFlags(
+      "*", "testdata/unit_test_and_fuzz_tests", /*env=*/{},
+      /*fuzzer_flags=*/
+      {{"replay_corpus_for", "10s"}, {"corpus_database", ""}});
+  const absl::Duration elapsed = absl::Now() - start;
+
+  EXPECT_THAT(status, Eq(ExitCode(0)));
+  EXPECT_LT(elapsed, absl::Seconds(5));
+  EXPECT_THAT_LOG(std_out,
+                  Not(HasSubstr("[ RUN      ] UnitTest.AlwaysPasses")));
+  EXPECT_THAT_LOG(std_out, HasSubstr("2 tests from 1 test suite ran."));
+}
+
 // Tests for the FuzzTest command line interface.
 class GenericCommandLineInterfaceTest : public ::testing::Test {
  protected:

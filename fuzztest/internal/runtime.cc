@@ -34,6 +34,7 @@
 #include <atomic>
 #include <cerrno>
 #include <csignal>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -1310,18 +1311,39 @@ bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
 
     PopulateFromSeeds(/*corpus_files=*/{});
 
-    auto duration = absl::Seconds(1);
-    const auto fuzz_for = absl::NullSafeStringView(getenv("FUZZTEST_FUZZ_FOR"));
-    if (!fuzz_for.empty()) {
+    const absl::Duration configured_time_limit =
+        configuration.only_replay ? absl::ZeroDuration()
+                                  : configuration.GetTimeLimitPerTest();
+    const bool has_configured_time_limit =
+        configured_time_limit > absl::ZeroDuration();
+    absl::Duration duration = absl::Seconds(1);
+    if (has_configured_time_limit) {
+      duration = configured_time_limit;
+      if (duration != absl::InfiniteDuration()) {
+        absl::FPrintF(GetStderr(), "[.] Fuzzing timeout set to: %s\n",
+                      absl::FormatDuration(duration));
+      }
+    } else if (const auto fuzz_for =
+                   absl::NullSafeStringView(getenv("FUZZTEST_FUZZ_FOR"));
+               !fuzz_for.empty()) {
       FUZZTEST_CHECK(absl::ParseDuration(fuzz_for, &duration))
           << "Could not parse duration in FUZZTEST_FUZZ_FOR=" << fuzz_for;
     }
     const auto time_limit = stats_.start_time + duration;
     Input mutation{params_domain_.Init(prng)};
-    const size_t max_iterations = duration == absl::ZeroDuration() ? 0 : 10000;
-    for (int i = 0; i < max_iterations; ++i) {
+    const std::optional<size_t> max_iterations =
+        has_configured_time_limit
+            ? std::nullopt
+            : std::make_optional<size_t>(
+                  duration == absl::ZeroDuration() ? 0 : 10000);
+    for (size_t i = 0; !max_iterations.has_value() || i < *max_iterations;
+         ++i) {
+      if (runtime_.termination_requested()) {
+        break;
+      }
       RunOneInput(mutation);
-      if (runtime_.external_failure_detected()) {
+      if (runtime_.external_failure_detected() ||
+          runtime_.termination_requested()) {
         break;
       }
       // We mutate the value, except that every num_mutations_per_value we
@@ -1334,9 +1356,8 @@ bool FuzzTestFuzzerImpl::RunInUnitTestMode(const Configuration& configuration) {
       }
 
       if (absl::Now() > time_limit) {
-        // Break the test after 1 second of running to avoid time outs on
-        // unittests when the fuzz test is doing a lot of work in a single
-        // iteration.
+        // Break the test after the time limit to avoid time outs on unittests
+        // when the fuzz test is doing a lot of work in a single iteration.
         break;
       }
     }

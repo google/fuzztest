@@ -504,9 +504,11 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
   internal::RegisterSeparateRegressionTestsForEachCrashingInput(configuration);
   internal::RegisterGoogleTestEventListener();
 
-  const bool is_fuzzing_or_replaying =
-      (fuzzing_time_limit || replay_corpus_time_limit);
-  if (is_fuzzing_or_replaying && !specified_test.has_value()) {
+  const bool is_guided_fuzzing =
+      !absl::GetFlag(FUZZTEST_FLAG(unguided)) && fuzzing_time_limit.has_value();
+  const bool is_guided_fuzzing_or_replaying =
+      is_guided_fuzzing || replay_corpus_time_limit.has_value();
+  if (is_guided_fuzzing_or_replaying && !specified_test.has_value()) {
     absl::flat_hash_set<std::string> fuzz_tests = {
         configuration.fuzz_tests.begin(), configuration.fuzz_tests.end()};
     std::vector<std::string> non_fuzz_tests;
@@ -532,8 +534,7 @@ void InitFuzzTest(int* argc, char*** argv, std::string_view binary_id) {
     }
   }
   // TODO(b/307513669): Use the Configuration class instead of Runtime.
-  if (!absl::GetFlag(FUZZTEST_FLAG(unguided)) &&
-      fuzzing_time_limit.has_value()) {
+  if (is_guided_fuzzing) {
     runtime.SetRunMode(RunMode::kFuzz);
   } else {
     runtime.SetRunMode(RunMode::kUnitTest);
